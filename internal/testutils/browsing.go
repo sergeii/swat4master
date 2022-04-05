@@ -1,0 +1,137 @@
+package testutils
+
+import (
+	"context"
+	"encoding/binary"
+	"fmt"
+	"net"
+	"strings"
+
+	"github.com/sergeii/swat4master/internal/api/master/browser"
+	"github.com/sergeii/swat4master/pkg/binutils"
+	gscrypt "github.com/sergeii/swat4master/pkg/gamespy/crypt"
+	"github.com/sergeii/swat4master/pkg/random"
+)
+
+func GenBrowserChallenge(l uint) []byte {
+	challenge := make([]byte, l)
+	for i := range challenge {
+		challenge[i] = uint8(random.RandInt(1, 255))
+	}
+	return challenge
+}
+
+func WithBrowserChallengeLength(l int) func([]byte) int {
+	return func(req []byte) int {
+		return l
+	}
+}
+
+func GenBrowserChallenge8() []byte {
+	return GenBrowserChallenge(8)
+}
+
+func CalcReqLength(req []byte) int {
+	return len(req)
+}
+
+func PackBrowserRequest(
+	fields []string,
+	filters string,
+	getChallenge func() []byte,
+	getLengthFunc func([]byte) int,
+) []byte {
+	req := make([]byte, 0)
+	req = append(req, []byte{0x00, 0x00}...) // first two bytes are reserved for request length declaration
+	req = append(req, 0x00)                  // request type - always zero
+	req = append(req, 0x01)                  // protocol version, always 0x01
+	req = append(req, 0x03)                  // encoding version, always 0x03
+
+	// gamespy game version, int 32, always 0
+	req = append(req, []byte{0x00, 0x00, 0x00, 0x00}...)
+
+	// gamespy game identifier and game name
+	// always seem to be equal for swat
+	req = append(req, []byte("swat4")...)
+	req = append(req, 0x00)
+	req = append(req, []byte("swat4")...)
+	req = append(req, 0x00)
+
+	// 8 byte challenge key, random
+	req = append(req, getChallenge()...)
+
+	// filters
+	req = append(req, []byte(filters)...) // can as well be an empty string
+	req = append(req, 0x00)
+
+	fieldsJoined := strings.Join(fields, "\\")
+	// fields declaration always start with a backslash
+	req = append(req, '\\')
+	req = append(req, []byte(fieldsJoined)...)
+	req = append(req, 0x00)
+
+	// last 4 bytes, int 32, options; options bitmask - alwayws 0 for swat
+	req = append(req, []byte{0x00, 0x00, 0x00, 0x00}...)
+
+	// calculate the length and insert the number into the first two bytes as an unsigned short
+	binary.BigEndian.PutUint16(req[:2], uint16(getLengthFunc(req)))
+
+	return req
+}
+
+func UnpackServerList(resp []byte) []map[string]string {
+	fieldCount := int(resp[6])
+	fields := make([]string, 0, fieldCount)
+	unparsed := resp[8:]
+	for i := 0; i < fieldCount; i++ {
+		field, rem := binutils.ConsumeCString(unparsed)
+		// consume extra null byte at the end of the field
+		unparsed = rem[1:]
+		fields = append(fields, string(field))
+	}
+	servers := make([]map[string]string, 0)
+	for unparsed[0] == 0x51 {
+		server := map[string]string{
+			"host": net.IPv4(unparsed[1], unparsed[2], unparsed[3], unparsed[4]).String(),
+			"port": fmt.Sprintf("%d", binary.BigEndian.Uint16(unparsed[5:7])),
+		}
+		unparsed = unparsed[7:]
+		for i := range fields {
+			unparsed = unparsed[1:] // skip leading 0xff
+			fieldValue, rem := binutils.ConsumeCString(unparsed)
+			server[fields[i]] = string(fieldValue)
+			unparsed = rem
+		}
+		servers = append(servers, server)
+	}
+	return servers
+}
+
+func SendBrowserRequest(
+	service *browser.MasterBrowserService,
+	filters string,
+	getAddrFunc func() (net.IP, int),
+) ([]byte, error) {
+	var gameKey [6]byte
+	var challenge [8]byte
+	copy(challenge[:], GenBrowserChallenge8())
+	req := PackBrowserRequest(
+		[]string{
+			"hostname", "maxplayers", "gametype",
+			"gamevariant", "mapname", "hostport",
+			"password", "gamever", "statsenabled",
+		},
+		filters,
+		func() []byte {
+			return challenge[:]
+		},
+		CalcReqLength,
+	)
+	ip, port := getAddrFunc()
+	respEnc, err := service.HandleRequest(context.TODO(), &net.TCPAddr{IP: ip, Port: port}, req)
+	if err != nil {
+		return nil, err
+	}
+	copy(gameKey[:], "tG3j8c")
+	return gscrypt.Decrypt(gameKey, challenge, respEnc), nil
+}
