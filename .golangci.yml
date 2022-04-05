@@ -1,0 +1,30 @@
+linters:
+  enable-all: true
+  disable:
+    - gofumpt
+    - godot
+    - gci
+    - funlen
+    - maligned
+    - golint
+    - scopelint
+    - interfacer
+    - wrapcheck
+    - varnamelen
+    - paralleltest
+    - ireturn
+    - gomnd
+    - thelper
+    - tagliatelle
+    - noctx
+    - nlreturn
+    - exhaustivestruct
+    - wsl
+    - nestif
+    - goerr113
+    - gochecknoglobals
+linters-settings:
+  cyclop:
+    max-complexity: 10
+    package-average: 0
+    skip-tests: true

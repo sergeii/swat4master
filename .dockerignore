@@ -1,0 +1,8 @@
+.git/
+.idea/
+.coverage
+coverage.out
+cmd/swat4master/main
+cmd/swat4master/swat4master
+/swat4master_linux_amd64
+/swat4master

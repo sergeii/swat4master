@@ -1,0 +1,165 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18.x
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Build binary
+        run: |
+          go build -o swat4master cmd/swat4master/main.go
+
+  test:
+    runs-on: ubuntu-latest
+    needs: verify
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18.x
+
+      - name: Run tests with coverage
+        run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  lint:
+    runs-on: ubuntu-latest
+    needs: verify
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18.x
+
+      - name: Run golangci
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.45
+
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      date: ${{ steps.meta.outputs.date }}
+    steps:
+      - name: Prepare release meta
+        id: meta
+        run: |
+          echo "::set-output name=date::$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+  release-bin:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - verify
+      - test
+      - lint
+      - meta
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [darwin, linux]
+        goarch: [amd64, arm64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18.x
+
+      - name: Prepare build meta
+        id: build_meta
+        run: |
+          echo "::set-output name=asset::swat4master-${{ github.ref_name }}.${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz"
+
+      - name: Configure linker flags
+        id: ldflags
+        run: echo "::set-output name=ldflags::-X 'main.BuildTime=${{ needs.meta.outputs.date }}' -X 'main.BuildCommit=${{ github.sha }}' -X 'main.BuildVersion=${{ github.ref_name }}'"
+
+      - name: Build binaries
+        run: go build -v -ldflags="${{ steps.ldflags.outputs.ldflags }}" -o swat4master cmd/swat4master/main.go
+        env:
+          GOOS: "${{ matrix.goos }}"
+          GOARCH: "${{ matrix.goarch }}"
+
+      - name: Pack release files
+        run: tar -czf ${{ steps.build_meta.outputs.asset }} swat4master LICENSE
+
+      - name: Upload packed binaries to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          prerelease: true
+          file: ${{ steps.build_meta.outputs.asset }}
+          asset_name: ${{ steps.build_meta.outputs.asset }}
+          tag: ${{ github.ref }}
+
+  release-docker-devel:
+    runs-on: ubuntu-latest
+    needs:
+      - verify
+      - test
+      - lint
+      - meta
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: |
+            ghcr.io/sergeii/swat4master
+          tags: |
+            type=sha,prefix=
+          flavor: |
+            latest=true
+            prefix=
+            suffix=
+
+      - name: Login to Github Packages
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          build-args: |
+            build_commit_sha=${{ github.sha }},
+            build_version=development,
+            build_time=${{ needs.meta.outputs.date }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
