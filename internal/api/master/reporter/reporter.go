@@ -15,6 +15,7 @@ import (
 	"github.com/sergeii/swat4master/internal/aggregate"
 	"github.com/sergeii/swat4master/internal/server"
 	"github.com/sergeii/swat4master/internal/server/memory"
+	"github.com/sergeii/swat4master/pkg/binutils"
 	"github.com/sergeii/swat4master/pkg/gamespy/query/filter"
 )
 
@@ -196,27 +197,29 @@ func parseInstanceID(req []byte) ([]byte, bool) {
 }
 
 func parseHeartbeatFields(payload []byte) (map[string]string, error) {
+	var fieldBin, valueBin []byte
 	params := make(map[string]string)
-	fields := bytes.Split(payload, []byte{0x00})
-	// collect field pairs of name and value delimited by null
-	// validate the fields against the predefined list of allowed names
+	unparsed := payload
+	// Collect field pairs of name and value delimited by null
+	// Then validate the fields against the predefined list of allowed names
 	// then put the pairs into a map
-	for i := 0; i < len(fields); i += 2 {
-		if len(fields[i]) == 0 {
-			break
-		}
-		if i+1 == len(fields) || len(fields[i+1]) == 0 {
-			return nil, ErrInvalidHeartbeatRequest
-		}
-		field := string(fields[i])
-		// only save those params that may be used for querying
+	for len(unparsed) > 0 && unparsed[0] != 0x00 {
+		fieldBin, unparsed = binutils.ConsumeCString(unparsed)
+		field := string(fieldBin)
+		// only save those params that belong to the predefined list of reportable params
 		if !isReportableField(field) {
 			log.Debug().
 				Str("field", field).
 				Msg("Field is not accepted for reporting")
 			continue
 		}
-		value := string(bytes.ToValidUTF8(fields[i+1], []byte{'?'}))
+		// there should be another c string in the slice after the field name, which is the field's value
+		// Throw an error if that's not the case
+		if len(unparsed) == 0 || unparsed[0] == 0x00 {
+			return nil, ErrInvalidHeartbeatRequest
+		}
+		valueBin, unparsed = binutils.ConsumeCString(unparsed)
+		value := string(bytes.ToValidUTF8(valueBin, []byte{'?'}))
 		params[field] = value
 	}
 	return params, nil
