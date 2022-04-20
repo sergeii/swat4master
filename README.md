@@ -1,0 +1,2 @@
+# swat4master
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/b46cd28c65574b27bfc87b0779050474)](https://app.codacy.com/gh/sergeii/swat4master?utm_source=github.com&utm_medium=referral&utm_content=sergeii/swat4master&utm_campaign=Badge_Grade_Settings)
