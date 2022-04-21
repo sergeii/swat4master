@@ -87,7 +87,7 @@ func (mrs *MasterReporterService) handleChallenge(ctx context.Context, req []byt
 	}
 	resp := make([]byte, 0, 7)
 	resp = append(resp, 0xfe, 0xfd, 0x0a)
-	resp = append(resp, instanceID...) // instance id
+	resp = append(resp, instanceID...)
 	return resp, nil
 }
 

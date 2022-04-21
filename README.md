@@ -2,8 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![GitHub go.mod Go version of a Go module](https://img.shields.io/github/go-mod/go-version/sergeii/swat4master.svg)](https://github.com/sergeii/swat4master)
-![https://github.com/sergeii/swat4master/actions/workflows/ci.yml?query=branch%3Amain+](https://github.com/sergeii/swat4master/actions/workflows/ci.yml/badge.svg?branch=main)
-[![codecov](https://codecov.io/gh/sergeii/swat4master/branch/main/graph/badge.svg?token=ZYQ1x62kR3)](https://codecov.io/gh/sergeii/swat4master)
+[![ci](https://github.com/sergeii/swat4master/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sergeii/swat4master/actions/workflows/ci.yml)[![codecov](https://codecov.io/gh/sergeii/swat4master/branch/main/graph/badge.svg?token=ZYQ1x62kR3)](https://codecov.io/gh/sergeii/swat4master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/sergeii/swat4master)](https://goreportcard.com/report/github.com/sergeii/swat4master)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/007d7e28f8ba4f63a56dc1bd095bb2b2)](https://www.codacy.com/gh/sergeii/swat4master/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=sergeii/swat4master&amp;utm_campaign=Badge_Grade)
 

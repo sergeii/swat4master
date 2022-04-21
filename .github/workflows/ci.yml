@@ -119,7 +119,7 @@ jobs:
           asset_name: ${{ steps.build_meta.outputs.asset }}
           tag: ${{ github.ref }}
 
-  release-docker-devel:
+  release-image:
     runs-on: ubuntu-latest
     needs:
       - verify
@@ -141,6 +141,7 @@ jobs:
             ghcr.io/sergeii/swat4master
           tags: |
             type=sha,prefix=
+            type=ref,event=tag,prefix=
           flavor: |
             latest=true
             prefix=
