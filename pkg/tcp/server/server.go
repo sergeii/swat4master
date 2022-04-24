@@ -17,11 +17,11 @@ type Option func(*Server) error
 type HandlerFunc func(context.Context, *net.TCPConn)
 
 type Server struct {
-	addr        *net.TCPAddr
-	listener    *net.TCPListener
-	handler     HandlerFunc
-	ready       chan struct{}
-	connTimeout time.Duration
+	addr          *net.TCPAddr
+	listener      *net.TCPListener
+	handler       HandlerFunc
+	readyCallback func()
+	connTimeout   time.Duration
 }
 
 func WithHandler(hf HandlerFunc) Option {
@@ -38,9 +38,9 @@ func WithTimeout(timeout time.Duration) Option {
 	}
 }
 
-func WithReadySignal(ch chan struct{}) Option {
+func WithReadySignal(cb func()) Option {
 	return func(s *Server) error {
-		s.ready = ch
+		s.readyCallback = cb
 		return nil
 	}
 }
@@ -76,8 +76,8 @@ func (s *Server) Listen(ctx context.Context) error {
 	log.Info().Stringer("addr", s.listener.Addr()).Msg("TCP server launched")
 
 	// signal to any possible watchers that we are ready to listen
-	if s.ready != nil {
-		close(s.ready)
+	if s.readyCallback != nil {
+		s.readyCallback()
 	}
 
 	go func() {

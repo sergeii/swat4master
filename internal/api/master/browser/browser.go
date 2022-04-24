@@ -9,19 +9,21 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/sergeii/swat4master/internal/aggregate"
+	"github.com/sergeii/swat4master/internal/api/monitoring"
 	"github.com/sergeii/swat4master/internal/server"
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing"
 	"github.com/sergeii/swat4master/pkg/gamespy/crypt"
 	"github.com/sergeii/swat4master/pkg/gamespy/query"
-	"github.com/sergeii/swat4master/pkg/logging"
+	"github.com/sergeii/swat4master/pkg/logutils"
 )
 
 const GameEncKey = "tG3j8c"
 
 type MasterBrowserService struct {
-	servers  server.Repository
-	liveness time.Duration
-	gameKey  [6]byte
+	servers       server.Repository
+	MetricService *monitoring.MetricService
+	liveness      time.Duration
+	gameKey       [6]byte
 }
 
 type Option func(mbs *MasterBrowserService) error
@@ -47,6 +49,13 @@ func WithServerRepository(repo server.Repository) Option {
 func WithLivenessDuration(dur time.Duration) Option {
 	return func(mbs *MasterBrowserService) error {
 		mbs.liveness = dur
+		return nil
+	}
+}
+
+func WithMetricService(ms *monitoring.MetricService) Option {
+	return func(mbs *MasterBrowserService) error {
+		mbs.MetricService = ms
 		return nil
 	}
 }
@@ -96,7 +105,7 @@ func (mbs *MasterBrowserService) HandleRequest(ctx context.Context, addr *net.TC
 		Int("count", len(servers)).Stringer("src", addr).Str("filters", req.Filters).
 		Msg("Packed servers")
 	if e := log.Debug(); e.Enabled() {
-		logging.Hexdump(resp) // nolint: errcheck
+		logutils.Hexdump(resp) // nolint: errcheck
 	}
 
 	return crypt.Encrypt(mbs.gameKey, req.Challenge, resp), nil

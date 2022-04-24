@@ -8,23 +8,36 @@ import (
 type Config struct {
 	Version bool
 
-	Debug                 bool
-	ReporterListenAddr    string
-	ReporterBufferSize    int
+	LogLevel  string
+	LogOutput string
+
+	ReporterListenAddr string
+	ReporterBufferSize int
+
 	BrowserListenAddr     string
 	BrowserClientTimeout  time.Duration
 	BrowserServerLiveness time.Duration
-	MemoryRetention       time.Duration
-	MemoryCleanInterval   time.Duration
+
+	HTTPListenAddr      string
+	HTTPReadTimeout     time.Duration
+	HTTPWriteTimeout    time.Duration
+	HTTPShutdownTimeout time.Duration
+
+	MemoryRetention     time.Duration
+	MemoryCleanInterval time.Duration
 }
 
 func Init() *Config {
 	cfg := Config{}
 	flag.BoolVar(&cfg.Version, "v", false, "Prints the version")
 	flag.BoolVar(&cfg.Version, "version", false, "Prints the version")
-	flag.BoolVar(&cfg.Debug, "debug", false, "Enable debug logging")
+	flag.StringVar(&cfg.LogLevel, "log.level", "info", "Set logging level")
 	flag.StringVar(
-		&cfg.ReporterListenAddr, "reporter.address", ":27900",
+		&cfg.LogOutput, "log.output", "console",
+		"Set output format for logs. Available options: console, stdout, json",
+	)
+	flag.StringVar(
+		&cfg.ReporterListenAddr, "reporter.address", "localhost:27900",
 		"Reporter server listen address in the form of [host]:port",
 	)
 	flag.IntVar(
@@ -32,7 +45,7 @@ func Init() *Config {
 		"UDP read buffer size used by reporter server",
 	)
 	flag.StringVar(
-		&cfg.BrowserListenAddr, "browser.address", ":28910",
+		&cfg.BrowserListenAddr, "browser.address", "localhost:28910",
 		"Browser server listen address in the form of [host]:port",
 	)
 	flag.DurationVar(
@@ -42,6 +55,22 @@ func Init() *Config {
 	flag.DurationVar(
 		&cfg.BrowserServerLiveness, "browser.liveness", time.Second*60,
 		"The amount of time since the most recent communication a server is considered alive",
+	)
+	flag.StringVar(
+		&cfg.HTTPListenAddr, "http.address", "localhost:3000",
+		"",
+	)
+	flag.DurationVar(
+		&cfg.HTTPShutdownTimeout, "http.shutdown-timeout", time.Second*10,
+		"",
+	)
+	flag.DurationVar(
+		&cfg.HTTPReadTimeout, "http.read-timeout", time.Second*5,
+		"",
+	)
+	flag.DurationVar(
+		&cfg.HTTPWriteTimeout, "http.write-timeout", time.Second*5,
+		"",
 	)
 	flag.DurationVar(
 		&cfg.MemoryRetention, "memory.retention", time.Hour,

@@ -22,7 +22,9 @@ func TestServerListen(t *testing.T) {
 			resp := slice.Reverse(req)
 			conn.WriteToUDP(resp, addr) // nolint: errcheck
 		}),
-		udp.WithReadySignal(ready),
+		udp.WithReadySignal(func() {
+			ready <- struct{}{}
+		}),
 	)
 	defer server.Stop() // nolint: errcheck
 	require.NoError(t, err)

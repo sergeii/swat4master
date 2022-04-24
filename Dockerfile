@@ -8,14 +8,16 @@ ENV CGO_ENABLED=0
 ENV GOOS=linux
 ENV GOARCH=amd64
 
+ARG _pkg="github.com/sergeii/swat4master/cmd/swat4master"
+
 RUN adduser \
     --disabled-password \
     --uid=9999 \
     scratch
 
-RUN mkdir -p /app/src \
-    && mkdir -p /app/bin \
-    && chown -R scratch:scratch /app
+RUN mkdir -p /application/src \
+    && mkdir -p /application/bin \
+    && chown -R scratch:scratch /application
 
 USER scratch
 WORKDIR /app/src
@@ -27,9 +29,9 @@ RUN go mod download && \
 COPY . .
 RUN go build  \
     -v \
-    -ldflags="-X 'main.BuildTime=$build_time' -X 'main.BuildCommit=$build_commit_sha' -X 'main.BuildVersion=$build_version'" \
-    -o /app/bin/swat4master \
-    /app/src/cmd/swat4master
+    -ldflags="-X '$_pkg/build.Time=$build_time' -X '$_pkg/build.Commit=$build_commit_sha' -X '$_pkg/build.Version=$build_version'" \
+    -o /application/bin/swat4master \
+    /application/src/cmd/swat4master
 
 FROM scratch
 
