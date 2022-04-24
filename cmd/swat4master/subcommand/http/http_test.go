@@ -110,10 +110,15 @@ func TestRunHTTPServer_ReadServiceMetrics(t *testing.T) {
 	)
 	conn, _ = net.Dial("tcp", "127.0.0.1:13381")
 	conn.Write(req) // nolint: errcheck
+	conn.Read(buf)  // nolint: errcheck
+	conn.Close()
+
 	// invalid browser request (no fields)
 	req = testutils.PackBrowserRequest([]string{}, "", testutils.GenBrowserChallenge8, testutils.CalcReqLength)
 	conn, _ = net.Dial("tcp", "127.0.0.1:13381")
 	conn.Write(req) // nolint: errcheck
+	conn.Read(buf)  // nolint: errcheck
+	conn.Close()
 
 	resp, err := http.Get("http://localhost:11338/metrics")
 	require.NoError(t, err)
