@@ -69,6 +69,7 @@ jobs:
         id: meta
         run: |
           echo "::set-output name=date::$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          echo "::set-output name=pkg::github.com/sergeii/swat4master/cmd/swat4master"
 
   release-bin:
     runs-on: ubuntu-latest
@@ -92,6 +93,9 @@ jobs:
         with:
           go-version: 1.18.x
 
+      - name: Install swag
+        run: go install github.com/swaggo/swag/cmd/swag@v1.8.9
+
       - name: Prepare build meta
         id: build_meta
         run: |
@@ -99,7 +103,10 @@ jobs:
 
       - name: Configure linker flags
         id: ldflags
-        run: echo "::set-output name=ldflags::-X 'main.BuildTime=${{ needs.meta.outputs.date }}' -X 'main.BuildCommit=${{ github.sha }}' -X 'main.BuildVersion=${{ github.ref_name }}'"
+        run: echo "::set-output name=ldflags::-X '${{ needs.meta.outputs.date }}/build.Time=${{ needs.meta.outputs.date }}' -X '${{ needs.meta.outputs.date }}/build.Commit=${{ github.sha }}' -X '${{ needs.meta.outputs.date }}/build.Version=${{ github.ref_name }}'"
+
+      - name: Generate API docs schema
+        run: swag init -g schema.go -o api/docs/ -d api/,internal/rest/
 
       - name: Build binaries
         run: go build -v -ldflags="${{ steps.ldflags.outputs.ldflags }}" -o swat4master cmd/swat4master/main.go
@@ -159,8 +166,8 @@ jobs:
         with:
           context: .
           build-args: |
-            build_commit_sha=${{ github.sha }},
-            build_version=development,
+            build_commit_sha=${{ github.sha }}
+            build_version=development
             build_time=${{ needs.meta.outputs.date }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}

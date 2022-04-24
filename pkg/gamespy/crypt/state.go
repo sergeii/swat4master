@@ -76,7 +76,7 @@ func (cs *state) encryptByte(b byte) byte { // nolint: dupl
 	// on the fly by card-shuffling.
 
 	// This cipher is a variant of one invented and written
-	// by Michael Paul Johnson in November, 1993.
+	// by Michael Paul Johnson in November 1993.
 	var swaptemp byte
 
 	// Shuffle the deck a little more.

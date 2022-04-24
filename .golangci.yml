@@ -23,6 +23,11 @@ linters:
     - nestif
     - goerr113
     - gochecknoglobals
+    - exhaustruct
+    - nolintlint
+    - maintidx
+    - misspell
+    - dupword
 linters-settings:
   cyclop:
     max-complexity: 10
