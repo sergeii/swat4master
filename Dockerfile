@@ -44,5 +44,6 @@ USER scratch
 
 EXPOSE 27900/udp
 EXPOSE 28910
+EXPOSE 3000
 
 ENTRYPOINT ["/swat4master"]

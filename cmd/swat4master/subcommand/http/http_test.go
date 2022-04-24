@@ -86,7 +86,7 @@ func TestRunHTTPServer_ReadServiceMetrics(t *testing.T) {
 	go browser.Run(ctx, gCtx, app)
 	gCtx.WaitReady()
 
-	buf := make([]byte, 1024)
+	buf := make([]byte, 2048)
 	conn, _ := net.Dial("udp", "127.0.0.1:33811")
 	// valid available request
 	conn.Write([]byte{0x09}) // nolint: errcheck
@@ -109,16 +109,17 @@ func TestRunHTTPServer_ReadServiceMetrics(t *testing.T) {
 		testutils.CalcReqLength,
 	)
 	conn, _ = net.Dial("tcp", "127.0.0.1:13381")
-	conn.Write(req) // nolint: errcheck
-	conn.Read(buf)  // nolint: errcheck
+	_, err := conn.Write(req)
+	require.NoError(t, err)
+	_, err = conn.Read(buf)
+	require.NoError(t, err)
 	conn.Close()
 
 	// invalid browser request (no fields)
 	req = testutils.PackBrowserRequest([]string{}, "", testutils.GenBrowserChallenge8, testutils.CalcReqLength)
 	conn, _ = net.Dial("tcp", "127.0.0.1:13381")
-	conn.Write(req) // nolint: errcheck
-	conn.Read(buf)  // nolint: errcheck
-	conn.Close()
+	_, err = conn.Write(req)
+	require.NoError(t, err)
 
 	resp, err := http.Get("http://localhost:11338/metrics")
 	require.NoError(t, err)
