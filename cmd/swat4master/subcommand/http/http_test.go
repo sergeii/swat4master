@@ -74,7 +74,7 @@ func TestRunHTTPServer_ReadServiceMetrics(t *testing.T) {
 		ReporterListenAddr:   "localhost:33811",
 		ReporterBufferSize:   1024,
 		BrowserListenAddr:    "localhost:13381",
-		BrowserClientTimeout: time.Millisecond * 5,
+		BrowserClientTimeout: time.Millisecond * 100,
 	}
 	gCtx := subcommand.NewGroupContext(&cfg, 3)
 	app := application.NewApp(
