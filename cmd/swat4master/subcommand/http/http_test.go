@@ -121,6 +121,7 @@ func TestRunHTTPServer_ReadServiceMetrics(t *testing.T) {
 	_, err = conn.Write(req)
 	require.NoError(t, err)
 
+	time.Sleep(time.Millisecond * 5)
 	resp, err := http.Get("http://localhost:11338/metrics")
 	require.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
