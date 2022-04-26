@@ -160,8 +160,8 @@ jobs:
         with:
           context: .
           build-args: |
-            build_commit_sha=${{ github.sha }},
-            build_version=development,
+            build_commit_sha=${{ github.sha }}
+            build_version=development
             build_time=${{ needs.meta.outputs.date }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
