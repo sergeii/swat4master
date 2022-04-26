@@ -19,13 +19,6 @@ import (
 	"github.com/sergeii/swat4master/pkg/gamespy/query/filter"
 )
 
-const (
-	MasterMsgChallenge = 0x01
-	MasterMsgHeartbeat = 0x03
-	MasterMsgKeepalive = 0x08
-	MasterMsgAvailable = 0x09
-)
-
 var MasterResponseChallenge = []byte{0x44, 0x3d, 0x73, 0x7e, 0x6a, 0x59}
 var MasterResponseIsAvailable = []byte{0xfe, 0xfd, 0x09, 0x00, 0x00, 0x00, 0x00}
 
@@ -33,6 +26,29 @@ var ErrUnknownRequestType = errors.New("unknown request type")
 var ErrInvalidChallengeRequest = errors.New("invalid challenge request")
 var ErrInvalidHeartbeatRequest = errors.New("invalid heartbeat request")
 var ErrInvalidKeepaliveRequest = errors.New("invalid keepalive request")
+
+type MasterMsg uint8
+
+const (
+	MasterMsgChallenge MasterMsg = 0x01
+	MasterMsgHeartbeat MasterMsg = 0x03
+	MasterMsgKeepalive MasterMsg = 0x08
+	MasterMsgAvailable MasterMsg = 0x09
+)
+
+func (msg MasterMsg) String() string {
+	switch msg {
+	case MasterMsgChallenge:
+		return "challenge"
+	case MasterMsgHeartbeat:
+		return "heartbeat"
+	case MasterMsgKeepalive:
+		return "keepalive"
+	case MasterMsgAvailable:
+		return "available"
+	}
+	return fmt.Sprintf("0x%02x", uint8(msg))
+}
 
 type MasterReporterService struct {
 	servers server.Repository
@@ -62,18 +78,25 @@ func WithMemoryServerRepositiory() Option {
 	return WithServerRepository(repo)
 }
 
-func (mrs *MasterReporterService) DispatchRequest(ctx context.Context, req []byte, addr *net.UDPAddr) ([]byte, error) {
-	switch req[0] {
+func (mrs *MasterReporterService) DispatchRequest(
+	ctx context.Context, req []byte, addr *net.UDPAddr,
+) ([]byte, MasterMsg, error) {
+	var resp []byte
+	var err error
+	reqType := MasterMsg(req[0])
+	switch reqType {
 	case MasterMsgAvailable:
-		return mrs.handleAvailable(ctx, req, addr)
+		resp, err = mrs.handleAvailable(ctx, req, addr)
 	case MasterMsgChallenge:
-		return mrs.handleChallenge(ctx, req, addr)
+		resp, err = mrs.handleChallenge(ctx, req, addr)
 	case MasterMsgHeartbeat:
-		return mrs.handleHeartbeat(ctx, req, addr)
+		resp, err = mrs.handleHeartbeat(ctx, req, addr)
 	case MasterMsgKeepalive:
-		return mrs.handleKeepalive(ctx, req, addr)
+		resp, err = mrs.handleKeepalive(ctx, req, addr)
+	default:
+		return nil, reqType, ErrUnknownRequestType
 	}
-	return nil, ErrUnknownRequestType
+	return resp, reqType, err
 }
 
 func (mrs *MasterReporterService) handleAvailable(ctx context.Context, req []byte, addr *net.UDPAddr) ([]byte, error) {

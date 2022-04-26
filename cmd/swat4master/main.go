@@ -5,33 +5,28 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
-	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"github.com/sergeii/swat4master/cmd/swat4master/build"
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
-	"github.com/sergeii/swat4master/cmd/swat4master/server/browser"
-	"github.com/sergeii/swat4master/cmd/swat4master/server/reporter"
+	"github.com/sergeii/swat4master/cmd/swat4master/logging"
+	"github.com/sergeii/swat4master/cmd/swat4master/subcommand"
+	"github.com/sergeii/swat4master/cmd/swat4master/subcommand/browser"
+	"github.com/sergeii/swat4master/cmd/swat4master/subcommand/http"
+	"github.com/sergeii/swat4master/cmd/swat4master/subcommand/reporter"
+	"github.com/sergeii/swat4master/internal/api/monitoring"
+	"github.com/sergeii/swat4master/internal/application"
 	"github.com/sergeii/swat4master/internal/server/memory"
-	"github.com/sergeii/swat4master/pkg/logging"
 	"github.com/sergeii/swat4master/pkg/random"
 )
 
-var (
-	BuildVersion = "development"
-	BuildCommit  = "uncommitted"
-	BuildTime    = "unknown"
-)
-
 func main() {
-	fail := make(chan struct{}, 2)
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
-	version := fmt.Sprintf("Version: %s (%s) built at %s", BuildVersion, BuildCommit, BuildTime)
+	version := fmt.Sprintf("Version: %s (%s) built at %s", build.Version, build.Commit, build.Time)
 	cfg := config.Init()
 
 	if cfg.Version {
@@ -39,7 +34,11 @@ func main() {
 		os.Exit(0)
 	}
 
-	configureLogging(cfg)
+	logger, err := logging.ConfigureLogging(cfg)
+	if err != nil {
+		panic(err)
+	}
+	log.Logger = logger
 
 	// must have properly seeded rng
 	if err := random.Seed(); err != nil {
@@ -48,44 +47,35 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	gCtx := subcommand.NewGroupContext(cfg, 3)
 	go func() {
 		select {
-		case <-fail:
-			log.Error().Msg("Exiting due to failure")
+		case <-gCtx.Exit:
+			log.Error().Msg("Exiting due to a service failure")
 			cancel()
 		case <-shutdown:
-			log.Warn().Msg("Exiting due to shutdown signal")
+			log.Info().Msg("Exiting due to shutdown signal")
 			cancel()
 		}
 	}()
 
-	repo := memory.New(memory.WithCleaner(ctx, cfg.MemoryCleanInterval, cfg.MemoryRetention))
-	wg := &sync.WaitGroup{}
-	wg.Add(2)
-	go reporter.Run(ctx, wg, cfg, fail, repo)
-	go browser.Run(ctx, wg, cfg, fail, repo)
+	metrics := monitoring.NewMetricService()
+	app := application.NewApp(
+		application.WithMetricService(metrics),
+		application.WithServerRepository(
+			memory.New(memory.WithCleaner(ctx, cfg.MemoryCleanInterval, cfg.MemoryRetention)),
+		),
+	)
+	go reporter.Run(ctx, gCtx, app)
+	go browser.Run(ctx, gCtx, app)
+	go http.Run(ctx, gCtx, app)
 
 	log.Info().
-		Str("version", BuildVersion).
-		Str("commit", BuildCommit).
-		Str("built", BuildTime).
+		Str("version", build.Version).
+		Str("commit", build.Commit).
+		Str("built", build.Time).
 		Msg("Welcome to SWAT4 master server!")
 
-	wg.Wait()
-}
-
-func configureLogging(cfg *config.Config) {
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMicro
-	zerolog.DurationFieldUnit = time.Second
-	zerolog.CallerMarshalFunc = logging.ShortCallerFormatter
-
-	log.Logger = log.
-		With().Caller().Logger().
-		Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
-
-	if cfg.Debug {
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	} else {
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	}
+	gCtx.WaitQuit()
 }

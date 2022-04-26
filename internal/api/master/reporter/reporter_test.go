@@ -20,15 +20,17 @@ import (
 
 func TestReporter_DispatchAvailableRequest_OK(t *testing.T) {
 	service, _ := reporter.NewService(reporter.WithMemoryServerRepositiory())
-	resp, err := service.DispatchRequest(context.TODO(), []byte{0x09}, &net.UDPAddr{})
+	resp, msgT, err := service.DispatchRequest(context.TODO(), []byte{0x09}, &net.UDPAddr{})
 	assert.NoError(t, err)
+	assert.Equal(t, reporter.MasterMsgAvailable, msgT)
 	assert.Equal(t, resp, []byte{0xfe, 0xfd, 0x09, 0x00, 0x00, 0x00, 0x00})
 }
 
 func TestReporter_DispatchChallengeRequest_OK(t *testing.T) {
 	service, _ := reporter.NewService(reporter.WithMemoryServerRepositiory())
-	resp, err := service.DispatchRequest(context.TODO(), []byte{0x01, 0xfe, 0xed, 0xf0, 0x0d}, &net.UDPAddr{})
+	resp, msgT, err := service.DispatchRequest(context.TODO(), []byte{0x01, 0xfe, 0xed, 0xf0, 0x0d}, &net.UDPAddr{})
 	assert.NoError(t, err)
+	assert.Equal(t, reporter.MasterMsgChallenge, msgT)
 	assert.Equal(t, resp, []byte{0xfe, 0xfd, 0x0a, 0xfe, 0xed, 0xf0, 0x0d})
 }
 
@@ -63,7 +65,7 @@ func TestReporter_DispatchChallengeRequest_InvalidInstanceID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			service, _ := reporter.NewService(reporter.WithMemoryServerRepositiory())
-			resp, err := service.DispatchRequest(context.TODO(), tt.payload, &net.UDPAddr{})
+			resp, _, err := service.DispatchRequest(context.TODO(), tt.payload, &net.UDPAddr{})
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 			} else {
@@ -75,12 +77,13 @@ func TestReporter_DispatchChallengeRequest_InvalidInstanceID(t *testing.T) {
 
 func TestReporter_DispatchHeartbeatRequest_OK(t *testing.T) {
 	service, _ := reporter.NewService(reporter.WithMemoryServerRepositiory())
-	resp, err := service.DispatchRequest(
+	resp, msgT, err := service.DispatchRequest(
 		context.TODO(),
 		testutils.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, testutils.GenServerParams()),
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
 	)
 	assert.NoError(t, err)
+	assert.Equal(t, reporter.MasterMsgHeartbeat, msgT)
 	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
 	assert.Equal(t, resp[3:7], []byte{0xfe, 0xed, 0xf0, 0x0d})
 	assert.Equal(t, resp[7:13], []byte{0x44, 0x3d, 0x73, 0x7e, 0x6a, 0x59})
@@ -104,7 +107,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsAddedAndUpdated(t *testing.T)
 		"hostport":   "10580",
 		"localport":  "10584",
 	})
-	resp, err := service.DispatchRequest(
+	resp, _, err := service.DispatchRequest(
 		context.TODO(),
 		testutils.PackHeartbeatRequest(instanceID, paramsBefore),
 		&net.UDPAddr{IP: net.ParseIP("55.55.55.55"), Port: 22712}, // server is behind nat
@@ -126,7 +129,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsAddedAndUpdated(t *testing.T)
 		"numplayers": "15",
 		"hostport":   "10480",
 	})
-	resp, _ = service.DispatchRequest(
+	resp, _, _ = service.DispatchRequest(
 		context.TODO(),
 		testutils.PackHeartbeatRequest(instanceID, paramsAfter),
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
@@ -203,7 +206,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdatedWithNewInstanceID(t *t
 		"numplayers": "16",
 		"hostport":   "10480",
 	})
-	resp, err := service.DispatchRequest(
+	resp, _, err := service.DispatchRequest(
 		context.TODO(),
 		testutils.PackHeartbeatRequest(oldInstanceID, params),
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
@@ -224,7 +227,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdatedWithNewInstanceID(t *t
 		"hostport":   "10480",
 	})
 	newInstanceID := []byte{0xde, 0xad, 0xbe, 0xef}
-	resp, _ = service.DispatchRequest(
+	resp, _, _ = service.DispatchRequest(
 		context.TODO(),
 		testutils.PackHeartbeatRequest(newInstanceID, newParams),
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
@@ -288,7 +291,7 @@ func TestReporter_DispatchHeartbeatRequest_InvalidPayload(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			service, _ := reporter.NewService(reporter.WithMemoryServerRepositiory())
-			resp, err := service.DispatchRequest(
+			resp, _, err := service.DispatchRequest(
 				context.TODO(),
 				tt.payload,
 				&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
@@ -322,7 +325,7 @@ func TestReporter_DispatchHeartbeatRequest_OnlyIPv4IsSupported(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			service, _ := reporter.NewService(reporter.WithMemoryServerRepositiory())
-			resp, err := service.DispatchRequest(
+			resp, _, err := service.DispatchRequest(
 				context.TODO(),
 				testutils.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, testutils.GenServerParams()),
 				&net.UDPAddr{IP: net.ParseIP(tt.ipaddr), Port: 10481},
@@ -459,7 +462,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerRemovalIsValidated(t *testing.T
 			service, _ := reporter.NewService(reporter.WithServerRepository(repo))
 
 			// initial report
-			_, err := service.DispatchRequest(
+			_, _, err := service.DispatchRequest(
 				context.TODO(),
 				testutils.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, testutils.GenServerParams()),
 				&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
@@ -467,7 +470,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerRemovalIsValidated(t *testing.T
 			require.NoError(t, err)
 
 			// removal request
-			_, err = service.DispatchRequest(
+			_, _, err = service.DispatchRequest(
 				context.TODO(),
 				testutils.PackHeartbeatRequest(tt.instanceID, tt.params),
 				&net.UDPAddr{IP: net.ParseIP(tt.ipaddr), Port: 10481},
@@ -489,7 +492,7 @@ func TestReporter_DispatchKeepaliveRequest_RefreshesServerLiveness(t *testing.T)
 	service, _ := reporter.NewService(reporter.WithServerRepository(repo))
 	before := time.Now()
 	// initial report
-	_, err := service.DispatchRequest(
+	_, _, err := service.DispatchRequest(
 		context.TODO(),
 		testutils.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, testutils.GenServerParams()),
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
@@ -502,7 +505,7 @@ func TestReporter_DispatchKeepaliveRequest_RefreshesServerLiveness(t *testing.T)
 	after := time.Now()
 	reportedSinceAfter, _ := repo.GetReportedSince(after)
 	assert.Len(t, reportedSinceAfter, 0)
-	resp, _ := service.DispatchRequest(
+	resp, _, _ := service.DispatchRequest(
 		context.TODO(),
 		[]byte{0x08, 0xfe, 0xed, 0xf0, 0x0d},
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
@@ -558,7 +561,7 @@ func TestReporter_DispatchKeepaliveRequest_Errors(t *testing.T) {
 			repo := memory.New()
 			service, _ := reporter.NewService(reporter.WithServerRepository(repo))
 			// initial heartbeat report
-			_, _ = service.DispatchRequest(
+			service.DispatchRequest( // nolint: errcheck
 				context.TODO(),
 				testutils.PackHeartbeatRequest(reportedInstanceID, testutils.GenServerParams()),
 				&net.UDPAddr{IP: net.ParseIP(reportedServerIP), Port: 10481},
@@ -566,7 +569,7 @@ func TestReporter_DispatchKeepaliveRequest_Errors(t *testing.T) {
 			// keepalive request in a while
 			time.Sleep(time.Millisecond)
 			since := time.Now()
-			_, err := service.DispatchRequest(
+			_, _, err := service.DispatchRequest(
 				context.TODO(),
 				tt.payload,
 				&net.UDPAddr{IP: net.ParseIP(tt.ipaddr), Port: 10481},

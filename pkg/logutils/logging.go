@@ -1,4 +1,4 @@
-package logging
+package logutils
 
 import (
 	"encoding/hex"

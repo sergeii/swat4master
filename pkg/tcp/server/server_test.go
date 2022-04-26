@@ -27,7 +27,9 @@ func TestServerListen(t *testing.T) {
 			resp := slice.Reverse(buf[:n])
 			conn.Write(resp) // nolint: errcheck
 		}),
-		tcp.WithReadySignal(ready),
+		tcp.WithReadySignal(func() {
+			ready <- struct{}{}
+		}),
 	)
 	defer server.Stop() // nolint: errcheck
 	require.NoError(t, err)
@@ -65,7 +67,9 @@ func TestServerTimeout(t *testing.T) {
 			time.Sleep(time.Millisecond * 20)
 			conn.Write(buf[:n]) // nolint: errcheck
 		}),
-		tcp.WithReadySignal(ready),
+		tcp.WithReadySignal(func() {
+			ready <- struct{}{}
+		}),
 		tcp.WithTimeout(time.Millisecond*10),
 	)
 	defer server.Stop() // nolint: errcheck

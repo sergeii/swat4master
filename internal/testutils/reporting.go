@@ -14,11 +14,12 @@ func SendHeartbeat(
 	getAddrFunc func() (net.IP, int),
 ) ([]byte, error) {
 	ip, port := getAddrFunc()
-	return service.DispatchRequest(
+	resp, _, err := service.DispatchRequest(
 		context.TODO(),
 		PackHeartbeatRequest(instanceID, getParamsFunc()),
 		&net.UDPAddr{IP: ip, Port: port},
 	)
+	return resp, err
 }
 
 func PackHeartbeatRequest(instanceID []byte, params map[string]string) []byte {
