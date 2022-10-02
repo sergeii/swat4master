@@ -38,6 +38,7 @@ func CalcReqLength(req []byte) int {
 func PackBrowserRequest(
 	fields []string,
 	filters string,
+	options []byte,
 	getChallenge func() []byte,
 	getLengthFunc func([]byte) int,
 ) []byte {
@@ -70,8 +71,9 @@ func PackBrowserRequest(
 	req = append(req, []byte(fieldsJoined)...)
 	req = append(req, 0x00)
 
-	// last 4 bytes, int 32, options; options bitmask - alwayws 0 for swat
-	req = append(req, []byte{0x00, 0x00, 0x00, 0x00}...)
+	// last 4 bytes, int 32, options; options bitmask - always 0 for swat if the request is coming from the game,
+	// since it requests a plain server list. However, tools like gslist send 1 (server list with fields)
+	req = append(req, options...)
 
 	// calculate the length and insert the number into the first two bytes as an unsigned short
 	binary.BigEndian.PutUint16(req[:2], uint16(getLengthFunc(req)))
@@ -122,6 +124,7 @@ func SendBrowserRequest(
 			"password", "gamever", "statsenabled",
 		},
 		filters,
+		[]byte{0x00, 0x00, 0x00, 0x00},
 		func() []byte {
 			return challenge[:]
 		},

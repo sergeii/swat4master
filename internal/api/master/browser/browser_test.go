@@ -35,6 +35,7 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 					"password", "gamever", "statsenabled",
 				},
 				"gametype='VIP Escort' and gamever='1.1'",
+				[]byte{0x00, 0x00, 0x00, 0x00},
 				testutils.GenBrowserChallenge8,
 				testutils.CalcReqLength,
 			),
@@ -48,6 +49,17 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 					"password", "gamever", "statsenabled",
 				},
 				"",
+				[]byte{0x00, 0x00, 0x00, 0x00},
+				testutils.GenBrowserChallenge8,
+				testutils.CalcReqLength,
+			),
+		},
+		{
+			name: "positive case - list type 1 is accepted",
+			payload: testutils.PackBrowserRequest(
+				[]string{"hostname"},
+				"",
+				[]byte{0x00, 0x00, 0x00, 0x01},
 				testutils.GenBrowserChallenge8,
 				testutils.CalcReqLength,
 			),
@@ -61,6 +73,7 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 					"password", "gamever", "statsenabled",
 				},
 				"gametype='VIP Escort' and gamever='1.1",
+				[]byte{0x00, 0x00, 0x00, 0x00},
 				testutils.GenBrowserChallenge8,
 				testutils.CalcReqLength,
 			),
@@ -70,6 +83,7 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 			payload: testutils.PackBrowserRequest(
 				[]string{},
 				"gametype='VIP Escort' and gamever='1.1'",
+				[]byte{0x00, 0x00, 0x00, 0x00},
 				testutils.GenBrowserChallenge8,
 				testutils.CalcReqLength,
 			),
@@ -84,6 +98,7 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 					"password", "gamever", "statsenabled",
 				},
 				"",
+				[]byte{0x00, 0x00, 0x00, 0x00},
 				func() []byte {
 					return testutils.GenBrowserChallenge(7)
 				},
@@ -111,6 +126,7 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 			payload: testutils.PackBrowserRequest(
 				[]string{"hostname"},
 				"",
+				[]byte{0x00, 0x00, 0x00, 0x00},
 				testutils.GenBrowserChallenge8,
 				testutils.CalcReqLength,
 			)[:30],
@@ -121,6 +137,7 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 			payload: testutils.PackBrowserRequest(
 				[]string{"hostname"},
 				"",
+				[]byte{0x00, 0x00, 0x00, 0x00},
 				testutils.GenBrowserChallenge8,
 				testutils.WithBrowserChallengeLength(400),
 			),
@@ -131,6 +148,7 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 			payload: testutils.PackBrowserRequest(
 				[]string{"hostname"},
 				"",
+				[]byte{0x00, 0x00, 0x00, 0x00},
 				testutils.GenBrowserChallenge8,
 				testutils.WithBrowserChallengeLength(30),
 			),
@@ -141,8 +159,31 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 			payload: testutils.PackBrowserRequest(
 				[]string{"hostname"},
 				"",
+				[]byte{0x00, 0x00, 0x00, 0x00},
 				testutils.GenBrowserChallenge8,
 				testutils.WithBrowserChallengeLength(0),
+			),
+			wantErr: browsing.ErrInvalidRequestFormat,
+		},
+		{
+			name: "invalid list type option",
+			payload: testutils.PackBrowserRequest(
+				[]string{"hostname"},
+				"",
+				[]byte{0x00, 0x00, 0x00, 0x20},
+				testutils.GenBrowserChallenge8,
+				testutils.CalcReqLength,
+			),
+			wantErr: browsing.ErrInvalidRequestFormat,
+		},
+		{
+			name: "invalid option mask length",
+			payload: testutils.PackBrowserRequest(
+				[]string{"hostname"},
+				"",
+				[]byte{0x00, 0x00, 0x00, 0x00, 0x00},
+				testutils.GenBrowserChallenge8,
+				testutils.CalcReqLength,
 			),
 			wantErr: browsing.ErrInvalidRequestFormat,
 		},
