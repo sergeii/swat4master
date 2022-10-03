@@ -70,10 +70,7 @@ func (req *Request) parse() error {
 	if err := req.parseFields(); err != nil {
 		return err
 	}
-	if err := req.validateOptionsMask(); err != nil {
-		return err
-	}
-	return nil
+	return req.validateOptionsMask()
 }
 
 func (req *Request) parseChallenge() error {
