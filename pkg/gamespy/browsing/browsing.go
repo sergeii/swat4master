@@ -70,13 +70,7 @@ func (req *Request) parse() error {
 	if err := req.parseFields(); err != nil {
 		return err
 	}
-
-	// the remaining data in the slice should be just 4 zeros
-	if len(req.unparsed) != 4 || binary.BigEndian.Uint32(req.unparsed) != 0 {
-		return ErrInvalidRequestFormat
-	}
-	req.unparsed = nil
-	return nil
+	return req.validateOptionsMask()
 }
 
 func (req *Request) parseChallenge() error {
@@ -131,5 +125,19 @@ func (req *Request) parseFields() error {
 	}
 	req.Fields = fields
 	req.unparsed = rem
+	return nil
+}
+
+func (req *Request) validateOptionsMask() error {
+	// the remaining data in the slice should be 4 bytes long
+	if len(req.unparsed) != 4 {
+		return ErrInvalidRequestFormat
+	}
+	// Options value should be 0 (plain server list) or 1 (server list with fields, such as \hostname etc)
+	options := binary.BigEndian.Uint32(req.unparsed)
+	if options != 0 && options != 1 {
+		return ErrInvalidRequestFormat
+	}
+	req.unparsed = nil
 	return nil
 }
