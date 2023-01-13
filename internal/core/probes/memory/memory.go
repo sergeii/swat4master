@@ -30,15 +30,11 @@ func New() *Repository {
 }
 
 func (r *Repository) Add(_ context.Context, target probes.Target) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
 	r.enqueue(target, probes.NC, probes.NC)
 	return nil
 }
 
 func (r *Repository) AddBetween(_ context.Context, target probes.Target, after time.Time, before time.Time) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
 	r.enqueue(target, before, after)
 	return nil
 }
@@ -125,12 +121,16 @@ func (r *Repository) PopMany(_ context.Context, count int) ([]probes.Target, int
 }
 
 func (r *Repository) Count(context.Context) (int, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
 	return r.length, nil
 }
 
 func (r *Repository) enqueue(
 	target probes.Target, before time.Time, after time.Time,
 ) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 	item := enqueued{target, before, after}
 	r.queue.PushBack(item)
 	r.length++

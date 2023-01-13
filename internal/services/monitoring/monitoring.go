@@ -122,7 +122,7 @@ func NewMetricService() *MetricService {
 			Help: "The total number of busy discovery workers",
 		}),
 		DiscoveryWorkersAvailable: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
-			Name: "discovery_available_available",
+			Name: "discovery_available_workers",
 			Help: "The total number of available discovery workers",
 		}),
 		DiscoveryQueueProduced: promauto.With(registry).NewCounter(prometheus.CounterOpts{

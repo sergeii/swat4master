@@ -81,5 +81,7 @@ func (r *Repository) GetByAddr(ctx context.Context, insAddr addr.Addr) (instance
 }
 
 func (r *Repository) Count(ctx context.Context) (int, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
 	return len(r.ids), nil
 }

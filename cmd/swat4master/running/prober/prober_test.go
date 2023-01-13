@@ -3,6 +3,7 @@ package prober_test
 import (
 	"context"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -44,7 +45,7 @@ func TestProber_Run(t *testing.T) {
 	}
 	app := application.Configure()
 
-	i1 := 0
+	var i1 int64
 	udp1, cancelSvr1 := gs1.ServerFactory(
 		func(ctx context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {
 			packet := []byte(
@@ -61,23 +62,23 @@ func TestProber_Run(t *testing.T) {
 					"\\ping_11\\24\\ping_12\\40\\ping_13\\33\\ping_14\\40\\ping_15\\38\\final\\\\queryid\\1.1",
 			)
 			conn.WriteToUDP(packet, addr) // nolint: errcheck
-			i1++
+			atomic.AddInt64(&i1, 1)
 		},
 	)
 	addr1 := udp1.LocalAddr()
 	defer cancelSvr1()
 
-	i2 := 0
+	var i2 int64
 	udp2, cancelSvr2 := gs1.ServerFactory(
 		func(ctx context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {
-			i2++
+			atomic.AddInt64(&i2, 1)
 			panic("should not be called")
 		},
 	)
 	addr2 := udp2.LocalAddr()
 	defer cancelSvr2()
 
-	i3 := 0
+	var i3 int64
 	udp3, cancelSvr3 := gs1.ServerFactory(
 		func(ctx context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {
 			packet := []byte(
@@ -91,7 +92,7 @@ func TestProber_Run(t *testing.T) {
 					"\\ping_4\\79\\ping_5\\80\\ping_6\\122\\ping_7\\53\\final\\\\queryid\\1.1",
 			)
 			conn.WriteToUDP(packet, addr) // nolint: errcheck
-			i3++
+			atomic.AddInt64(&i3, 1)
 		},
 	)
 	addr3 := udp3.LocalAddr()
@@ -124,7 +125,7 @@ func TestProber_Run(t *testing.T) {
 	svr1Info := updatedSvr1.GetInfo()
 	assert.Equal(t, "-==MYT Team Svr==-", svr1Info.Hostname)
 	assert.Equal(t, 16, svr1Info.MaxPlayers)
-	assert.Equal(t, 6, i1)
+	assert.Equal(t, int64(6), atomic.LoadInt64(&i1))
 
 	svr1Details := updatedSvr1.GetDetails()
 	assert.Equal(t, "-==MYT Team Svr==-", svr1Details.Info.Hostname)
@@ -136,13 +137,13 @@ func TestProber_Run(t *testing.T) {
 	assert.Equal(t, ds.DetailsRetry|ds.PortRetry, notUpdatedSvr2.GetDiscoveryStatus())
 	svr2Info := notUpdatedSvr2.GetInfo()
 	assert.Equal(t, "", svr2Info.Hostname)
-	assert.Equal(t, 0, i2)
+	assert.Equal(t, int64(0), atomic.LoadInt64(&i2))
 
 	updatedSvr3, _ := app.Servers.GetByAddr(ctx, svr3.GetAddr())
 	assert.Equal(t, ds.Master|ds.Info|ds.Details|ds.Port, updatedSvr3.GetDiscoveryStatus())
 	svr3Info := updatedSvr3.GetInfo()
 	assert.Equal(t, "[c=ffff00]WWW.EPiCS.TOP", svr3Info.Hostname)
-	assert.Equal(t, 4, i3) // 1 port probe + 3 details probes
+	assert.Equal(t, int64(4), atomic.LoadInt64(&i3)) // 1 port probe + 3 details probes
 
 	cancelCtx()
 	runner.WaitQuit()

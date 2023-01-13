@@ -519,11 +519,11 @@ func TestQuery_NoProperResponse(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			responses := make(chan []byte)
-			go func() {
-				for _, packet := range tt.packets {
+			go func(packets [][]byte) {
+				for _, packet := range packets {
 					responses <- packet
 				}
-			}()
+			}(tt.packets)
 			server, cancel := gs1.PrepareGS1Server(responses)
 			defer cancel()
 			_, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*50)
@@ -552,11 +552,11 @@ func TestQuery_ReadTimeout(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			responses := make(chan []byte)
-			go func() {
+			go func(delay time.Duration) {
 				responses <- b("\\statusresponse\\0\\hostname\\test\\queryid\\AMv1\\eof\\")
-				<-time.After(tt.delay)
+				<-time.After(delay)
 				responses <- b("\\statusresponse\\1\\hostport\\10480\\queryid\\AMv1\\final\\\\eof\\")
-			}()
+			}(tt.delay)
 			server, cancel := gs1.PrepareGS1Server(responses)
 			defer cancel()
 			_, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*50)

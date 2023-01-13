@@ -33,10 +33,10 @@ func New() *Repository {
 }
 
 func (mr *Repository) AddOrUpdate(_ context.Context, svr servers.Server) error {
-	var rep *server
-
 	mr.mutex.Lock()
 	defer mr.mutex.Unlock()
+
+	var rep *server
 
 	key := svr.GetAddr()
 	// first check whether this instance has already been reported
@@ -142,12 +142,18 @@ func (mr *Repository) CleanNext(_ context.Context, before time.Time) (servers.Se
 }
 
 func (mr *Repository) Count(context.Context) (int, error) {
+	mr.mutex.RLock()
+	defer mr.mutex.RUnlock()
 	return len(mr.servers), nil
 }
 
 func (mr *Repository) CountByStatus(_ context.Context) (map[ds.DiscoveryStatus]int, error) {
+	mr.mutex.RLock()
+	defer mr.mutex.RUnlock()
+
 	var bit ds.DiscoveryStatus
 	counter := make(map[ds.DiscoveryStatus]int)
+
 	for item := mr.history.Front(); item != nil; item = item.Next() {
 		rep := item.Value.(*server) // nolint: forcetypeassert
 		status := rep.Server.GetDiscoveryStatus()
@@ -157,5 +163,6 @@ func (mr *Repository) CountByStatus(_ context.Context) (map[ds.DiscoveryStatus]i
 			}
 		}
 	}
+
 	return counter, nil
 }

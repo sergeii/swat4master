@@ -338,7 +338,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 					"\\gametype\\VIP Escort\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store" +
 					"\\hostport\\10480\\password\\0\\gamever\\1.1\\final\\\\queryid\\1.1",
 			)
-			<-time.After(time.Millisecond * 25)
+			<-time.After(time.Millisecond * 45)
 			conn.WriteToUDP(packet, addr) // nolint: errcheck
 		},
 	)
@@ -388,7 +388,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	<-time.After(time.Millisecond * 5)
 	mf := getMetrics(t)
 	assert.Equal(t, 1, int(mf["discovery_busy_workers"].Metric[0].Gauge.GetValue()))
-	assert.Equal(t, 1, int(mf["discovery_available_available"].Metric[0].Gauge.GetValue()))
+	assert.Equal(t, 1, int(mf["discovery_available_workers"].Metric[0].Gauge.GetValue()))
 	assert.Equal(t, 5, int(mf["discovery_queue_produced_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_queue_consumed_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_queue_expired_total"].Metric[0].Counter.GetValue()))
@@ -396,7 +396,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	<-time.After(time.Millisecond * 50)
 	mf = getMetrics(t)
 	assert.Equal(t, 2, int(mf["discovery_busy_workers"].Metric[0].Gauge.GetValue()))
-	assert.Equal(t, 0, int(mf["discovery_available_available"].Metric[0].Gauge.GetValue()))
+	assert.Equal(t, 0, int(mf["discovery_available_workers"].Metric[0].Gauge.GetValue()))
 	assert.Equal(t, 5, int(mf["discovery_queue_produced_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 3, int(mf["discovery_queue_consumed_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_queue_expired_total"].Metric[0].Counter.GetValue()))
@@ -415,7 +415,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	<-time.After(time.Millisecond * 55)
 	mf = getMetrics(t)
 	assert.Equal(t, 1, int(mf["discovery_busy_workers"].Metric[0].Gauge.GetValue()))
-	assert.Equal(t, 1, int(mf["discovery_available_available"].Metric[0].Gauge.GetValue()))
+	assert.Equal(t, 1, int(mf["discovery_available_workers"].Metric[0].Gauge.GetValue()))
 	assert.Equal(t, 6, int(mf["discovery_queue_produced_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 4, int(mf["discovery_queue_consumed_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_queue_expired_total"].Metric[0].Counter.GetValue()))
@@ -438,7 +438,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	<-time.After(time.Millisecond * 55)
 	mf = getMetrics(t)
 	assert.Equal(t, 0, int(mf["discovery_busy_workers"].Metric[0].Gauge.GetValue()))
-	assert.Equal(t, 2, int(mf["discovery_available_available"].Metric[0].Gauge.GetValue()))
+	assert.Equal(t, 2, int(mf["discovery_available_workers"].Metric[0].Gauge.GetValue()))
 	assert.Equal(t, 6, int(mf["discovery_queue_produced_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 4, int(mf["discovery_queue_consumed_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_queue_expired_total"].Metric[0].Counter.GetValue()))
