@@ -34,9 +34,9 @@ func (rnr *Runner) Add(
 	runnable func(context.Context, *Runner, *application.App, config.Config),
 	ctx context.Context, // nolint: revive
 ) {
-	go runnable(ctx, rnr, rnr.app, rnr.cfg)
 	rnr.wg.Add(1)
 	rnr.rg.Add(1)
+	go runnable(ctx, rnr, rnr.app, rnr.cfg)
 }
 
 func (rnr *Runner) Ready() {
