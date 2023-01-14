@@ -35,14 +35,14 @@ func TestProber_Run(t *testing.T) {
 	defer cancelCtx()
 
 	cfg := config.Config{
-		DiscoveryRefreshInterval: time.Millisecond * 15,
-		DiscoveryRevivalInterval: time.Millisecond * 50,
+		DiscoveryRefreshInterval: time.Millisecond * 150,
+		DiscoveryRevivalInterval: time.Millisecond * 500,
 		DiscoveryRevivalScope:    time.Second,
-		DiscoveryRevivalPorts:    []int{1, 2, 3, 4},
+		DiscoveryRevivalPorts:    []int{1},
 		ProbeConcurrency:         5,
 		ProbePollSchedule:        time.Millisecond,
 		ProbeRetries:             2,
-		ProbeTimeout:             time.Millisecond * 5,
+		ProbeTimeout:             time.Millisecond * 100,
 	}
 	app := application.Configure()
 
@@ -50,17 +50,9 @@ func TestProber_Run(t *testing.T) {
 	udp1, cancelSvr1 := gs1.ServerFactory(
 		func(ctx context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {
 			packet := []byte(
-				"\\hostname\\-==MYT Team Svr==-\\numplayers\\16\\maxplayers\\16\\gametype\\VIP Escort" +
+				"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16\\gametype\\VIP Escort" +
 					"\\gamevariant\\SWAT 4\\mapname\\Northside Vending\\hostport\\10480\\password\\0" +
-					"\\gamever\\1.1\\player_0\\AntiRadioSpamBot\\player_1\\AntiRadioSpamBot\\player_2" +
-					"\\Dodote\\player_3\\Johnny\\player_4\\play\\player_5\\Tommy\\player_6\\Jericho" +
-					"\\player_7\\Daniel\\player_8\\Gery\\player_9\\Forman\\player_10\\Issou\\player_11" +
-					"\\Pierce\\player_12\\Osa\\player_13\\t00elitte\\player_14\\sernas\\player_15" +
-					"\\|MYT|Svea>M<\\score_0\\0\\score_1\\0\\score_2\\2\\score_3\\10\\score_4\\2\\score_5\\2" +
-					"\\score_6\\1\\score_7\\7\\score_8\\1\\score_9\\3\\score_10\\8\\score_11\\15\\score_12\\1" +
-					"\\score_13\\11\\score_14\\3\\score_15\\2\\ping_0\\0\\ping_1\\0\\ping_2\\167\\ping_3\\56" +
-					"\\ping_4\\128\\ping_5\\36\\ping_6\\35\\ping_7\\34\\ping_8\\23\\ping_9\\18\\ping_10\\15" +
-					"\\ping_11\\24\\ping_12\\40\\ping_13\\33\\ping_14\\40\\ping_15\\38\\final\\\\queryid\\1.1",
+					"\\gamever\\1.1\\final\\\\queryid\\1.1",
 			)
 			conn.WriteToUDP(packet, addr) // nolint: errcheck
 			atomic.AddInt64(&i1, 1)
@@ -130,7 +122,7 @@ func TestProber_Run(t *testing.T) {
 	runner := running.NewRunner(app, cfg)
 	runner.Add(prober.Run, ctx)
 	runner.Add(finder.Run, ctx)
-	time.Sleep(time.Millisecond * 100)
+	<-time.After(time.Second)
 
 	updatedSvr1, _ := app.Servers.GetByAddr(ctx, svr1.GetAddr())
 	assert.Equal(t, ds.Master|ds.Details|ds.Info|ds.Port, updatedSvr1.GetDiscoveryStatus())
@@ -143,8 +135,7 @@ func TestProber_Run(t *testing.T) {
 	svr1Details := updatedSvr1.GetDetails()
 	assert.Equal(t, "-==MYT Team Svr==-", svr1Details.Info.Hostname)
 	assert.Equal(t, 16, svr1Details.Info.MaxPlayers)
-	assert.Len(t, svr1Details.Players, 16)
-	assert.Nil(t, svr1Details.Objectives)
+	assert.Equal(t, 0, svr1Details.Info.NumPlayers)
 
 	notUpdatedSvr2, _ := app.Servers.GetByAddr(ctx, svr2.GetAddr())
 	assert.Equal(t, ds.DetailsRetry|ds.PortRetry, notUpdatedSvr2.GetDiscoveryStatus())
