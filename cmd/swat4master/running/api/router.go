@@ -15,6 +15,6 @@ func NewRouter(a *api.API) *gin.Engine {
 	router.GET("/status", h.Status)
 	router.GET("/api/servers", a.ListServers)
 	router.POST("/api/servers", a.AddServer)
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	router.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	return router
 }

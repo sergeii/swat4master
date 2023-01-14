@@ -7,6 +7,7 @@ ARG build_time="-"
 ENV CGO_ENABLED=0
 ENV GOOS=linux
 ENV GOARCH=amd64
+ENV PATH=/go/bin/linux_amd64:$PATH
 
 ARG _pkg="github.com/sergeii/swat4master/cmd/swat4master"
 
@@ -20,13 +21,17 @@ RUN mkdir -p /app/src \
     && chown -R scratch:scratch /app
 
 USER scratch
+
+RUN go install github.com/swaggo/swag/cmd/swag@v1.8.9
+
 WORKDIR /app/src
 
 COPY go.mod go.sum ./
 RUN go mod download && \
     go mod verify
 
-COPY . .
+COPY --chown=scratch:scratch . .
+RUN swag init -g schema.go -o api/docs/ -d api/,internal/rest/
 RUN go build  \
     -v \
     -ldflags="-X '$_pkg/build.Time=$build_time' -X '$_pkg/build.Commit=$build_commit_sha' -X '$_pkg/build.Version=$build_version'" \
@@ -34,6 +39,8 @@ RUN go build  \
     /app/src/cmd/swat4master
 
 FROM scratch
+
+ENV GIN_MODE=release
 
 WORKDIR /
 
