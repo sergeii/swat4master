@@ -17,6 +17,7 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/running/prober"
 	"github.com/sergeii/swat4master/internal/core/servers"
 	"github.com/sergeii/swat4master/internal/entity/addr"
+	"github.com/sergeii/swat4master/internal/entity/details"
 	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
 	"github.com/sergeii/swat4master/internal/validation"
 	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/gs1"
@@ -98,16 +99,28 @@ func TestProber_Run(t *testing.T) {
 	addr3 := udp3.LocalAddr()
 	defer cancelSvr3()
 
+	info := details.MustNewInfoFromParams(map[string]string{
+		"hostname":    "Swat4 Server",
+		"hostport":    "10480",
+		"mapname":     "A-Bomb Nightclub",
+		"gamever":     "1.0",
+		"gamevariant": "SWAT 4",
+		"gametype":    "Barricaded Suspects",
+	})
+
 	svr1, err := servers.NewFromAddr(addr.NewForTesting(addr1.IP, addr1.Port-1), addr1.Port)
 	require.NoError(t, err)
+	svr1.UpdateInfo(info)
 	svr1.UpdateDiscoveryStatus(ds.Details | ds.Master | ds.Port)
 
 	svr2, err := servers.NewFromAddr(addr.NewForTesting(addr2.IP, addr2.Port-1), addr2.Port)
 	require.NoError(t, err)
+	svr2.UpdateInfo(info)
 	svr2.UpdateDiscoveryStatus(ds.PortRetry | ds.DetailsRetry) // has both PortRetry and DetailsRetry status
 
 	svr3, err := servers.NewFromAddr(addr.NewForTesting(addr3.IP, addr3.Port-1), addr3.Port)
 	require.NoError(t, err)
+	svr3.UpdateInfo(info)
 	svr3.UpdateDiscoveryStatus(ds.Master)
 
 	app.Servers.AddOrUpdate(ctx, svr1) // nolint: errcheck
@@ -136,7 +149,7 @@ func TestProber_Run(t *testing.T) {
 	notUpdatedSvr2, _ := app.Servers.GetByAddr(ctx, svr2.GetAddr())
 	assert.Equal(t, ds.DetailsRetry|ds.PortRetry, notUpdatedSvr2.GetDiscoveryStatus())
 	svr2Info := notUpdatedSvr2.GetInfo()
-	assert.Equal(t, "", svr2Info.Hostname)
+	assert.Equal(t, "Swat4 Server", svr2Info.Hostname)
 	assert.Equal(t, int64(0), atomic.LoadInt64(&i2))
 
 	updatedSvr3, _ := app.Servers.GetByAddr(ctx, svr3.GetAddr())

@@ -68,8 +68,8 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"numrounds":   "5",
 	}))
 	outdated.UpdateDiscoveryStatus(ds.Master)
-	_ = app.Servers.AddOrUpdate(ctx, outdated)
-	time.Sleep(time.Millisecond * 15)
+	app.Servers.AddOrUpdate(ctx, outdated) // nolint: errcheck
+	<-time.After(time.Millisecond * 15)
 
 	noStatus, _ := servers.New(net.ParseIP("4.4.4.4"), 10480, 10481)
 	noStatus.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -80,8 +80,8 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gamevariant": "SWAT 4",
 		"gametype":    "Barricaded Suspects",
 	}))
-	_ = app.Servers.AddOrUpdate(ctx, noStatus)
-	time.Sleep(time.Millisecond * 1)
+	app.Servers.AddOrUpdate(ctx, noStatus) // nolint: errcheck
+	<-time.After(time.Millisecond * 1)
 
 	delisted, _ := servers.New(net.ParseIP("5.5.5.5"), 10480, 10481)
 	delisted.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -93,11 +93,11 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gametype":    "CO-OP",
 	}))
 	delisted.UpdateDiscoveryStatus(ds.NoDetails)
-	_ = app.Servers.AddOrUpdate(ctx, delisted)
-	time.Sleep(time.Millisecond * 1)
+	app.Servers.AddOrUpdate(ctx, delisted) // nolint: errcheck
+	<-time.After(time.Millisecond * 1)
 
-	noInfo, _ := servers.New(net.ParseIP("5.5.5.5"), 10480, 10481)
-	delisted.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
+	noInfo, _ := servers.New(net.ParseIP("6.6.6.6"), 10480, 10481)
+	noInfo.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 		"hostname":    "Awesome Server",
 		"hostport":    "10580",
 		"mapname":     "A-Bomb Nightclub",
@@ -106,8 +106,12 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gametype":    "CO-OP",
 	}))
 	noInfo.UpdateDiscoveryStatus(ds.Master | ds.Details)
-	_ = app.Servers.AddOrUpdate(ctx, noInfo)
-	time.Sleep(time.Millisecond * 1)
+	app.Servers.AddOrUpdate(ctx, noInfo) // nolint: errcheck
+	<-time.After(time.Millisecond * 1)
+
+	noRefresh, _ := servers.New(net.ParseIP("7.7.7.7"), 10580, 10581)
+	noRefresh.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
+	app.Servers.AddOrUpdate(ctx, noRefresh) // nolint: errcheck
 
 	gs1, _ := servers.New(net.ParseIP("1.1.1.1"), 10580, 10581)
 	gs1.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -124,8 +128,8 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"numrounds":   "5",
 	}))
 	gs1.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-	_ = app.Servers.AddOrUpdate(ctx, gs1)
-	time.Sleep(time.Millisecond * 5)
+	app.Servers.AddOrUpdate(ctx, gs1) // nolint: errcheck
+	<-time.After(time.Millisecond * 5)
 
 	gs2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
 	gs2.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -139,7 +143,7 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"maxplayers":  "5",
 	}))
 	gs2.UpdateDiscoveryStatus(ds.Master | ds.Info)
-	_ = app.Servers.AddOrUpdate(ctx, gs2)
+	app.Servers.AddOrUpdate(ctx, gs2) // nolint: errcheck
 
 	respJSON := make([]serverListSchema, 0)
 	resp, _ := testutils.DoTestRequest(
@@ -209,7 +213,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 		"maxplayers":  "16",
 	}))
 	vip.UpdateDiscoveryStatus(ds.Master | ds.Info)
-	_ = app.Servers.AddOrUpdate(ctx, vip)
+	app.Servers.AddOrUpdate(ctx, vip) // nolint: errcheck
 
 	vip10, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
 	vip10.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -224,7 +228,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 		"maxplayers":  "18",
 	}))
 	vip10.UpdateDiscoveryStatus(ds.Master | ds.Info)
-	_ = app.Servers.AddOrUpdate(ctx, vip10)
+	app.Servers.AddOrUpdate(ctx, vip10) // nolint: errcheck
 
 	bs, _ := servers.New(net.ParseIP("3.3.3.3"), 10480, 10481)
 	bs.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -239,7 +243,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 		"maxplayers":  "16",
 	}))
 	bs.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-	_ = app.Servers.AddOrUpdate(ctx, bs)
+	app.Servers.AddOrUpdate(ctx, bs) // nolint: errcheck
 
 	coop, _ := servers.New(net.ParseIP("4.4.4.4"), 10480, 10481)
 	coop.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -254,7 +258,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 		"maxplayers":  "5",
 	}))
 	coop.UpdateDiscoveryStatus(ds.Details | ds.Info)
-	_ = app.Servers.AddOrUpdate(ctx, coop)
+	app.Servers.AddOrUpdate(ctx, coop) // nolint: errcheck
 
 	sg, _ := servers.New(net.ParseIP("5.5.5.5"), 10480, 10481)
 	sg.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -269,7 +273,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 		"maxplayers":  "16",
 	}))
 	sg.UpdateDiscoveryStatus(ds.Master | ds.Info | ds.NoDetails)
-	_ = app.Servers.AddOrUpdate(ctx, sg)
+	app.Servers.AddOrUpdate(ctx, sg) // nolint: errcheck
 
 	coopx, _ := servers.New(net.ParseIP("6.6.6.6"), 10480, 10481)
 	coopx.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -284,7 +288,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 		"maxplayers":  "10",
 	}))
 	coopx.UpdateDiscoveryStatus(ds.Master | ds.Info)
-	_ = app.Servers.AddOrUpdate(ctx, coopx)
+	app.Servers.AddOrUpdate(ctx, coopx) // nolint: errcheck
 
 	passworded, _ := servers.New(net.ParseIP("7.7.7.7"), 10480, 10481)
 	passworded.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -299,7 +303,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 		"maxplayers":  "16",
 	}))
 	passworded.UpdateDiscoveryStatus(ds.Details | ds.Info)
-	_ = app.Servers.AddOrUpdate(ctx, passworded)
+	app.Servers.AddOrUpdate(ctx, passworded) // nolint: errcheck
 
 	tests := []struct {
 		name    string

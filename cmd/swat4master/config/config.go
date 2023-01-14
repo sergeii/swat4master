@@ -30,10 +30,11 @@ type Config struct {
 
 	ExporterListenAddr string
 
-	DiscoveryRefreshInterval time.Duration
-	DiscoveryRevivalInterval time.Duration
-	DiscoveryRevivalScope    time.Duration
-	DiscoveryRevivalPorts    []int
+	DiscoveryRefreshInterval  time.Duration
+	DiscoveryRevivalInterval  time.Duration
+	DiscoveryRevivalScope     time.Duration
+	DiscoveryRevivalCountdown time.Duration
+	DiscoveryRevivalPorts     []int
 
 	ProbePollSchedule time.Duration
 	ProbeTimeout      time.Duration
@@ -113,8 +114,12 @@ func Init() Config {
 		"Defines how often unlisted servers are checked for a chance of occasional revival",
 	)
 	flag.DurationVar(
-		&cfg.DiscoveryRevivalScope, "revival.scope", time.Hour*12,
+		&cfg.DiscoveryRevivalScope, "revival.scope", time.Hour,
 		"Limits the time period beyond which the unlisted servers are not revived",
+	)
+	flag.DurationVar(
+		&cfg.DiscoveryRevivalCountdown, "revival.countdown", time.Minute*5,
+		"Limits the upper bound for random countdown at which revival probes are launched",
 	)
 	flag.Func(
 		"revival.ports",
@@ -141,7 +146,7 @@ func Init() Config {
 		"Defines how often the discovery queue is checked for new targets",
 	)
 	flag.DurationVar(
-		&cfg.ProbeTimeout, "probe.timeout", time.Millisecond*500,
+		&cfg.ProbeTimeout, "probe.timeout", time.Second,
 		"Limits the maximum time a discovery target will be waited for a complete response",
 	)
 	flag.IntVar(
@@ -149,7 +154,7 @@ func Init() Config {
 		"Defines how many times a failed probe is retried ",
 	)
 	flag.IntVar(
-		&cfg.ProbeConcurrency, "probe.concurrency", 100,
+		&cfg.ProbeConcurrency, "probe.concurrency", 25,
 		"Limits how many discovery targets can be probed simultaneously",
 	)
 	flag.DurationVar(
@@ -157,7 +162,7 @@ func Init() Config {
 		"Defines how long a game server should stay in the memory storage after going offline",
 	)
 	flag.DurationVar(
-		&cfg.CleanInterval, "clean.interval", time.Minute,
+		&cfg.CleanInterval, "clean.interval", time.Minute*10,
 		"Defines how often should the memory storage should be cleaned",
 	)
 	flag.Parse()

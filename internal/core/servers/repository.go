@@ -10,9 +10,10 @@ import (
 )
 
 var ErrServerNotFound = errors.New("the requested server was not found")
+var ErrVersionConflict = errors.New("version conflict")
 
 type Repository interface {
-	AddOrUpdate(ctx context.Context, server Server) error
+	AddOrUpdate(ctx context.Context, server Server) (Server, error)
 	Remove(ctx context.Context, server Server) error
 	GetByAddr(ctx context.Context, addr addr.Addr) (Server, error)
 	Filter(ctx context.Context, fs FilterSet) ([]Server, error)

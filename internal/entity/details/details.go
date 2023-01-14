@@ -40,6 +40,8 @@ type Details struct {
 	Objectives []Objective `validate:"dive" param:"-"`
 }
 
+var Blank Details
+
 func MustNewDetailsFromParams(
 	info map[string]string,
 	players []map[string]string,

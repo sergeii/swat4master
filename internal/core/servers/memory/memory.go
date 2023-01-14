@@ -32,7 +32,7 @@ func New() *Repository {
 	return repo
 }
 
-func (mr *Repository) AddOrUpdate(_ context.Context, svr servers.Server) error {
+func (mr *Repository) AddOrUpdate(_ context.Context, svr servers.Server) (servers.Server, error) {
 	mr.mutex.Lock()
 	defer mr.mutex.Unlock()
 
@@ -48,14 +48,34 @@ func (mr *Repository) AddOrUpdate(_ context.Context, svr servers.Server) error {
 		}
 		item = mr.history.PushFront(rep)
 		mr.servers[key] = item
-	} else {
-		mr.history.MoveToFront(item)
-		rep = item.Value.(*server) // nolint: forcetypeassert
-		rep.Server = svr
-		rep.UpdatedAt = time.Now()
+		return svr, nil
 	}
 
-	return nil
+	rep = item.Value.(*server) // nolint: forcetypeassert
+
+	// only allow writes when the updated server's version
+	// does not exceed the version of current saved version in the repository
+	if rep.Server.GetVersion() > svr.GetVersion() {
+		log.Warn().
+			Stringer("server", svr).
+			Int("ours", svr.GetVersion()).
+			Int("theirs", rep.Server.GetVersion()).
+			Msg("Unable to save server due to version conflict")
+		return svr, servers.ErrVersionConflict
+	}
+
+	// bump the version counter
+	// so this version of the server instance
+	// maybe be only rewritten when other writers
+	// are acknowledged with the changes
+	svr.IncVersion()
+
+	rep.Server = svr
+	rep.UpdatedAt = time.Now()
+
+	mr.history.MoveToFront(item)
+
+	return svr, nil
 }
 
 func (mr *Repository) Remove(_ context.Context, svr servers.Server) error {
@@ -95,12 +115,15 @@ func (mr *Repository) Filter(_ context.Context, fs servers.FilterSet) ([]servers
 	recent := make([]servers.Server, 0, len(mr.servers))
 	for item := mr.history.Front(); item != nil; item = item.Next() {
 		rep := item.Value.(*server) // nolint: forcetypeassert
-		// ignore servers added or updated before the specific date
-		if byAfter && rep.UpdatedAt.Before(after) {
+		refreshedAt := rep.Server.GetRefreshedAt()
+		// ignore servers whose info or details were updated before the specific date
+		if byAfter && refreshedAt.Before(after) {
+			// because servers in the list are sorted by update date
+			// we can safely break here, as no more items would satisfy this condition
 			break
 		}
 		// ignore servers added or updated after the specific date
-		if byBefore && rep.UpdatedAt.After(before) {
+		if byBefore && refreshedAt.After(before) {
 			continue
 		}
 		// filter servers by discovery status

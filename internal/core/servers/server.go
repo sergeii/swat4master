@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/sergeii/swat4master/internal/entity/addr"
 	"github.com/sergeii/swat4master/internal/entity/details"
@@ -20,6 +21,9 @@ type Server struct {
 	status    ds.DiscoveryStatus
 	info      details.Info
 	details   details.Details
+
+	refreshedAt time.Time
+	version     int // lamport clock counter
 }
 
 var Blank Server // nolint: gochecknoglobals
@@ -102,6 +106,7 @@ func (gs *Server) GetInfo() details.Info {
 
 func (gs *Server) UpdateInfo(info details.Info) {
 	gs.info = info
+	gs.refreshedAt = time.Now()
 }
 
 func (gs *Server) GetDetails() details.Details {
@@ -110,6 +115,24 @@ func (gs *Server) GetDetails() details.Details {
 
 func (gs *Server) UpdateDetails(det details.Details) {
 	gs.details = det
+	gs.info = det.Info
+	gs.refreshedAt = time.Now()
+}
+
+func (gs *Server) Refresh() {
+	gs.refreshedAt = time.Now()
+}
+
+func (gs *Server) GetRefreshedAt() time.Time {
+	return gs.refreshedAt
+}
+
+func (gs *Server) GetVersion() int {
+	return gs.version
+}
+
+func (gs *Server) IncVersion() {
+	gs.version++
 }
 
 func (gs Server) String() string {

@@ -3,6 +3,7 @@ package probers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/netip"
 	"sync"
 	"time"
@@ -19,7 +20,14 @@ import (
 var ErrGlobalProbeTimeout = errors.New("global probe timeout reached")
 var ErrPortProbesFailed = errors.New("all port probes failed")
 
-type result struct {
+type Result struct {
+	details details.Details
+	port    int
+}
+
+var NoResult Result
+
+type response struct {
 	Response gs1.Response
 	Port     int
 }
@@ -56,8 +64,8 @@ func (s *PortProber) Probe(
 	svr servers.Server,
 	_ int,
 	timeout time.Duration,
-) (servers.Server, error) {
-	results := make(chan result)
+) (any, error) {
+	results := make(chan response)
 	done := make(chan struct{})
 	wg := &sync.WaitGroup{}
 
@@ -76,14 +84,14 @@ func (s *PortProber) Probe(
 		close(done)
 	}()
 
-	best, ok, err := s.collectResults(results, done, timeout)
+	best, ok, err := s.collectResponses(results, done, timeout)
 	if err != nil {
 		log.Error().
 			Err(err).Stringer("server", svr).
 			Msg("Failed to collect port probe results")
-		return servers.Blank, err
+		return NoResult, err
 	} else if !ok {
-		return servers.Blank, ErrPortProbesFailed
+		return NoResult, ErrPortProbesFailed
 	}
 
 	log.Debug().
@@ -96,22 +104,20 @@ func (s *PortProber) Probe(
 			Err(err).
 			Stringer("server", svr).Stringer("version", best.Response.Version).Int("Port", best.Port).
 			Msg("Unable to parse response")
-		return servers.Blank, err
+		return NoResult, err
 	}
 
-	svr.UpdateQueryPort(best.Port)
-	svr.UpdateInfo(det.Info)
-	svr.UpdateDetails(det)
-	svr.UpdateDiscoveryStatus(ds.Info | ds.Details | ds.Port)
-	svr.ClearDiscoveryStatus(ds.NoDetails | ds.DetailsRetry | ds.PortRetry | ds.NoPort)
-
-	return svr, nil
+	result := Result{
+		details: det,
+		port:    best.Port,
+	}
+	return result, nil
 }
 
 func (s *PortProber) probePort(
 	ctx context.Context,
 	wg *sync.WaitGroup,
-	results chan result,
+	responses chan response,
 	ip netip.Addr,
 	port int,
 	timeout time.Duration,
@@ -135,15 +141,15 @@ func (s *PortProber) probePort(
 		Stringer("version", resp.Version).Float64("duration", queryDur).
 		Msg("Successfully probed port")
 
-	results <- result{resp, port}
+	responses <- response{resp, port}
 }
 
-func (s *PortProber) collectResults(
-	ch chan result,
+func (s *PortProber) collectResponses(
+	ch chan response,
 	done chan struct{},
 	timeout time.Duration,
-) (result, bool, error) {
-	var best result
+) (response, bool, error) {
+	var best response
 	// this timeout should never trigger
 	// because we expect query goroutines to stop within configured probe timeout
 	// but in case of unexpected goroutine hangup, add this emergency timeout
@@ -154,19 +160,31 @@ func (s *PortProber) collectResults(
 		case <-done:
 			return best, ok, nil
 		case result := <-ch:
-			best = s.compareResults(best, result)
+			best = s.compareResponses(best, result)
 			ok = true
 		case <-exitTimeout:
-			return result{}, false, ErrGlobalProbeTimeout
+			return response{}, false, ErrGlobalProbeTimeout
 		}
 	}
 }
 
-func (s *PortProber) compareResults(this, that result) result {
+func (s *PortProber) compareResponses(this, that response) response {
 	if this.Response.Version > that.Response.Version {
 		return this
 	}
 	return that
+}
+
+func (s *PortProber) HandleSuccess(res any, svr servers.Server) servers.Server {
+	result, ok := res.(Result)
+	if !ok {
+		panic(fmt.Errorf("unexpected result type %T, %v", result, result))
+	}
+	svr.UpdateQueryPort(result.port)
+	svr.UpdateDetails(result.details)
+	svr.UpdateDiscoveryStatus(ds.Info | ds.Details | ds.Port)
+	svr.ClearDiscoveryStatus(ds.NoDetails | ds.DetailsRetry | ds.PortRetry | ds.NoPort)
+	return svr
 }
 
 func (s *PortProber) HandleRetry(svr servers.Server) servers.Server {

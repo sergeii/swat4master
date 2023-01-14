@@ -90,9 +90,9 @@ func revive(
 	}
 
 	// spread the probes within a random time range
-	maxCountdown := int(cfg.DiscoveryRevivalInterval/time.Second) / 2
+	maxCountdown := int(cfg.DiscoveryRevivalCountdown / time.Second)
 	if maxCountdown <= 0 {
-		maxCountdown = 1
+		maxCountdown = 1 // ms
 	}
 	deadline := now.Add(cfg.DiscoveryRevivalInterval)
 

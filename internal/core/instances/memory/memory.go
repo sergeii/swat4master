@@ -22,7 +22,7 @@ func New() *Repository {
 	return repo
 }
 
-func (r *Repository) Add(ctx context.Context, instance instances.Instance) error {
+func (r *Repository) Add(_ context.Context, instance instances.Instance) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	// check whether a server with this address has been reported under different instance id
@@ -36,7 +36,7 @@ func (r *Repository) Add(ctx context.Context, instance instances.Instance) error
 	return nil
 }
 
-func (r *Repository) RemoveByID(ctx context.Context, id string) error {
+func (r *Repository) RemoveByID(_ context.Context, id string) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	instance, exists := r.ids[id]
@@ -48,7 +48,7 @@ func (r *Repository) RemoveByID(ctx context.Context, id string) error {
 	return nil
 }
 
-func (r *Repository) RemoveByAddr(ctx context.Context, insAddr addr.Addr) error {
+func (r *Repository) RemoveByAddr(_ context.Context, insAddr addr.Addr) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	instance, exists := r.addrs[insAddr]
@@ -60,7 +60,7 @@ func (r *Repository) RemoveByAddr(ctx context.Context, insAddr addr.Addr) error 
 	return nil
 }
 
-func (r *Repository) GetByID(ctx context.Context, id string) (instances.Instance, error) {
+func (r *Repository) GetByID(_ context.Context, id string) (instances.Instance, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 	instance, exists := r.ids[id]
@@ -70,7 +70,7 @@ func (r *Repository) GetByID(ctx context.Context, id string) (instances.Instance
 	return instance, nil
 }
 
-func (r *Repository) GetByAddr(ctx context.Context, insAddr addr.Addr) (instances.Instance, error) {
+func (r *Repository) GetByAddr(_ context.Context, insAddr addr.Addr) (instances.Instance, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 	instance, exists := r.addrs[insAddr]
@@ -80,7 +80,7 @@ func (r *Repository) GetByAddr(ctx context.Context, insAddr addr.Addr) (instance
 	return instance, nil
 }
 
-func (r *Repository) Count(ctx context.Context) (int, error) {
+func (r *Repository) Count(_ context.Context) (int, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 	return len(r.ids), nil

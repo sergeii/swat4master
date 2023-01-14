@@ -39,11 +39,21 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-func send(address string, req []byte) {
+func sendUDP(address string, req []byte) {
 	conn, _ := net.Dial("udp", address)
 	defer conn.Close() // nolint: errcheck
-	// valid available request
-	conn.Write(req) // nolint: errcheck
+	conn.Write(req)    // nolint: errcheck
+}
+
+func getMetrics(t *testing.T) map[string]*dto.MetricFamily {
+	resp, err := http.Get("http://localhost:11338/metrics")
+	require.NoError(t, err)
+	defer resp.Body.Close() // nolint: errcheck
+	assert.Equal(t, 200, resp.StatusCode)
+	parser := expfmt.TextParser{}
+	mf, err := parser.TextToMetricFamilies(resp.Body)
+	require.NoError(t, err)
+	return mf
 }
 
 func TestExporter_MasterMetrics(t *testing.T) {
@@ -66,11 +76,11 @@ func TestExporter_MasterMetrics(t *testing.T) {
 	runner.WaitReady()
 
 	// valid available request
-	send("127.0.0.1:33811", []byte{0x09})
+	sendUDP("127.0.0.1:33811", []byte{0x09})
 
 	// invalid keepalive request (no prior heartbeat)
 	for i := 0; i < 2; i++ {
-		send("127.0.0.1:33811", []byte{0x08, 0xde, 0xad, 0xbe, 0xef})
+		sendUDP("127.0.0.1:33811", []byte{0x08, 0xde, 0xad, 0xbe, 0xef})
 	}
 
 	// valid server browser request
@@ -192,10 +202,10 @@ func TestExporter_ServerMetrics(t *testing.T) {
 	}))
 	svr4.UpdateDiscoveryStatus(ds.NoDetails)
 
-	app.Servers.AddOrUpdate(ctx, svr1) // nolint: errcheck
-	app.Servers.AddOrUpdate(ctx, svr2) // nolint: errcheck
-	app.Servers.AddOrUpdate(ctx, svr3) // nolint: errcheck
-	app.Servers.AddOrUpdate(ctx, svr4) // nolint: errcheck
+	svr1, _ = app.Servers.AddOrUpdate(ctx, svr1)
+	svr2, _ = app.Servers.AddOrUpdate(ctx, svr2)
+	svr3, _ = app.Servers.AddOrUpdate(ctx, svr3)
+	svr4, _ = app.Servers.AddOrUpdate(ctx, svr4)
 
 	<-time.After(time.Millisecond * 5)
 	mf := getMetrics(t)
@@ -296,9 +306,9 @@ func TestExporter_CleanerMetrics(t *testing.T) {
 	runner.Add(cleaner.Run, ctx)
 
 	svr1, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	_ = app.Servers.AddOrUpdate(ctx, svr1)
+	app.Servers.AddOrUpdate(ctx, svr1) // nolint: errcheck
 	svr2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
-	_ = app.Servers.AddOrUpdate(ctx, svr2)
+	app.Servers.AddOrUpdate(ctx, svr2) // nolint: errcheck
 
 	<-time.After(time.Millisecond * 50)
 
@@ -326,7 +336,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 		ProbeConcurrency:      2,
 		ProbePollSchedule:     time.Millisecond,
 		ProbeRetries:          1,
-		ProbeTimeout:          time.Millisecond * 50,
+		ProbeTimeout:          time.Millisecond * 250,
 		DiscoveryRevivalPorts: []int{0},
 	}
 	app := application.Configure()
@@ -338,7 +348,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 					"\\gametype\\VIP Escort\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store" +
 					"\\hostport\\10480\\password\\0\\gamever\\1.1\\final\\\\queryid\\1.1",
 			)
-			<-time.After(time.Millisecond * 45)
+			<-time.After(time.Millisecond * 200)
 			conn.WriteToUDP(packet, addr) // nolint: errcheck
 		},
 	)
@@ -359,8 +369,8 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	require.NoError(t, err)
 	svr2.UpdateDiscoveryStatus(ds.Port)
 
-	app.Servers.AddOrUpdate(ctx, svr1) // nolint: errcheck
-	app.Servers.AddOrUpdate(ctx, svr2) // nolint: errcheck
+	svr1, _ = app.Servers.AddOrUpdate(ctx, svr1)
+	svr2, _ = app.Servers.AddOrUpdate(ctx, svr2)
 
 	probe1 := probes.New(addr.NewForTesting(addr1.IP, addr1.Port), addr1.Port, probes.GoalDetails)
 	probe2 := probes.New(addr.NewForTesting(addr1.IP, addr1.Port), addr1.Port, probes.GoalPort)
@@ -368,16 +378,19 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	probe4 := probes.New(addr.NewForTesting(addr2.IP, addr2.Port), addr2.Port, probes.GoalPort)
 	probe4.IncRetries(2)
 	probe5 := probes.New(addr.NewForTesting(addr2.IP, addr2.Port), addr2.Port, probes.GoalDetails)
-	app.ProbeService.AddBefore(ctx, probe1, time.Now().Add(time.Millisecond*100)) // nolint: errcheck
-	app.ProbeService.AddBetween(                                                  // nolint: errcheck
+	// will be launched immediately but will expire in 1s
+	app.ProbeService.AddBefore(ctx, probe1, time.Now().Add(time.Second)) // nolint: errcheck
+	// will be launched no earlier than 100ms but will expire in 1s
+	app.ProbeService.AddBetween( // nolint: errcheck
 		ctx,
 		probe2,
-		time.Now().Add(time.Millisecond*50),
-		time.Now().Add(time.Millisecond*500),
+		time.Now().Add(time.Millisecond*100),
+		time.Now().Add(time.Second),
 	)
-	app.ProbeService.AddAfter(ctx, probe3, time.Now().Add(time.Millisecond*50)) // nolint: errcheck
-	app.ProbeService.AddAfter(ctx, probe4, time.Now().Add(time.Millisecond*50)) // nolint: errcheck
-	app.ProbeService.AddBefore(ctx, probe5, time.Now().Add(-time.Millisecond))  // nolint: errcheck
+	app.ProbeService.AddAfter(ctx, probe3, time.Now().Add(time.Millisecond*300)) // nolint: errcheck
+	app.ProbeService.AddAfter(ctx, probe4, time.Now().Add(time.Millisecond*300)) // nolint: errcheck
+	// already expired
+	app.ProbeService.AddBefore(ctx, probe5, time.Now().Add(-time.Millisecond)) // nolint: errcheck
 
 	runner := running.NewRunner(app, cfg)
 	runner.Add(exporter.Run, ctx)
@@ -385,20 +398,23 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	runner.Add(collector.Run, ctx)
 	runner.Add(prober.Run, ctx)
 
-	<-time.After(time.Millisecond * 5)
+	<-time.After(time.Millisecond * 50)
+	// 1 probe is picked and the worker is busy waited for response
 	mf := getMetrics(t)
 	assert.Equal(t, 1, int(mf["discovery_busy_workers"].Metric[0].Gauge.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_available_workers"].Metric[0].Gauge.GetValue()))
 	assert.Equal(t, 5, int(mf["discovery_queue_produced_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_queue_consumed_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_queue_expired_total"].Metric[0].Counter.GetValue()))
+	assert.Nil(t, mf["discovery_probes_total"])
 
-	<-time.After(time.Millisecond * 50)
+	<-time.After(time.Millisecond * 200)
+	// port probe is picked, previous detail probe finished
 	mf = getMetrics(t)
-	assert.Equal(t, 2, int(mf["discovery_busy_workers"].Metric[0].Gauge.GetValue()))
-	assert.Equal(t, 0, int(mf["discovery_available_workers"].Metric[0].Gauge.GetValue()))
+	assert.Equal(t, 1, int(mf["discovery_busy_workers"].Metric[0].Gauge.GetValue()))
+	assert.Equal(t, 1, int(mf["discovery_available_workers"].Metric[0].Gauge.GetValue()))
 	assert.Equal(t, 5, int(mf["discovery_queue_produced_total"].Metric[0].Counter.GetValue()))
-	assert.Equal(t, 3, int(mf["discovery_queue_consumed_total"].Metric[0].Counter.GetValue()))
+	assert.Equal(t, 2, int(mf["discovery_queue_consumed_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_queue_expired_total"].Metric[0].Counter.GetValue()))
 
 	assert.Equal(t, 1, int(mf["discovery_probes_total"].Metric[0].Counter.GetValue()))
@@ -412,15 +428,17 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	assert.Nil(t, mf["discovery_probe_failures_total"])
 	assert.Nil(t, mf["discovery_probe_errors_total"])
 
-	<-time.After(time.Millisecond * 55)
+	<-time.After(time.Millisecond * 200)
+	// details and port probes for unresponsive server are picked
+	// previous probes are finished
 	mf = getMetrics(t)
-	assert.Equal(t, 1, int(mf["discovery_busy_workers"].Metric[0].Gauge.GetValue()))
-	assert.Equal(t, 1, int(mf["discovery_available_workers"].Metric[0].Gauge.GetValue()))
-	assert.Equal(t, 6, int(mf["discovery_queue_produced_total"].Metric[0].Counter.GetValue()))
+	assert.Equal(t, 2, int(mf["discovery_busy_workers"].Metric[0].Gauge.GetValue()))
+	assert.Equal(t, 0, int(mf["discovery_available_workers"].Metric[0].Gauge.GetValue()))
+	assert.Equal(t, 5, int(mf["discovery_queue_produced_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 4, int(mf["discovery_queue_consumed_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_queue_expired_total"].Metric[0].Counter.GetValue()))
 
-	assert.Equal(t, 2, int(mf["discovery_probes_total"].Metric[0].Counter.GetValue()))
+	assert.Equal(t, 1, int(mf["discovery_probes_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_probes_total"].Metric[1].Counter.GetValue()))
 	assert.Equal(t, "details", *mf["discovery_probes_total"].Metric[0].Label[0].Value)
 	assert.Equal(t, "port", *mf["discovery_probes_total"].Metric[1].Label[0].Value)
@@ -431,11 +449,13 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	assert.Equal(t, "port", *mf["discovery_probe_success_total"].Metric[1].Label[0].Value)
 
 	assert.Nil(t, mf["discovery_probe_failures_total"])
-	assert.Equal(t, 1, int(mf["discovery_probe_retries_total"].Metric[0].Counter.GetValue()))
-	assert.Equal(t, "details", *mf["discovery_probe_retries_total"].Metric[0].Label[0].Value)
-	assert.Len(t, mf["discovery_probe_retries_total"].Metric, 1)
+	assert.Nil(t, mf["discovery_probe_retries_total"])
+	// assert.Equal(t, 1, int(mf["discovery_probe_retries_total"].Metric[0].Counter.GetValue()))
+	// assert.Equal(t, "details", *mf["discovery_probe_retries_total"].Metric[0].Label[0].Value)
+	// assert.Len(t, mf["discovery_probe_retries_total"].Metric, 1)
 
-	<-time.After(time.Millisecond * 55)
+	<-time.After(time.Millisecond * 200)
+	// both probes failed due to timeout
 	mf = getMetrics(t)
 	assert.Equal(t, 0, int(mf["discovery_busy_workers"].Metric[0].Gauge.GetValue()))
 	assert.Equal(t, 2, int(mf["discovery_available_workers"].Metric[0].Gauge.GetValue()))
@@ -458,15 +478,4 @@ func TestExporter_ProberMetrics(t *testing.T) {
 
 	cancel()
 	runner.WaitQuit()
-}
-
-func getMetrics(t *testing.T) map[string]*dto.MetricFamily {
-	resp, err := http.Get("http://localhost:11338/metrics")
-	require.NoError(t, err)
-	defer resp.Body.Close() // nolint: errcheck
-	assert.Equal(t, 200, resp.StatusCode)
-	parser := expfmt.TextParser{}
-	mf, err := parser.TextToMetricFamilies(resp.Body)
-	require.NoError(t, err)
-	return mf
 }

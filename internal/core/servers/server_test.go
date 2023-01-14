@@ -301,8 +301,9 @@ func TestServer_DetailsAreUpdated(t *testing.T) {
 	assert.Len(t, updatedDetails.Players, 2)
 	assert.Len(t, updatedDetails.Objectives, 5)
 
+	// info is also updated
 	defaultInfo := svr.GetInfo()
-	assert.Equal(t, "", defaultInfo.Hostname)
+	assert.Equal(t, "[c=0099ff]SEF 7.0 EU [c=ffffff]www.swat4.tk", defaultInfo.Hostname)
 }
 
 func TestServer_DiscoveryStatusIsUpdated(t *testing.T) {

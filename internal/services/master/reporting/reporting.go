@@ -184,11 +184,13 @@ func (mrs *MasterReporterService) handleKeepalive(
 	if !instance.GetIP().Equal(addr.IP.To4()) {
 		return nil, ErrUnknownInstanceID
 	}
-	server, err := mrs.servers.GetByAddr(ctx, instance.GetAddr())
+	svr, err := mrs.servers.GetByAddr(ctx, instance.GetAddr())
 	if err != nil {
 		return nil, err
 	}
-	if err = mrs.servers.AddOrUpdate(ctx, server); err != nil {
+	// bump the server to keep it alive
+	svr.Refresh()
+	if _, err := mrs.servers.AddOrUpdate(ctx, svr); err != nil {
 		return nil, err
 	}
 	return nil, nil
@@ -265,7 +267,7 @@ func (mrs *MasterReporterService) reportServer(
 		svr.UpdateDiscoveryStatus(ds.PortRetry)
 	}
 
-	if err := mrs.servers.AddOrUpdate(ctx, svr); err != nil {
+	if _, err := mrs.servers.AddOrUpdate(ctx, svr); err != nil {
 		log.Error().
 			Err(err).
 			Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).

@@ -95,15 +95,28 @@ func (s *Service) Probe(ctx context.Context, target probes.Target) error {
 		return err
 	}
 
-	probedSvr, err := prober.Probe(ctx, svr, queryPort, s.probeTimeout)
+	result, probeErr := prober.Probe(ctx, svr, queryPort, s.probeTimeout)
+	// server may have been changed by the time we finished probing
+	// make sure to use the most recent version of the server
+	svr, err = s.servers.GetByAddr(ctx, addr)
 	if err != nil {
+		log.Error().
+			Err(err).
+			Stringer("addr", addr).Stringer("goal", goal).Int("port", queryPort).
+			Msg("Failed to refresh server after probing")
+		return err
+	}
+
+	if probeErr != nil {
 		if retryErr := s.retry(ctx, prober, target, svr); retryErr != nil {
 			return retryErr
 		}
 		return ErrProbeRetried
 	}
 
-	if err := s.servers.AddOrUpdate(ctx, probedSvr); err != nil {
+	svr = prober.HandleSuccess(result, svr)
+
+	if _, err := s.servers.AddOrUpdate(ctx, svr); err != nil {
 		log.Error().
 			Err(err).
 			Stringer("addr", addr).Int("port", queryPort).Stringer("goal", goal).
@@ -112,7 +125,7 @@ func (s *Service) Probe(ctx context.Context, target probes.Target) error {
 	}
 
 	log.Debug().
-		Stringer("server", probedSvr).Int("port", queryPort).
+		Stringer("server", svr).Int("port", queryPort).
 		Stringer("goal", goal).Int("retries", target.GetRetries()).
 		Msg("Successfully probed server")
 
@@ -148,6 +161,7 @@ func (s *Service) retry(
 		return ErrOutOfRetries
 	}
 
+	// let the prober do its job about updating/logging the server instance
 	svr = prober.HandleRetry(svr)
 
 	retryDelay := time.Second * time.Duration(math.Exp(float64(retries)))
@@ -166,7 +180,7 @@ func (s *Service) retry(
 		Stringer("goal", goal).Int("retries", retries).Dur("delay", retryDelay).
 		Msg("Added retry for failed probe")
 
-	if err := s.servers.AddOrUpdate(ctx, svr); err != nil {
+	if _, err := s.servers.AddOrUpdate(ctx, svr); err != nil {
 		log.Error().Err(err).Stringer("server", svr).Msg("Unable to update retried server")
 		return err
 	}
@@ -190,7 +204,7 @@ func (s *Service) fail(
 
 	svr = prober.HandleFailure(svr)
 
-	if err := s.servers.AddOrUpdate(ctx, svr); err != nil {
+	if _, err := s.servers.AddOrUpdate(ctx, svr); err != nil {
 		log.Error().Err(err).
 			Stringer("server", svr).
 			Stringer("goal", goal).Int("retries", retries).

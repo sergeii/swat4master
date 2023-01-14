@@ -2,6 +2,7 @@ package probers
 
 import (
 	"context"
+	"fmt"
 	"net/netip"
 	"time"
 
@@ -31,7 +32,7 @@ func (s *DetailsProber) Probe(
 	svr servers.Server,
 	queryPort int,
 	timeout time.Duration,
-) (servers.Server, error) {
+) (any, error) {
 	addr := svr.GetAddr()
 	qAddr := netip.AddrPortFrom(netip.AddrFrom4(addr.GetIP4()), uint16(queryPort))
 
@@ -43,7 +44,7 @@ func (s *DetailsProber) Probe(
 			Err(err).
 			Dur("timeout", timeout).Stringer("addr", addr).Int("port", queryPort).
 			Msg("Failed to probe details")
-		return servers.Blank, err
+		return details.Blank, err
 	}
 
 	queryDur := time.Since(queryStarted).Seconds()
@@ -58,15 +59,21 @@ func (s *DetailsProber) Probe(
 		log.Error().
 			Err(err).Stringer("addr", addr).Int("port", queryPort).
 			Msg("Failed to parse query response")
-		return servers.Blank, err
+		return details.Blank, err
 	}
 
-	svr.UpdateInfo(svrDetails.Info)
-	svr.UpdateDetails(svrDetails)
+	return svrDetails, nil
+}
+
+func (s *DetailsProber) HandleSuccess(result any, svr servers.Server) servers.Server {
+	det, ok := result.(details.Details)
+	if !ok {
+		panic(fmt.Errorf("unexpected result type %T, %v", result, result))
+	}
+	svr.UpdateDetails(det)
 	svr.UpdateDiscoveryStatus(ds.Info | ds.Details)
 	svr.ClearDiscoveryStatus(ds.NoDetails | ds.DetailsRetry)
-
-	return svr, nil
+	return svr
 }
 
 func (s *DetailsProber) HandleRetry(svr servers.Server) servers.Server {
