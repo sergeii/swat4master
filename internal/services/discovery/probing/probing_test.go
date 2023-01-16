@@ -116,7 +116,7 @@ func TestProbingService_ProbeDetails_OK(t *testing.T) {
 			queueSize, _ := queue.Count(ctx)
 			assert.Equal(t, 0, queueSize)
 
-			updatedSvr, _ := repo.GetByAddr(ctx, svr.GetAddr())
+			updatedSvr, _ := repo.Get(ctx, svr.GetAddr())
 			assert.Equal(t, tt.wantStatus, updatedSvr.GetDiscoveryStatus())
 
 			updatedInfo := updatedSvr.GetInfo()
@@ -249,7 +249,7 @@ func TestProbingService_ProbeDetails_RetryOnError(t *testing.T) {
 
 			queueSize, _ := queue.Count(ctx)
 
-			updatedSvr, getErr := repo.GetByAddr(ctx, svr.GetAddr())
+			updatedSvr, getErr := repo.Get(ctx, svr.GetAddr())
 			updatedInfo := updatedSvr.GetInfo()
 
 			if tt.wantErr != nil {
@@ -333,7 +333,7 @@ func TestProbingService_ProbeDetails_OutOfRetries(t *testing.T) {
 			queueSize, _ := queue.Count(ctx)
 			require.Equal(t, 0, queueSize)
 
-			maybeUpdatedServer, getErr := repo.GetByAddr(ctx, svr.GetAddr())
+			maybeUpdatedServer, getErr := repo.Get(ctx, svr.GetAddr())
 
 			if tt.serverExists {
 				require.ErrorIs(t, probeErr, probing.ErrOutOfRetries)
@@ -415,7 +415,7 @@ func TestService_ProbePort_OK(t *testing.T) {
 			queueSize, _ := queue.Count(ctx)
 			assert.Equal(t, 0, queueSize)
 
-			updatedSvr, _ := repo.GetByAddr(ctx, svr.GetAddr())
+			updatedSvr, _ := repo.Get(ctx, svr.GetAddr())
 			assert.Equal(t, tt.wantStatus, updatedSvr.GetDiscoveryStatus())
 
 			assert.Equal(t, svrAddr.Port, updatedSvr.GetQueryPort())
@@ -551,7 +551,7 @@ func TestService_ProbePort_RetryOnError(t *testing.T) {
 
 			queueSize, _ := queue.Count(ctx)
 
-			updatedSvr, getErr := repo.GetByAddr(ctx, svr.GetAddr())
+			updatedSvr, getErr := repo.Get(ctx, svr.GetAddr())
 			updatedInfo := updatedSvr.GetInfo()
 
 			if tt.wantErr != nil {
@@ -650,7 +650,7 @@ func TestService_ProbePort_SelectedPortsAreTried(t *testing.T) {
 			target := probes.New(svr.GetAddr(), 12345, probes.GoalPort)
 			probeErr := service.Probe(ctx, target)
 
-			updatedSvr, getErr := repo.GetByAddr(ctx, svr.GetAddr())
+			updatedSvr, getErr := repo.Get(ctx, svr.GetAddr())
 			require.NoError(t, getErr)
 
 			if tt.ok {
@@ -734,7 +734,7 @@ func TestService_ProbePort_MultiplePortsAreProbed(t *testing.T) {
 	target := probes.New(svr.GetAddr(), 12345, probes.GoalPort)
 	probeErr := service.Probe(ctx, target)
 
-	updatedSvr, getErr := repo.GetByAddr(ctx, svr.GetAddr())
+	updatedSvr, getErr := repo.Get(ctx, svr.GetAddr())
 	require.NoError(t, getErr)
 
 	require.NoError(t, probeErr)
@@ -803,7 +803,7 @@ func TestService_ProbePort_OutOfRetries(t *testing.T) {
 			queueSize, _ := queue.Count(ctx)
 			require.Equal(t, 0, queueSize)
 
-			maybeUpdatedServer, getErr := repo.GetByAddr(ctx, svr.GetAddr())
+			maybeUpdatedServer, getErr := repo.Get(ctx, svr.GetAddr())
 
 			if tt.serverExists {
 				require.ErrorIs(t, probeErr, probing.ErrOutOfRetries)

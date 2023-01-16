@@ -78,6 +78,50 @@ func (mr *Repository) AddOrUpdate(_ context.Context, svr servers.Server) (server
 	return svr, nil
 }
 
+func (mr *Repository) Update(
+	ctx context.Context,
+	unlocker servers.Unlocker,
+	svr servers.Server,
+) (servers.Server, error) {
+	defer unlocker.Unlock()
+	return mr.update(ctx, svr)
+}
+
+func (mr *Repository) update(_ context.Context, svr servers.Server) (servers.Server, error) {
+	key := svr.GetAddr()
+
+	item, exists := mr.servers[key]
+	if !exists {
+		return servers.Blank, servers.ErrServerNotFound
+	}
+
+	rep := item.Value.(*server) // nolint: forcetypeassert
+
+	// only allow writes when the updated server's version
+	// does not exceed the version of current saved version in the repository
+	if rep.Server.GetVersion() > svr.GetVersion() {
+		log.Warn().
+			Stringer("server", svr).
+			Int("ours", svr.GetVersion()).
+			Int("theirs", rep.Server.GetVersion()).
+			Msg("Unable to save server due to version conflict")
+		return svr, servers.ErrVersionConflict
+	}
+
+	// bump the version counter
+	// so this version of the server instance
+	// maybe be only rewritten when other writers
+	// are acknowledged with the changes
+	svr.IncVersion()
+
+	rep.Server = svr
+	rep.UpdatedAt = time.Now()
+
+	mr.history.MoveToFront(item)
+
+	return svr, nil
+}
+
 func (mr *Repository) Remove(_ context.Context, svr servers.Server) error {
 	mr.mutex.Lock()
 	defer mr.mutex.Unlock()
@@ -91,11 +135,29 @@ func (mr *Repository) Remove(_ context.Context, svr servers.Server) error {
 	return nil
 }
 
-func (mr *Repository) GetByAddr(_ context.Context, addr addr.Addr) (servers.Server, error) {
+func (mr *Repository) Get(ctx context.Context, addr addr.Addr) (servers.Server, error) {
 	mr.mutex.RLock()
 	defer mr.mutex.RUnlock()
-	item, ok := mr.servers[addr]
-	if !ok {
+	return mr.get(ctx, addr)
+}
+
+func (mr *Repository) GetForUpdate(
+	ctx context.Context,
+	addr addr.Addr,
+) (servers.Server, servers.Unlocker, error) {
+	mr.mutex.Lock()
+	svr, err := mr.get(ctx, addr)
+	if err != nil {
+		mr.mutex.Unlock()
+		return svr, nil, err
+	}
+	unlocker := NewUnlocker(&mr.mutex)
+	return svr, unlocker, nil
+}
+
+func (mr *Repository) get(_ context.Context, addr addr.Addr) (servers.Server, error) {
+	item, exists := mr.servers[addr]
+	if !exists {
 		return servers.Blank, servers.ErrServerNotFound
 	}
 	svr := item.Value.(*server) // nolint: forcetypeassert

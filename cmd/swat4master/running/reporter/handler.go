@@ -42,7 +42,8 @@ func (h *RequestHandler) Handle(ctx context.Context, conn *net.UDPConn, addr *ne
 	if err != nil {
 		h.metrics.ReporterErrors.WithLabelValues(reqType.String()).Inc()
 		log.Error().
-			Err(err).Stringer("src", addr).Int("len", len(req)).
+			Err(err).
+			Stringer("src", addr).Stringer("type", reqType).Int("len", len(req)).
 			Msg("Failed to dispatch request")
 		return
 	}

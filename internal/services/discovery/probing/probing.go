@@ -86,7 +86,7 @@ func (s *Service) Probe(ctx context.Context, target probes.Target) error {
 		return err
 	}
 
-	svr, err := s.servers.GetByAddr(ctx, addr)
+	svr, err := s.servers.Get(ctx, addr)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -98,7 +98,7 @@ func (s *Service) Probe(ctx context.Context, target probes.Target) error {
 	result, probeErr := prober.Probe(ctx, svr, queryPort, s.probeTimeout)
 	// server may have been changed by the time we finished probing
 	// make sure to use the most recent version of the server
-	svr, err = s.servers.GetByAddr(ctx, addr)
+	svr, unlocker, err := s.servers.GetForUpdate(ctx, addr)
 	if err != nil {
 		log.Error().
 			Err(err).
@@ -106,22 +106,46 @@ func (s *Service) Probe(ctx context.Context, target probes.Target) error {
 			Msg("Failed to refresh server after probing")
 		return err
 	}
+	defer unlocker.Unlock()
 
+	var retry error
 	if probeErr != nil {
-		if retryErr := s.retry(ctx, prober, target, svr); retryErr != nil {
+		retryErr := s.retry(ctx, target, svr)
+		switch {
+		// this is expected, handle the server properly
+		case errors.Is(retryErr, ErrOutOfRetries):
+			svr = prober.HandleFailure(svr)
+			retry = retryErr
+		// other unexpected error
+		case retryErr != nil:
 			return retryErr
+		// probe is successfully retried
+		default:
+			svr = prober.HandleRetry(svr)
+			retry = ErrProbeRetried
 		}
-		return ErrProbeRetried
+	} else {
+		svr = prober.HandleSuccess(result, svr)
 	}
 
-	svr = prober.HandleSuccess(result, svr)
-
-	if _, err := s.servers.AddOrUpdate(ctx, svr); err != nil {
+	// update the server instance for all 3 cases
+	// that may lead to this point:
+	// - server is actually probed
+	// - probe failed, but it is retried
+	// - probe failed, but we ran out of attempts
+	if _, err := s.servers.Update(ctx, unlocker, svr); err != nil {
 		log.Error().
 			Err(err).
+			AnErr("retry", retry).
 			Stringer("addr", addr).Int("port", queryPort).Stringer("goal", goal).
-			Msg("Failed to update probed server")
+			Msg("Unable to update server")
 		return err
+	}
+
+	// let the caller know that probe failed,
+	// but we managed to launch a retry (or ran out of further attempts)
+	if retry != nil {
+		return retry
 	}
 
 	log.Debug().
@@ -146,7 +170,6 @@ func (s *Service) chooseProber(goal probes.Goal) (probers.Prober, error) {
 
 func (s *Service) retry(
 	ctx context.Context,
-	prober probers.Prober,
 	target probes.Target,
 	svr servers.Server,
 ) error {
@@ -155,14 +178,12 @@ func (s *Service) retry(
 
 	retries, ok := target.IncRetries(s.maxRetries)
 	if !ok {
-		if err := s.fail(ctx, prober, target, svr); err != nil {
-			return err
-		}
+		log.Info().
+			Stringer("server", svr).
+			Stringer("goal", goal).Int("retries", retries).Int("max", s.maxRetries).
+			Msg("Max retries reached")
 		return ErrOutOfRetries
 	}
-
-	// let the prober do its job about updating/logging the server instance
-	svr = prober.HandleRetry(svr)
 
 	retryDelay := time.Second * time.Duration(math.Exp(float64(retries)))
 	retryAfter := time.Now().Add(retryDelay)
@@ -179,38 +200,6 @@ func (s *Service) retry(
 		Stringer("addr", addr).Int("port", target.GetPort()).
 		Stringer("goal", goal).Int("retries", retries).Dur("delay", retryDelay).
 		Msg("Added retry for failed probe")
-
-	if _, err := s.servers.AddOrUpdate(ctx, svr); err != nil {
-		log.Error().Err(err).Stringer("server", svr).Msg("Unable to update retried server")
-		return err
-	}
-
-	return nil
-}
-
-func (s *Service) fail(
-	ctx context.Context,
-	prober probers.Prober,
-	target probes.Target,
-	svr servers.Server,
-) error {
-	goal := target.GetGoal()
-	retries := target.GetRetries()
-
-	log.Info().
-		Stringer("server", svr).
-		Stringer("goal", goal).Int("retries", retries).Int("max", s.maxRetries).
-		Msg("Max retries reached")
-
-	svr = prober.HandleFailure(svr)
-
-	if _, err := s.servers.AddOrUpdate(ctx, svr); err != nil {
-		log.Error().Err(err).
-			Stringer("server", svr).
-			Stringer("goal", goal).Int("retries", retries).
-			Msg("Unable to update failed server")
-		return err
-	}
 
 	return nil
 }

@@ -3,6 +3,7 @@ package memory_test
 import (
 	"context"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -54,12 +55,12 @@ func TestServerMemoryRepo_AddOrUpdate_NewInstance(t *testing.T) {
 
 	require.NoError(t, otherErr)
 
-	addedSvr, err := repo.GetByAddr(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	addedSvr, err := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 	require.NoError(t, err)
 	svrInfo := addedSvr.GetInfo()
 	assert.Equal(t, "Swat4 Server", svrInfo.Hostname)
 
-	addedOther, err := repo.GetByAddr(ctx, addr.MustNewFromString("2.2.2.2", 10480))
+	addedOther, err := repo.Get(ctx, addr.MustNewFromString("2.2.2.2", 10480))
 	require.NoError(t, err)
 	otherInfo := addedOther.GetInfo()
 	assert.Equal(t, "Another Swat4 Server", otherInfo.Hostname)
@@ -83,7 +84,7 @@ func TestServerMemoryRepo_AddOrUpdate_UpdateInstance(t *testing.T) {
 	_, err := repo.AddOrUpdate(ctx, svr)
 	require.NoError(t, err)
 
-	addedSvr, err := repo.GetByAddr(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	addedSvr, err := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 	require.NoError(t, err)
 	addedInfo := addedSvr.GetInfo()
 	assert.Equal(t, "A-Bomb Nightclub", addedInfo.MapName)
@@ -109,7 +110,7 @@ func TestServerMemoryRepo_AddOrUpdate_UpdateInstance(t *testing.T) {
 	_, err = repo.AddOrUpdate(ctx, svr)
 	require.NoError(t, err)
 
-	updatedSvr, err := repo.GetByAddr(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	updatedSvr, err := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 	updatedInfo := updatedSvr.GetInfo()
 	require.NoError(t, err)
 	assert.Equal(t, "Food Wall Restaurant", updatedInfo.MapName)
@@ -170,7 +171,7 @@ func TestServerMemoryRepo_AddOrUpdate_VersionControl(t *testing.T) {
 	assert.Equal(t, "Food Wall Restaurant", svr.GetInfo().MapName)
 
 	// version is saved in repo
-	svr, err = repo.GetByAddr(ctx, svr.GetAddr())
+	svr, err = repo.Get(ctx, svr.GetAddr())
 	require.NoError(t, err)
 	assert.Equal(t, 2, svr.GetVersion())
 	assert.Equal(t, "Food Wall Restaurant", svr.GetInfo().MapName)
@@ -189,7 +190,7 @@ func TestServerMemoryRepo_AddOrUpdate_VersionControl(t *testing.T) {
 	assert.Equal(t, 3, svr.GetVersion())
 	assert.Equal(t, "The Wolcott Projects", svr.GetInfo().MapName)
 
-	conflict, err := repo.GetByAddr(ctx, svr.GetAddr())
+	conflict, err := repo.Get(ctx, svr.GetAddr())
 	require.NoError(t, err)
 	assert.Equal(t, 3, conflict.GetVersion())
 	assert.Equal(t, "The Wolcott Projects", conflict.GetInfo().MapName)
@@ -201,6 +202,136 @@ func TestServerMemoryRepo_AddOrUpdate_VersionControl(t *testing.T) {
 	conflict, err = repo.AddOrUpdate(ctx, conflict)
 	assert.ErrorIs(t, err, servers.ErrVersionConflict)
 	assert.Equal(t, 3, conflict.GetVersion())
+}
+
+func TestServerMemoryRepo_Update_Exclusive(t *testing.T) {
+	repo := memory.New()
+	ctx := context.TODO()
+
+	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
+		"hostname":    "Swat4 Server",
+		"hostport":    "10480",
+		"mapname":     "A-Bomb Nightclub",
+		"gamever":     "1.1",
+		"gamevariant": "SWAT 4",
+		"gametype":    "VIP Escort",
+		"numplayers":  "16",
+	}))
+	_, err := repo.AddOrUpdate(ctx, svr)
+	require.NoError(t, err)
+
+	svr, locker, err := repo.GetForUpdate(ctx, svr.GetAddr())
+	require.NoError(t, err)
+
+	updated := make(chan struct{})
+	// a parallel update will wait for update to complete
+	go func(a addr.Addr) {
+		other, unlocker, err := repo.GetForUpdate(ctx, a)
+		require.NoError(t, err)
+		assert.Equal(t, 1, other.GetVersion())
+		assert.Equal(t, ds.Info, other.GetDiscoveryStatus())
+		svr.UpdateDiscoveryStatus(ds.Details)
+		svr, err = repo.Update(ctx, unlocker, svr)
+		require.NoError(t, err)
+		close(updated)
+	}(svr.GetAddr())
+
+	<-time.After(time.Millisecond * 10)
+	svr.UpdateDiscoveryStatus(ds.Info)
+	svr, err = repo.Update(ctx, locker, svr)
+	require.NoError(t, err)
+
+	<-updated
+	svr, err = repo.Get(ctx, svr.GetAddr())
+	require.NoError(t, err)
+	assert.Equal(t, 2, svr.GetVersion())
+	assert.Equal(t, ds.Info|ds.Details, svr.GetDiscoveryStatus())
+}
+
+func TestServerMemoryRepo_Update_ExclusiveAccess(t *testing.T) {
+	repo := memory.New()
+	ctx := context.TODO()
+
+	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
+		"hostname":    "Swat4 Server",
+		"hostport":    "10480",
+		"mapname":     "A-Bomb Nightclub",
+		"gamever":     "1.1",
+		"gamevariant": "SWAT 4",
+		"gametype":    "VIP Escort",
+		"numplayers":  "16",
+	}))
+	_, err := repo.AddOrUpdate(ctx, svr)
+	require.NoError(t, err)
+
+	svr, locker, err := repo.GetForUpdate(ctx, svr.GetAddr())
+	require.NoError(t, err)
+	defer locker.Unlock()
+
+	finished := make(chan struct{})
+	// a parallel get will wait for update to complete
+	go func(a addr.Addr) {
+		other, err := repo.Get(ctx, a)
+		require.NoError(t, err)
+		assert.Equal(t, 1, other.GetVersion())
+		assert.Equal(t, ds.Info, other.GetDiscoveryStatus())
+		close(finished)
+	}(svr.GetAddr())
+
+	<-time.After(time.Millisecond * 10)
+	svr.UpdateDiscoveryStatus(ds.Info)
+	svr, err = repo.Update(ctx, locker, svr)
+	require.NoError(t, err)
+
+	<-finished
+
+	svr, err = repo.Get(ctx, svr.GetAddr())
+	require.NoError(t, err)
+	assert.Equal(t, 1, svr.GetVersion())
+	assert.Equal(t, ds.Info, svr.GetDiscoveryStatus())
+}
+
+func TestServerMemoryRepo_Update_Serialization(t *testing.T) {
+	repo := memory.New()
+	ctx := context.TODO()
+
+	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
+		"hostname":    "Swat4 Server",
+		"hostport":    "10480",
+		"mapname":     "A-Bomb Nightclub",
+		"gamever":     "1.1",
+		"gamevariant": "SWAT 4",
+		"gametype":    "VIP Escort",
+		"numplayers":  "16",
+	}))
+	_, err := repo.AddOrUpdate(ctx, svr)
+	require.NoError(t, err)
+
+	wg := &sync.WaitGroup{}
+	// a parallel get will wait for update to complete
+	update := func(addr addr.Addr, status ds.DiscoveryStatus) {
+		defer wg.Done()
+		server, unlocker, err := repo.GetForUpdate(ctx, addr)
+		require.NoError(t, err)
+		server.UpdateDiscoveryStatus(status)
+		server, err = repo.Update(ctx, unlocker, server)
+		require.NoError(t, err)
+	}
+
+	wg.Add(4)
+	go update(svr.GetAddr(), ds.Master)
+	go update(svr.GetAddr(), ds.Info)
+	go update(svr.GetAddr(), ds.Details)
+	go update(svr.GetAddr(), ds.Port)
+	wg.Wait()
+
+	svr, err = repo.Get(ctx, svr.GetAddr())
+	require.NoError(t, err)
+	assert.Equal(t, 4, svr.GetVersion())
+	assert.Equal(t, ds.Info|ds.Master|ds.Details|ds.Port, svr.GetDiscoveryStatus())
 }
 
 func TestServerMemoryRepo_Remove(t *testing.T) {
@@ -242,7 +373,7 @@ func TestServerMemoryRepo_Remove(t *testing.T) {
 			err := repo.Remove(ctx, tt.server)
 			assert.NoError(t, err)
 
-			getInst, getErr := repo.GetByAddr(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+			getInst, getErr := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 			reportedAfterRemove, _ := repo.Filter(ctx, servers.NewFilterSet().After(before))
 			if !tt.removed {
 				assert.NoError(t, getErr)
@@ -299,10 +430,10 @@ func TestServerMemoryRepo_CleanNext(t *testing.T) {
 	assert.Len(t, afterSecondClean, 1)
 	assert.Equal(t, 0, cleanAll(repo, after))
 
-	_, err := repo.GetByAddr(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	_, err := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 	assert.ErrorIs(t, err, servers.ErrServerNotFound)
 
-	newSvr, err = repo.GetByAddr(ctx, addr.MustNewFromString("2.2.2.2", 10480))
+	newSvr, err = repo.Get(ctx, addr.MustNewFromString("2.2.2.2", 10480))
 	require.NoError(t, err)
 	assert.Equal(t, "New Swat4 Server", newSvr.GetInfo().Hostname)
 
@@ -315,10 +446,10 @@ func TestServerMemoryRepo_CleanNext(t *testing.T) {
 	assert.Len(t, afterThirdClean, 0)
 	assert.Equal(t, 0, cleanAll(repo, now))
 
-	_, err = repo.GetByAddr(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	_, err = repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 	assert.ErrorIs(t, err, servers.ErrServerNotFound)
 
-	_, err = repo.GetByAddr(ctx, addr.MustNewFromString("2.2.2.2", 10480))
+	_, err = repo.Get(ctx, addr.MustNewFromString("2.2.2.2", 10480))
 	assert.ErrorIs(t, err, servers.ErrServerNotFound)
 }
 
@@ -338,10 +469,10 @@ func TestServerMemoryRepo_CleanBefore_Multiple(t *testing.T) {
 	afterFirstClean, _ := repo.Filter(ctx, servers.NewFilterSet().After(before))
 	assert.Len(t, afterFirstClean, 0)
 
-	_, err := repo.GetByAddr(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	_, err := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 	assert.ErrorIs(t, err, servers.ErrServerNotFound)
 
-	_, err = repo.GetByAddr(ctx, addr.MustNewFromString("2.2.2.2", 10480))
+	_, err = repo.Get(ctx, addr.MustNewFromString("2.2.2.2", 10480))
 	assert.ErrorIs(t, err, servers.ErrServerNotFound)
 }
 

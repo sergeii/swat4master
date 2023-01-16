@@ -161,7 +161,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsAddedAndUpdated(t *testing.T)
 	assert.NoError(t, err)
 	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
 
-	svr, _ := f.Servers.GetByAddr(ctx, addr.MustNewFromString("55.55.55.55", 10580))
+	svr, _ := f.Servers.Get(ctx, addr.MustNewFromString("55.55.55.55", 10580))
 
 	details := svr.GetInfo()
 	assert.Equal(t, 16, details.NumPlayers)
@@ -183,7 +183,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsAddedAndUpdated(t *testing.T)
 		testutils.PackHeartbeatRequest(instanceID, paramsAfter),
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
 	)
-	svr, _ = f.Servers.GetByAddr(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	svr, _ = f.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 	details = svr.GetInfo()
 	assert.Equal(t, 15, details.NumPlayers)
 	assert.Equal(t, "VIP Escort", details.GameType)
@@ -240,7 +240,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdated(t *testing.T) {
 			)
 			assert.NoError(t, err)
 
-			reportedSvr, err := f.Servers.GetByAddr(ctx, addr.MustNewFromString("55.55.55.55", 10580))
+			reportedSvr, err := f.Servers.Get(ctx, addr.MustNewFromString("55.55.55.55", 10580))
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantStatus, reportedSvr.GetDiscoveryStatus())
@@ -329,7 +329,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerPortIsDiscovered(t *testing.T) 
 			)
 			assert.NoError(t, err)
 
-			reportedSvr, err := f.Servers.GetByAddr(ctx, addr.MustNewFromString("55.55.55.55", 10580))
+			reportedSvr, err := f.Servers.Get(ctx, addr.MustNewFromString("55.55.55.55", 10580))
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantStatus, reportedSvr.GetDiscoveryStatus())
@@ -372,7 +372,7 @@ func TestReporter_DispatchHeartbeatRequest_HandleServerBehindNAT(t *testing.T) {
 	)
 	assert.NoError(t, err)
 	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
-	svr, _ := f.Servers.GetByAddr(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	svr, _ := f.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 	details := svr.GetInfo()
 	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
 	assert.Equal(t, 16, details.NumPlayers)
@@ -394,7 +394,7 @@ func TestReporter_DispatchHeartbeatRequest_HandleServerBehindNAT(t *testing.T) {
 		testutils.WithServerParams(paramsAfter),
 		testutils.WithCustomAddr("1.1.1.1", 37122),
 	)
-	svr, _ = f.Servers.GetByAddr(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	svr, _ = f.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 	details = svr.GetInfo()
 	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
 	assert.Equal(t, 15, details.NumPlayers)
@@ -427,7 +427,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdatedWithNewInstanceID(t *t
 
 	instance, err := f.Instances.GetByID(ctx, string(oldInstanceID))
 	require.NoError(t, err)
-	svr, _ := f.Servers.GetByAddr(ctx, instance.GetAddr())
+	svr, _ := f.Servers.Get(ctx, instance.GetAddr())
 	details := svr.GetInfo()
 	assert.Equal(t, 16, details.NumPlayers)
 	assert.Equal(t, "VIP Escort", details.GameType)
@@ -446,7 +446,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdatedWithNewInstanceID(t *t
 		testutils.PackHeartbeatRequest(newInstanceID, newParams),
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
 	)
-	svr, _ = f.Servers.GetByAddr(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	svr, _ = f.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 	details = svr.GetInfo()
 	assert.Equal(t, 15, details.NumPlayers)
 	assert.Equal(t, "Barricaded Suspects", details.GameType)

@@ -124,7 +124,7 @@ func TestProber_Run(t *testing.T) {
 	runner.Add(finder.Run, ctx)
 	<-time.After(time.Second)
 
-	updatedSvr1, _ := app.Servers.GetByAddr(ctx, svr1.GetAddr())
+	updatedSvr1, _ := app.Servers.Get(ctx, svr1.GetAddr())
 	assert.Equal(t, ds.Master|ds.Details|ds.Info|ds.Port, updatedSvr1.GetDiscoveryStatus())
 
 	svr1Info := updatedSvr1.GetInfo()
@@ -137,13 +137,13 @@ func TestProber_Run(t *testing.T) {
 	assert.Equal(t, 16, svr1Details.Info.MaxPlayers)
 	assert.Equal(t, 0, svr1Details.Info.NumPlayers)
 
-	notUpdatedSvr2, _ := app.Servers.GetByAddr(ctx, svr2.GetAddr())
+	notUpdatedSvr2, _ := app.Servers.Get(ctx, svr2.GetAddr())
 	assert.Equal(t, ds.DetailsRetry|ds.PortRetry, notUpdatedSvr2.GetDiscoveryStatus())
 	svr2Info := notUpdatedSvr2.GetInfo()
 	assert.Equal(t, "Swat4 Server", svr2Info.Hostname)
 	assert.Equal(t, int64(0), atomic.LoadInt64(&i2))
 
-	updatedSvr3, _ := app.Servers.GetByAddr(ctx, svr3.GetAddr())
+	updatedSvr3, _ := app.Servers.Get(ctx, svr3.GetAddr())
 	assert.Equal(t, ds.Master|ds.Info|ds.Details|ds.Port, updatedSvr3.GetDiscoveryStatus())
 	svr3Info := updatedSvr3.GetInfo()
 	assert.Equal(t, "[c=ffff00]WWW.EPiCS.TOP", svr3Info.Hostname)

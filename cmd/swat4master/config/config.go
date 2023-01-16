@@ -78,7 +78,7 @@ func Init() Config {
 		"Maximum duration before timing out an accepted connection by the browser service",
 	)
 	flag.DurationVar(
-		&cfg.BrowserServerLiveness, "browser.liveness", time.Second*60,
+		&cfg.BrowserServerLiveness, "browser.liveness", time.Second*180,
 		"Total amount of time since the most recent heartbeat it takes to declare a game server offline",
 	)
 	flag.StringVar(

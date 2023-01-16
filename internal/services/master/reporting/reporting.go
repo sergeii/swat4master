@@ -157,12 +157,12 @@ func (mrs *MasterReporterService) handleHeartbeat(
 	clientAddr := make([]byte, 7)
 	copy(clientAddr[1:5], addr.IP.To4()) // the first byte is supposed to be null byte, so leave it zero value
 	binary.BigEndian.PutUint16(clientAddr[5:7], uint16(addr.Port))
+	// the last 28th byte remains zero, because the response payload is supposed to be null-terminated
 	resp := make([]byte, 28)
 	copy(resp[:3], []byte{0xfe, 0xfd, 0x01})  // initial bytes, 3 of them
 	copy(resp[3:7], instanceID)               // instance id (4 bytes)
 	copy(resp[7:13], MasterResponseChallenge) // challenge, we keep it constant, 6 bytes
 	hex.Encode(resp[13:27], clientAddr)       // hex-encoded client address, 14 bytes
-	// the last 28th byte remains zero, because the response payload is supposed to be null-terminated
 
 	return resp, nil
 }
@@ -176,23 +176,36 @@ func (mrs *MasterReporterService) handleKeepalive(
 	if !ok {
 		return nil, ErrInvalidRequestPayload
 	}
+
 	instance, err := mrs.instances.GetByID(ctx, instanceID)
 	if err != nil {
 		return nil, err
 	}
+
 	// the addressed must match, otherwise it could be a spoofing attempt
 	if !instance.GetIP().Equal(addr.IP.To4()) {
 		return nil, ErrUnknownInstanceID
 	}
-	svr, err := mrs.servers.GetByAddr(ctx, instance.GetAddr())
+
+	// make sure no other concurrent update is possible
+	svr, unlocker, err := mrs.servers.GetForUpdate(ctx, instance.GetAddr())
 	if err != nil {
 		return nil, err
 	}
-	// bump the server to keep it alive
+	// Unlock should be idempotent, so it's safe to call it multiple times
+	defer unlocker.Unlock()
+
+	// although keepalive request does not provide
+	// any additional information about their server such
+	// as player count or the scores
+	// we still want to bump the server,
+	// so it keeps appearing in the list
 	svr.Refresh()
-	if _, err := mrs.servers.AddOrUpdate(ctx, svr); err != nil {
+
+	if _, err := mrs.servers.Update(ctx, unlocker, svr); err != nil {
 		return nil, err
 	}
+
 	return nil, nil
 }
 
@@ -296,7 +309,7 @@ func (mrs *MasterReporterService) obtainServerByAddr(
 	svrAddr addr.Addr,
 	queryPort int,
 ) (servers.Server, error) {
-	svr, err := mrs.servers.GetByAddr(ctx, svrAddr)
+	svr, err := mrs.servers.Get(ctx, svrAddr)
 	if errors.Is(err, servers.ErrServerNotFound) {
 		if svr, err = servers.NewFromAddr(svrAddr, queryPort); err != nil {
 			return servers.Blank, err
