@@ -1,4 +1,4 @@
-FROM golang:1.19-alpine AS build
+FROM golang:1.19 AS build
 
 ARG build_commit_sha="-"
 ARG build_version="-"
@@ -22,7 +22,7 @@ RUN mkdir -p /app/src \
 
 USER scratch
 
-RUN go install github.com/swaggo/swag/cmd/swag@v1.8.9
+RUN go install github.com/swaggo/swag/cmd/swag@v1.8.10
 
 WORKDIR /app/src
 
