@@ -2,8 +2,8 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
+	"github.com/swaggo/files"       // nolint: goimports
+	"github.com/swaggo/gin-swagger" // nolint: goimports
 
 	_ "github.com/sergeii/swat4master/api/docs" // nolint: revive
 	h "github.com/sergeii/swat4master/cmd/swat4master/running/api/handlers"
