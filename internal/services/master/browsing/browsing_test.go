@@ -35,6 +35,7 @@ type Fixture struct {
 	Servers        servers.Repository
 	Instances      instances.Repository
 	Probes         probes.Repository
+	ServerService  *server.Service
 	MetricService  *monitoring.MetricService
 	ProbeService   *probe.Service
 	FindingService *finding.Service
@@ -49,11 +50,13 @@ func makeServices(opts ...browsing.Option) Fixture {
 		Probes:    prbrepo.New(),
 	}
 	fixture.MetricService = monitoring.NewMetricService()
+	fixture.ServerService = server.NewService(fixture.Servers)
 	fixture.ProbeService = probe.NewService(fixture.Probes, fixture.MetricService)
 	fixture.FindingService = finding.NewService(fixture.ProbeService)
 	fixture.Reporting = reporting.NewService(
 		fixture.Servers,
 		fixture.Instances,
+		fixture.ServerService,
 		fixture.FindingService,
 		fixture.MetricService,
 	)

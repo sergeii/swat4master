@@ -10,6 +10,7 @@ import (
 	running "github.com/sergeii/swat4master/cmd/swat4master/running/api"
 	"github.com/sergeii/swat4master/internal/application"
 	"github.com/sergeii/swat4master/internal/rest/api"
+	"github.com/sergeii/swat4master/internal/validation"
 )
 
 type TestServerOpt func(*config.Config)
@@ -18,6 +19,9 @@ func PrepareTestServer(opts ...TestServerOpt) (*httptest.Server, *application.Ap
 	cfg := config.Config{}
 	for _, opt := range opts {
 		opt(&cfg)
+	}
+	if err := validation.Register(); err != nil {
+		panic(err)
 	}
 	app := bootstrap.Configure()
 	gin.SetMode(gin.ReleaseMode) // prevent gin from overwriting middlewares

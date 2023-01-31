@@ -2,6 +2,7 @@ package exporter_test
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"testing"
@@ -202,10 +203,10 @@ func TestExporter_ServerMetrics(t *testing.T) {
 	}))
 	svr4.UpdateDiscoveryStatus(ds.NoDetails)
 
-	svr1, _ = app.Servers.AddOrUpdate(ctx, svr1)
-	svr2, _ = app.Servers.AddOrUpdate(ctx, svr2)
-	svr3, _ = app.Servers.AddOrUpdate(ctx, svr3)
-	svr4, _ = app.Servers.AddOrUpdate(ctx, svr4)
+	svr1, _ = app.Servers.Add(ctx, svr1, servers.OnConflictIgnore)
+	svr2, _ = app.Servers.Add(ctx, svr2, servers.OnConflictIgnore)
+	svr3, _ = app.Servers.Add(ctx, svr3, servers.OnConflictIgnore)
+	svr4, _ = app.Servers.Add(ctx, svr4, servers.OnConflictIgnore)
 
 	<-time.After(time.Millisecond * 5)
 	mf := getMetrics(t)
@@ -262,9 +263,9 @@ func TestExporter_ReposMetrics(t *testing.T) {
 	svr1, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	svr2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
 	svr3, _ := servers.New(net.ParseIP("3.3.3.3"), 10480, 10481)
-	app.Servers.AddOrUpdate(ctx, svr1) // nolint: errcheck
-	app.Servers.AddOrUpdate(ctx, svr2) // nolint: errcheck
-	app.Servers.AddOrUpdate(ctx, svr3) // nolint: errcheck
+	app.Servers.Add(ctx, svr1, servers.OnConflictIgnore) // nolint: errcheck
+	app.Servers.Add(ctx, svr2, servers.OnConflictIgnore) // nolint: errcheck
+	app.Servers.Add(ctx, svr3, servers.OnConflictIgnore) // nolint: errcheck
 
 	// instances
 	ins1 := instances.MustNew("foo", net.ParseIP("1.1.1.1"), 10480)
@@ -306,9 +307,9 @@ func TestExporter_CleanerMetrics(t *testing.T) {
 	runner.Add(cleaner.Run, ctx)
 
 	svr1, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	app.Servers.AddOrUpdate(ctx, svr1) // nolint: errcheck
+	app.Servers.Add(ctx, svr1, servers.OnConflictIgnore) // nolint: errcheck
 	svr2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
-	app.Servers.AddOrUpdate(ctx, svr2) // nolint: errcheck
+	app.Servers.Add(ctx, svr2, servers.OnConflictIgnore) // nolint: errcheck
 
 	<-time.After(time.Millisecond * 50)
 
@@ -342,11 +343,15 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	app := application.Configure()
 
 	udp1, cancelSvr1 := gs1.ServerFactory(
-		func(ctx context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {
+		func(_ context.Context, conn *net.UDPConn, addr *net.UDPAddr, _ []byte) {
+			udpAddr, _ := conn.LocalAddr().(*net.UDPAddr)
 			packet := []byte(
-				"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16" +
-					"\\gametype\\VIP Escort\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store" +
-					"\\hostport\\10480\\password\\0\\gamever\\1.1\\final\\\\queryid\\1.1",
+				fmt.Sprintf(
+					"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16"+
+						"\\gametype\\VIP Escort\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store"+
+						"\\hostport\\%d\\password\\0\\gamever\\1.1\\final\\\\queryid\\1.1",
+					udpAddr.Port,
+				),
 			)
 			<-time.After(time.Millisecond * 200)
 			conn.WriteToUDP(packet, addr) // nolint: errcheck
@@ -356,7 +361,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	defer cancelSvr1()
 
 	udp2, cancelSvr2 := gs1.ServerFactory(
-		func(ctx context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {},
+		func(_ context.Context, _ *net.UDPConn, _ *net.UDPAddr, _ []byte) {},
 	)
 	addr2 := udp2.LocalAddr()
 	defer cancelSvr2()
@@ -369,8 +374,8 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	require.NoError(t, err)
 	svr2.UpdateDiscoveryStatus(ds.Port)
 
-	svr1, _ = app.Servers.AddOrUpdate(ctx, svr1)
-	svr2, _ = app.Servers.AddOrUpdate(ctx, svr2)
+	svr1, _ = app.Servers.Add(ctx, svr1, servers.OnConflictIgnore)
+	svr2, _ = app.Servers.Add(ctx, svr2, servers.OnConflictIgnore)
 
 	probe1 := probes.New(addr.NewForTesting(addr1.IP, addr1.Port), addr1.Port, probes.GoalDetails)
 	probe2 := probes.New(addr.NewForTesting(addr1.IP, addr1.Port), addr1.Port, probes.GoalPort)
@@ -450,9 +455,6 @@ func TestExporter_ProberMetrics(t *testing.T) {
 
 	assert.Nil(t, mf["discovery_probe_failures_total"])
 	assert.Nil(t, mf["discovery_probe_retries_total"])
-	// assert.Equal(t, 1, int(mf["discovery_probe_retries_total"].Metric[0].Counter.GetValue()))
-	// assert.Equal(t, "details", *mf["discovery_probe_retries_total"].Metric[0].Label[0].Value)
-	// assert.Len(t, mf["discovery_probe_retries_total"].Metric, 1)
 
 	<-time.After(time.Millisecond * 200)
 	// both probes failed due to timeout

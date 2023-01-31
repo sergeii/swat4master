@@ -26,7 +26,7 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-func TestServerMemoryRepo_AddOrUpdate_NewInstance(t *testing.T) {
+func TestServerMemoryRepo_Add_New(t *testing.T) {
 	ctx := context.TODO()
 	repo := memory.New()
 
@@ -39,8 +39,12 @@ func TestServerMemoryRepo_AddOrUpdate_NewInstance(t *testing.T) {
 		"gamevariant": "SWAT 4",
 		"gametype":    "Barricaded Suspects",
 	}))
-	_, err := repo.AddOrUpdate(ctx, svr)
+	svr, err := repo.Add(ctx, svr, servers.OnConflictIgnore)
 	require.NoError(t, err)
+	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
+	assert.Equal(t, 10480, svr.GetGamePort())
+	assert.Equal(t, 10481, svr.GetQueryPort())
+	assert.Equal(t, 0, svr.GetVersion())
 
 	other, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
 	other.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -51,7 +55,11 @@ func TestServerMemoryRepo_AddOrUpdate_NewInstance(t *testing.T) {
 		"gamevariant": "SWAT 4X",
 		"gametype":    "VIP Escort",
 	}))
-	_, otherErr := repo.AddOrUpdate(ctx, other)
+	other, otherErr := repo.Add(ctx, other, servers.OnConflictIgnore)
+	assert.Equal(t, "2.2.2.2", other.GetDottedIP())
+	assert.Equal(t, 10480, other.GetGamePort())
+	assert.Equal(t, 10481, other.GetQueryPort())
+	assert.Equal(t, 0, other.GetVersion())
 
 	require.NoError(t, otherErr)
 
@@ -66,145 +74,192 @@ func TestServerMemoryRepo_AddOrUpdate_NewInstance(t *testing.T) {
 	assert.Equal(t, "Another Swat4 Server", otherInfo.Hostname)
 }
 
-func TestServerMemoryRepo_AddOrUpdate_UpdateInstance(t *testing.T) {
-	repo := memory.New()
-	ctx := context.TODO()
+func TestServerMemoryRepo_Add_UpdateOnConflict(t *testing.T) {
+	tests := []struct {
+		name    string
+		updated bool
+	}{
+		{
+			"updated on conlfict",
+			true,
+		},
+		{
+			"conflict is ignored",
+			false,
+		},
+	}
 
-	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	before := time.Now()
-	svr.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Swat4 Server",
-		"hostport":    "10480",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "VIP Escort",
-		"numplayers":  "16",
-	}))
-	_, err := repo.AddOrUpdate(ctx, svr)
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := memory.New()
+			ctx := context.TODO()
 
-	addedSvr, err := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
-	require.NoError(t, err)
-	addedInfo := addedSvr.GetInfo()
-	assert.Equal(t, "A-Bomb Nightclub", addedInfo.MapName)
-	assert.Equal(t, 16, addedInfo.NumPlayers)
-	updatedSinceBefore, _ := repo.Filter(ctx, servers.NewFilterSet().After(before))
-	assert.Len(t, updatedSinceBefore, 1)
+			svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 
-	time.Sleep(time.Millisecond)
-	after := time.Now()
-	// instance is now unlisted
-	reportedSinceAfter, _ := repo.Filter(ctx, servers.NewFilterSet().After(after))
-	assert.Len(t, reportedSinceAfter, 0)
+			initialParams := details.MustNewInfoFromParams(map[string]string{
+				"hostname":    "Swat4 Server",
+				"hostport":    "10480",
+				"mapname":     "A-Bomb Nightclub",
+				"gamever":     "1.1",
+				"gamevariant": "SWAT 4",
+				"gametype":    "VIP Escort",
+				"numplayers":  "16",
+			})
+			svr.UpdateInfo(initialParams)
+			svr, err := repo.Add(ctx, svr, servers.OnConflictIgnore)
+			require.NoError(t, err)
 
-	svr.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Swat4 Server",
-		"hostport":    "10480",
-		"mapname":     "Food Wall Restaurant",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "VIP Escort",
-		"numplayers":  "15",
-	}))
-	_, err = repo.AddOrUpdate(ctx, svr)
-	require.NoError(t, err)
+			addedSvr, err := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+			require.NoError(t, err)
+			addedInfo := addedSvr.GetInfo()
+			assert.Equal(t, "A-Bomb Nightclub", addedInfo.MapName)
+			assert.Equal(t, 16, addedInfo.NumPlayers)
 
-	updatedSvr, err := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
-	updatedInfo := updatedSvr.GetInfo()
-	require.NoError(t, err)
-	assert.Equal(t, "Food Wall Restaurant", updatedInfo.MapName)
-	assert.Equal(t, 15, updatedInfo.NumPlayers)
+			newParams := details.MustNewInfoFromParams(map[string]string{
+				"hostname":    "Swat4 Server",
+				"hostport":    "10480",
+				"mapname":     "Food Wall Restaurant",
+				"gamever":     "1.1",
+				"gamevariant": "SWAT 4",
+				"gametype":    "VIP Escort",
+				"numplayers":  "15",
+			})
+			svr.UpdateInfo(newParams)
+			svr, addError := repo.Add(ctx, svr, func(s *servers.Server) bool {
+				s.UpdateInfo(newParams)
+				return tt.updated
+			})
 
-	// instance is listed again
-	reportedSinceAfter, _ = repo.Filter(ctx, servers.NewFilterSet().After(after))
-	assert.Len(t, reportedSinceAfter, 1)
+			updatedSvr, _ := repo.Get(ctx, addedSvr.GetAddr())
+			updatedInfo := updatedSvr.GetInfo()
+
+			if tt.updated {
+				require.NoError(t, addError)
+				assert.Equal(t, "Food Wall Restaurant", updatedInfo.MapName)
+				assert.Equal(t, 15, updatedInfo.NumPlayers)
+				assert.Equal(t, 1, updatedSvr.GetVersion())
+			} else {
+				require.ErrorIs(t, addError, servers.ErrServerExists)
+				assert.Equal(t, "A-Bomb Nightclub", updatedInfo.MapName)
+				assert.Equal(t, 16, updatedInfo.NumPlayers)
+				assert.Equal(t, 0, updatedSvr.GetVersion())
+			}
+		})
+	}
 }
 
-func TestServerMemoryRepo_AddOrUpdate_VersionControl(t *testing.T) {
-	ctx := context.TODO()
+func TestServerMemoryRepo_Add_MultipleConflicts(t *testing.T) {
 	repo := memory.New()
+	ctx := context.TODO()
+
+	wg := &sync.WaitGroup{}
+
+	add := func(svr servers.Server, status ds.DiscoveryStatus) {
+		defer wg.Done()
+		svr.UpdateDiscoveryStatus(status)
+		_, err := repo.Add(ctx, svr, func(s *servers.Server) bool {
+			s.UpdateDiscoveryStatus(status)
+			return true
+		})
+		require.NoError(t, err)
+	}
 
 	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	svr.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Swat4 Server",
-		"hostport":    "10480",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "Barricaded Suspects",
-	}))
-	assert.Equal(t, 0, svr.GetVersion())
-	svr, err := repo.AddOrUpdate(ctx, svr)
-	require.NoError(t, err)
-	// version is not incremented after insert
-	assert.Equal(t, 0, svr.GetVersion())
-	assert.Equal(t, "A-Bomb Nightclub", svr.GetInfo().MapName)
 
-	svr.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Swat4 Server",
-		"hostport":    "10480",
-		"mapname":     "The Wolcott Projects",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "Barricaded Suspects",
-	}))
-	svr, err = repo.AddOrUpdate(ctx, svr)
-	require.NoError(t, err)
-	// version is incremented after update
-	assert.Equal(t, 1, svr.GetVersion())
-	assert.Equal(t, "The Wolcott Projects", svr.GetInfo().MapName)
+	wg.Add(4)
+	go add(svr, ds.Master)
+	go add(svr, ds.Info)
+	go add(svr, ds.Details)
+	go add(svr, ds.Port)
+	wg.Wait()
 
-	// version is incremented after every update
-	svr.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Swat4 Server",
-		"hostport":    "10480",
-		"mapname":     "Food Wall Restaurant",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "Barricaded Suspects",
-	}))
-	svr, err = repo.AddOrUpdate(ctx, svr)
-	require.NoError(t, err)
-	// version is incremented after update
-	assert.Equal(t, 2, svr.GetVersion())
-	assert.Equal(t, "Food Wall Restaurant", svr.GetInfo().MapName)
-
-	// version is saved in repo
-	svr, err = repo.Get(ctx, svr.GetAddr())
-	require.NoError(t, err)
-	assert.Equal(t, 2, svr.GetVersion())
-	assert.Equal(t, "Food Wall Restaurant", svr.GetInfo().MapName)
-
-	// version is incremented after get+update
-	svr.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Swat4 Server",
-		"hostport":    "10480",
-		"mapname":     "The Wolcott Projects",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "Barricaded Suspects",
-	}))
-	svr, err = repo.AddOrUpdate(ctx, svr)
+	svr, err := repo.Get(ctx, svr.GetAddr())
 	require.NoError(t, err)
 	assert.Equal(t, 3, svr.GetVersion())
-	assert.Equal(t, "The Wolcott Projects", svr.GetInfo().MapName)
-
-	conflict, err := repo.Get(ctx, svr.GetAddr())
-	require.NoError(t, err)
-	assert.Equal(t, 3, conflict.GetVersion())
-	assert.Equal(t, "The Wolcott Projects", conflict.GetInfo().MapName)
-
-	svr, err = repo.AddOrUpdate(ctx, svr)
-	require.NoError(t, err)
-	assert.Equal(t, 4, svr.GetVersion())
-
-	conflict, err = repo.AddOrUpdate(ctx, conflict)
-	assert.ErrorIs(t, err, servers.ErrVersionConflict)
-	assert.Equal(t, 3, conflict.GetVersion())
+	assert.Equal(t, ds.Info|ds.Master|ds.Details|ds.Port, svr.GetDiscoveryStatus())
 }
 
-func TestServerMemoryRepo_Update_Exclusive(t *testing.T) {
+func TestServerMemoryRepo_Update_ResolveConflict(t *testing.T) {
+	tests := []struct {
+		name     string
+		resolved bool
+	}{
+		{
+			"conflict is resolved",
+			true,
+		},
+		{
+			"conflict is ignored",
+			false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := memory.New()
+			ctx := context.TODO()
+
+			svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+			svr.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
+				"hostname":    "Swat4 Server",
+				"hostport":    "10480",
+				"mapname":     "A-Bomb Nightclub",
+				"gamever":     "1.1",
+				"gamevariant": "SWAT 4",
+				"gametype":    "VIP Escort",
+				"numplayers":  "16",
+			}))
+			_, err := repo.Add(ctx, svr, servers.OnConflictIgnore)
+			require.NoError(t, err)
+
+			gotOutdated := make(chan struct{})
+			updatedMain := make(chan struct{})
+			updatedParallel := make(chan struct{})
+			go func(a addr.Addr) {
+				other, err := repo.Get(ctx, a)
+				require.NoError(t, err)
+				close(gotOutdated)
+				assert.Equal(t, 0, other.GetVersion())
+				assert.Equal(t, ds.New, other.GetDiscoveryStatus())
+				other.UpdateDiscoveryStatus(ds.Master)
+				other, err = repo.Update(ctx, other, func(s *servers.Server) bool {
+					s.UpdateDiscoveryStatus(ds.Master)
+					return true
+				})
+				require.NoError(t, err)
+				close(updatedParallel)
+			}(svr.GetAddr())
+
+			resolved := make(chan bool)
+			go func(testValue bool) {
+				resolved <- testValue
+			}(tt.resolved)
+
+			<-gotOutdated
+			svr.UpdateDiscoveryStatus(ds.Info | ds.Details)
+			svr, err = repo.Update(ctx, svr, func(s *servers.Server) bool {
+				s.UpdateDiscoveryStatus(ds.Info | ds.Details)
+				return <-resolved
+			})
+			require.NoError(t, err)
+			close(updatedMain)
+
+			<-updatedParallel
+			svr, err = repo.Get(ctx, svr.GetAddr())
+			require.NoError(t, err)
+
+			if tt.resolved {
+				assert.Equal(t, 2, svr.GetVersion())
+				assert.Equal(t, ds.Master|ds.Info|ds.Details, svr.GetDiscoveryStatus())
+			} else {
+				assert.Equal(t, 1, svr.GetVersion())
+				assert.Equal(t, ds.Master, svr.GetDiscoveryStatus())
+			}
+		})
+	}
+}
+
+func TestServerMemoryRepo_Update_MultipleConflicts(t *testing.T) {
 	repo := memory.New()
 	ctx := context.TODO()
 
@@ -218,106 +273,20 @@ func TestServerMemoryRepo_Update_Exclusive(t *testing.T) {
 		"gametype":    "VIP Escort",
 		"numplayers":  "16",
 	}))
-	_, err := repo.AddOrUpdate(ctx, svr)
-	require.NoError(t, err)
-
-	svr, locker, err := repo.GetForUpdate(ctx, svr.GetAddr())
-	require.NoError(t, err)
-
-	updated := make(chan struct{})
-	// a parallel update will wait for update to complete
-	go func(a addr.Addr) {
-		other, unlocker, err := repo.GetForUpdate(ctx, a)
-		require.NoError(t, err)
-		assert.Equal(t, 1, other.GetVersion())
-		assert.Equal(t, ds.Info, other.GetDiscoveryStatus())
-		other.UpdateDiscoveryStatus(ds.Details)
-		other, err = repo.Update(ctx, unlocker, other)
-		require.NoError(t, err)
-		close(updated)
-	}(svr.GetAddr())
-
-	<-time.After(time.Millisecond * 10)
-	svr.UpdateDiscoveryStatus(ds.Info)
-	svr, err = repo.Update(ctx, locker, svr)
-	require.NoError(t, err)
-
-	<-updated
-	svr, err = repo.Get(ctx, svr.GetAddr())
-	require.NoError(t, err)
-	assert.Equal(t, 2, svr.GetVersion())
-	assert.Equal(t, ds.Info|ds.Details, svr.GetDiscoveryStatus())
-}
-
-func TestServerMemoryRepo_Update_ExclusiveAccess(t *testing.T) {
-	repo := memory.New()
-	ctx := context.TODO()
-
-	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	svr.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Swat4 Server",
-		"hostport":    "10480",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "VIP Escort",
-		"numplayers":  "16",
-	}))
-	_, err := repo.AddOrUpdate(ctx, svr)
-	require.NoError(t, err)
-
-	svr, locker, err := repo.GetForUpdate(ctx, svr.GetAddr())
-	require.NoError(t, err)
-	defer locker.Unlock()
-
-	finished := make(chan struct{})
-	// a parallel get will wait for update to complete
-	go func(a addr.Addr) {
-		other, err := repo.Get(ctx, a)
-		require.NoError(t, err)
-		assert.Equal(t, 1, other.GetVersion())
-		assert.Equal(t, ds.Info, other.GetDiscoveryStatus())
-		close(finished)
-	}(svr.GetAddr())
-
-	<-time.After(time.Millisecond * 10)
-	svr.UpdateDiscoveryStatus(ds.Info)
-	svr, err = repo.Update(ctx, locker, svr)
-	require.NoError(t, err)
-
-	<-finished
-
-	svr, err = repo.Get(ctx, svr.GetAddr())
-	require.NoError(t, err)
-	assert.Equal(t, 1, svr.GetVersion())
-	assert.Equal(t, ds.Info, svr.GetDiscoveryStatus())
-}
-
-func TestServerMemoryRepo_Update_Serialization(t *testing.T) {
-	repo := memory.New()
-	ctx := context.TODO()
-
-	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	svr.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Swat4 Server",
-		"hostport":    "10480",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "VIP Escort",
-		"numplayers":  "16",
-	}))
-	_, err := repo.AddOrUpdate(ctx, svr)
+	_, err := repo.Add(ctx, svr, servers.OnConflictIgnore)
 	require.NoError(t, err)
 
 	wg := &sync.WaitGroup{}
-	// a parallel get will wait for update to complete
+
 	update := func(addr addr.Addr, status ds.DiscoveryStatus) {
 		defer wg.Done()
-		server, unlocker, err := repo.GetForUpdate(ctx, addr)
+		server, err := repo.Get(ctx, addr)
 		require.NoError(t, err)
 		server.UpdateDiscoveryStatus(status)
-		server, err = repo.Update(ctx, unlocker, server)
+		server, err = repo.Update(ctx, server, func(s *servers.Server) bool {
+			s.UpdateDiscoveryStatus(status)
+			return true
+		})
 		require.NoError(t, err)
 	}
 
@@ -365,7 +334,7 @@ func TestServerMemoryRepo_Remove(t *testing.T) {
 				"gamevariant": "SWAT 4",
 				"gametype":    "Barricaded Suspects",
 			}))
-			repo.AddOrUpdate(ctx, svr) // nolint: errcheck
+			repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 
 			reportedSinceBefore, _ := repo.Filter(ctx, servers.NewFilterSet().After(before))
 			assert.Len(t, reportedSinceBefore, 1)
@@ -402,7 +371,7 @@ func TestServerMemoryRepo_CleanNext(t *testing.T) {
 		"gamevariant": "SWAT 4",
 		"gametype":    "Barricaded Suspects",
 	}))
-	repo.AddOrUpdate(ctx, oldSvr) // nolint: errcheck
+	repo.Add(ctx, oldSvr, servers.OnConflictIgnore) // nolint: errcheck
 
 	after := time.Now()
 	newSvr := servers.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
@@ -414,7 +383,7 @@ func TestServerMemoryRepo_CleanNext(t *testing.T) {
 		"gamevariant": "SWAT 4X",
 		"gametype":    "VIP Escort",
 	}))
-	repo.AddOrUpdate(ctx, newSvr) // nolint: errcheck
+	repo.Add(ctx, newSvr, servers.OnConflictIgnore) // nolint: errcheck
 
 	// no servers are affected
 	_, cleaned := repo.CleanNext(ctx, before)
@@ -459,10 +428,10 @@ func TestServerMemoryRepo_CleanBefore_Multiple(t *testing.T) {
 
 	before := time.Now()
 	server1 := servers.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	repo.AddOrUpdate(ctx, server1) // nolint: errcheck
+	repo.Add(ctx, server1, servers.OnConflictIgnore) // nolint: errcheck
 
 	server2 := servers.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
-	repo.AddOrUpdate(ctx, server2) // nolint: errcheck
+	repo.Add(ctx, server2, servers.OnConflictIgnore) // nolint: errcheck
 
 	assert.Equal(t, 2, cleanAll(repo, time.Now()))
 
@@ -495,11 +464,11 @@ func TestServerMemoryRepo_Count(t *testing.T) {
 	assertCount(0)
 
 	server1 := servers.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	repo.AddOrUpdate(ctx, server1) // nolint: errcheck
+	repo.Add(ctx, server1, servers.OnConflictIgnore) // nolint: errcheck
 	assertCount(1)
 
 	server2 := servers.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
-	repo.AddOrUpdate(ctx, server2) // nolint: errcheck
+	repo.Add(ctx, server2, servers.OnConflictIgnore) // nolint: errcheck
 	assertCount(2)
 
 	_ = repo.Remove(ctx, server1)
@@ -526,7 +495,7 @@ func TestServerMemoryRepo_CountByStatus(t *testing.T) {
 	svr0 := servers.MustNew(net.ParseIP("1.10.1.10"), 10480, 10481)
 	svr0.ClearDiscoveryStatus(ds.New)
 	assert.Equal(t, ds.DiscoveryStatus(0), svr0.GetDiscoveryStatus())
-	_, err = repo.AddOrUpdate(ctx, svr0)
+	_, err = repo.Add(ctx, svr0, servers.OnConflictIgnore)
 	require.NoError(t, err)
 	count, err = repo.CountByStatus(ctx)
 	require.NoError(t, err)
@@ -534,23 +503,23 @@ func TestServerMemoryRepo_CountByStatus(t *testing.T) {
 
 	svr1, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	svr1.UpdateDiscoveryStatus(ds.Master | ds.Info)
-	repo.AddOrUpdate(ctx, svr1) // nolint: errcheck
+	repo.Add(ctx, svr1, servers.OnConflictIgnore) // nolint: errcheck
 
 	svr2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
 	svr2.UpdateDiscoveryStatus(ds.Details | ds.Info)
-	repo.AddOrUpdate(ctx, svr2) // nolint: errcheck
+	repo.Add(ctx, svr2, servers.OnConflictIgnore) // nolint: errcheck
 
 	svr3, _ := servers.New(net.ParseIP("3.3.3.3"), 10480, 10481)
 	svr3.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-	repo.AddOrUpdate(ctx, svr3) // nolint: errcheck
+	repo.Add(ctx, svr3, servers.OnConflictIgnore) // nolint: errcheck
 
 	svr4, _ := servers.New(net.ParseIP("4.4.4.4"), 10480, 10481)
 	svr4.UpdateDiscoveryStatus(ds.NoDetails | ds.NoPort)
-	repo.AddOrUpdate(ctx, svr4) // nolint: errcheck
+	repo.Add(ctx, svr4, servers.OnConflictIgnore) // nolint: errcheck
 
 	svr5, _ := servers.New(net.ParseIP("5.5.5.5"), 10480, 10481)
 	svr5.UpdateDiscoveryStatus(ds.NoPort)
-	repo.AddOrUpdate(ctx, svr5) // nolint: errcheck
+	repo.Add(ctx, svr5, servers.OnConflictIgnore) // nolint: errcheck
 
 	count, err = repo.CountByStatus(ctx)
 	require.NoError(t, err)

@@ -105,15 +105,15 @@ func TestFinder_Run_OK(t *testing.T) {
 	gs9.UpdateInfo(info)
 	gs9.UpdateDiscoveryStatus(ds.Port | ds.PortRetry)
 
-	gs1, _ = app.Servers.AddOrUpdate(ctx, gs1)
-	gs2, _ = app.Servers.AddOrUpdate(ctx, gs2)
-	gs3, _ = app.Servers.AddOrUpdate(ctx, gs3)
-	gs4, _ = app.Servers.AddOrUpdate(ctx, gs4)
-	gs5, _ = app.Servers.AddOrUpdate(ctx, gs5)
-	gs6, _ = app.Servers.AddOrUpdate(ctx, gs6)
-	gs7, _ = app.Servers.AddOrUpdate(ctx, gs7)
-	gs8, _ = app.Servers.AddOrUpdate(ctx, gs8)
-	gs9, _ = app.Servers.AddOrUpdate(ctx, gs9)
+	gs1, _ = app.Servers.Add(ctx, gs1, servers.OnConflictIgnore)
+	gs2, _ = app.Servers.Add(ctx, gs2, servers.OnConflictIgnore)
+	gs3, _ = app.Servers.Add(ctx, gs3, servers.OnConflictIgnore)
+	gs4, _ = app.Servers.Add(ctx, gs4, servers.OnConflictIgnore)
+	gs5, _ = app.Servers.Add(ctx, gs5, servers.OnConflictIgnore)
+	gs6, _ = app.Servers.Add(ctx, gs6, servers.OnConflictIgnore)
+	gs7, _ = app.Servers.Add(ctx, gs7, servers.OnConflictIgnore)
+	gs8, _ = app.Servers.Add(ctx, gs8, servers.OnConflictIgnore)
+	gs9, _ = app.Servers.Add(ctx, gs9, servers.OnConflictIgnore)
 
 	runner := running.NewRunner(app, cfg)
 	runner.Add(finder.Run, ctx)
@@ -133,8 +133,8 @@ func TestFinder_Run_OK(t *testing.T) {
 
 	gs3.ClearDiscoveryStatus(ds.Details | ds.Port)
 	gs6.ClearDiscoveryStatus(ds.DetailsRetry)
-	gs3, _ = app.Servers.AddOrUpdate(ctx, gs3)
-	gs6, _ = app.Servers.AddOrUpdate(ctx, gs6)
+	gs3, _ = app.Servers.Update(ctx, gs3, servers.OnConflictIgnore)
+	gs6, _ = app.Servers.Update(ctx, gs6, servers.OnConflictIgnore)
 
 	<-time.After(time.Millisecond * 200) // 450ms
 	// port timer triggered, details triggered twice
@@ -149,9 +149,9 @@ func TestFinder_Run_OK(t *testing.T) {
 	gs2.ClearDiscoveryStatus(ds.Port)
 	gs6.ClearDiscoveryStatus(ds.Details | ds.Port)
 	gs9.ClearDiscoveryStatus(ds.Port)
-	gs2, _ = app.Servers.AddOrUpdate(ctx, gs2)
-	gs6, _ = app.Servers.AddOrUpdate(ctx, gs6)
-	gs9, _ = app.Servers.AddOrUpdate(ctx, gs9)
+	gs2, _ = app.Servers.Update(ctx, gs2, servers.OnConflictIgnore)
+	gs6, _ = app.Servers.Update(ctx, gs6, servers.OnConflictIgnore)
+	gs9, _ = app.Servers.Update(ctx, gs9, servers.OnConflictIgnore)
 
 	<-time.After(time.Millisecond * 200) // 650ms
 	// port timer triggered, details never triggered
@@ -166,7 +166,7 @@ func TestFinder_Run_OK(t *testing.T) {
 
 	// bump server
 	gs6.UpdateInfo(info)
-	gs6, _ = app.Servers.AddOrUpdate(ctx, gs6)
+	gs6, _ = app.Servers.Update(ctx, gs6, servers.OnConflictIgnore)
 	<-time.After(time.Millisecond * 400) // 700ms
 
 	// all other servers are out of scope
@@ -193,8 +193,8 @@ func TestFinder_Run_Expiry(t *testing.T) {
 	gs2, _ := servers.New(net.ParseIP("6.6.6.6"), 10480, 10481)
 	gs2.UpdateDiscoveryStatus(ds.Master | ds.Port)
 
-	gs1, _ = app.Servers.AddOrUpdate(ctx, gs1)
-	gs2, _ = app.Servers.AddOrUpdate(ctx, gs2)
+	gs1, _ = app.Servers.Add(ctx, gs1, servers.OnConflictIgnore)
+	gs2, _ = app.Servers.Add(ctx, gs2, servers.OnConflictIgnore)
 
 	runner := running.NewRunner(app, cfg)
 	runner.Add(finder.Run, ctx)

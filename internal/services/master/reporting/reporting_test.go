@@ -24,6 +24,7 @@ import (
 	"github.com/sergeii/swat4master/internal/services/master/reporting"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
 	"github.com/sergeii/swat4master/internal/services/probe"
+	"github.com/sergeii/swat4master/internal/services/server"
 	"github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/internal/validation"
 )
@@ -32,6 +33,7 @@ type Fixture struct {
 	Servers        servers.Repository
 	Instances      instances.Repository
 	Probes         probes.Repository
+	ServerService  *server.Service
 	MetricService  *monitoring.MetricService
 	ProbeService   *probe.Service
 	FindingService *finding.Service
@@ -44,12 +46,14 @@ func makeService() Fixture {
 		Instances: insrepo.New(),
 		Probes:    prbrepo.New(),
 	}
+	fixture.ServerService = server.NewService(fixture.Servers)
 	fixture.MetricService = monitoring.NewMetricService()
 	fixture.ProbeService = probe.NewService(fixture.Probes, fixture.MetricService)
 	fixture.FindingService = finding.NewService(fixture.ProbeService)
 	fixture.Service = reporting.NewService(
 		fixture.Servers,
 		fixture.Instances,
+		fixture.ServerService,
 		fixture.FindingService,
 		fixture.MetricService,
 	)
@@ -161,7 +165,8 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsAddedAndUpdated(t *testing.T)
 	assert.NoError(t, err)
 	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
 
-	svr, _ := f.Servers.Get(ctx, addr.MustNewFromString("55.55.55.55", 10580))
+	svr, err := f.Servers.Get(ctx, addr.MustNewFromString("55.55.55.55", 10580))
+	require.NoError(t, err)
 
 	details := svr.GetInfo()
 	assert.Equal(t, 16, details.NumPlayers)
@@ -222,7 +227,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdated(t *testing.T) {
 				if tt.initStatus.HasStatus() {
 					svr.UpdateDiscoveryStatus(tt.initStatus)
 				}
-				f.Servers.AddOrUpdate(ctx, svr) // nolint: errcheck
+				f.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 			}
 
 			instanceID := []byte{0xfe, 0xed, 0xf0, 0x0d}
@@ -311,7 +316,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerPortIsDiscovered(t *testing.T) 
 				if tt.initStatus.HasStatus() {
 					svr.UpdateDiscoveryStatus(tt.initStatus)
 				}
-				f.Servers.AddOrUpdate(ctx, svr) // nolint: errcheck
+				f.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 			}
 
 			instanceID := []byte{0xfe, 0xed, 0xf0, 0x0d}

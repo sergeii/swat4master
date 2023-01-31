@@ -10,6 +10,10 @@ type API struct {
 	cfg config.Config
 }
 
+type Error struct {
+	Error string
+}
+
 func New(app *application.App, cfg config.Config) *API {
 	return &API{
 		app: app,

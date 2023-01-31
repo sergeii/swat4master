@@ -16,34 +16,36 @@ import (
 	"github.com/sergeii/swat4master/internal/entity/details"
 	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
 	"github.com/sergeii/swat4master/internal/testutils"
-	"github.com/sergeii/swat4master/internal/validation"
 )
 
 type serverListSchema struct {
-	Address       string `json:"address"`
-	IP            string `json:"ip"`
-	Port          int    `json:"port"`
-	Hostname      string `json:"hostname"`
-	HostnamePlain string `json:"hostname_plain"`
-	HostnameHTML  string `json:"hostname_html"`
-	Passworded    bool   `json:"passworded"`
-	GameName      string `json:"gamename"`
-	GameVer       string `json:"gamever"`
-	GameType      string `json:"gametype"`
-	GameTypeSlug  string `json:"gametype_slug"`
-	MapName       string `json:"mapname"`
-	MapNameSlug   string `json:"mapname_slug"`
-	PlayerNum     int    `json:"player_num"`
-	PlayerMax     int    `json:"player_max"`
-	RoundNum      int    `json:"round_num"`
-	RoundMax      int    `json:"round_max"`
-}
-
-func TestMain(m *testing.M) {
-	if err := validation.Register(); err != nil {
-		panic(err)
-	}
-	m.Run()
+	Address        string `json:"address"`
+	IP             string `json:"ip"`
+	Port           int    `json:"port"`
+	Hostname       string `json:"hostname"`
+	HostnamePlain  string `json:"hostname_plain"`
+	HostnameHTML   string `json:"hostname_html"`
+	Passworded     bool   `json:"passworded"`
+	GameName       string `json:"gamename"`
+	GameVer        string `json:"gamever"`
+	GameType       string `json:"gametype"`
+	GameTypeSlug   string `json:"gametype_slug"`
+	MapName        string `json:"mapname"`
+	MapNameSlug    string `json:"mapname_slug"`
+	PlayerNum      int    `json:"player_num"`
+	PlayerMax      int    `json:"player_max"`
+	RoundNum       int    `json:"round_num"`
+	RoundMax       int    `json:"round_max"`
+	TimeLeft       int    `json:"time_round"`
+	TimeSpecial    int    `json:"time_special"`
+	SwatScore      int    `json:"score_swat"`
+	SuspectsScore  int    `json:"score_sus"`
+	SwatWon        int    `json:"vict_swat"`
+	SuspectsWon    int    `json:"vict_sus"`
+	BombsDefused   int    `json:"bombs_defused"`
+	BombsTotal     int    `json:"bombs_total"`
+	TocReports     string `json:"coop_reports"`
+	WeaponsSecured string `json:"coop_weapons"`
 }
 
 func TestAPI_ListServers_OK(t *testing.T) {
@@ -68,7 +70,7 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"numrounds":   "5",
 	}))
 	outdated.UpdateDiscoveryStatus(ds.Master)
-	app.Servers.AddOrUpdate(ctx, outdated) // nolint: errcheck
+	app.Servers.Add(ctx, outdated, servers.OnConflictIgnore) // nolint: errcheck
 	<-time.After(time.Millisecond * 15)
 
 	noStatus, _ := servers.New(net.ParseIP("4.4.4.4"), 10480, 10481)
@@ -80,7 +82,7 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gamevariant": "SWAT 4",
 		"gametype":    "Barricaded Suspects",
 	}))
-	app.Servers.AddOrUpdate(ctx, noStatus) // nolint: errcheck
+	app.Servers.Add(ctx, noStatus, servers.OnConflictIgnore) // nolint: errcheck
 	<-time.After(time.Millisecond * 1)
 
 	delisted, _ := servers.New(net.ParseIP("5.5.5.5"), 10480, 10481)
@@ -93,7 +95,7 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gametype":    "CO-OP",
 	}))
 	delisted.UpdateDiscoveryStatus(ds.NoDetails)
-	app.Servers.AddOrUpdate(ctx, delisted) // nolint: errcheck
+	app.Servers.Add(ctx, delisted, servers.OnConflictIgnore) // nolint: errcheck
 	<-time.After(time.Millisecond * 1)
 
 	noInfo, _ := servers.New(net.ParseIP("6.6.6.6"), 10480, 10481)
@@ -106,29 +108,34 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gametype":    "CO-OP",
 	}))
 	noInfo.UpdateDiscoveryStatus(ds.Master | ds.Details)
-	app.Servers.AddOrUpdate(ctx, noInfo) // nolint: errcheck
+	app.Servers.Add(ctx, noInfo, servers.OnConflictIgnore) // nolint: errcheck
 	<-time.After(time.Millisecond * 1)
 
 	noRefresh, _ := servers.New(net.ParseIP("7.7.7.7"), 10580, 10581)
 	noRefresh.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-	app.Servers.AddOrUpdate(ctx, noRefresh) // nolint: errcheck
+	app.Servers.Add(ctx, noRefresh, servers.OnConflictIgnore) // nolint: errcheck
 
 	gs1, _ := servers.New(net.ParseIP("1.1.1.1"), 10580, 10581)
 	gs1.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    `[C=FFFFFF]Swat4[\c] [b]Server`,
-		"hostport":    "10480",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "VIP Escort",
-		"password":    "0",
-		"numplayers":  "14",
-		"maxplayers":  "16",
-		"round":       "4",
-		"numrounds":   "5",
+		"hostname":      `[C=FFFFFF]Swat4[\c] [b]Server`,
+		"hostport":      "10480",
+		"mapname":       "A-Bomb Nightclub",
+		"gamever":       "1.1",
+		"gamevariant":   "SWAT 4",
+		"gametype":      "VIP Escort",
+		"password":      "0",
+		"numplayers":    "14",
+		"maxplayers":    "16",
+		"round":         "4",
+		"numrounds":     "5",
+		"timeleft":      "877",
+		"swatscore":     "98",
+		"suspectsscore": "76",
+		"swatwon":       "1",
+		"suspectswon":   "2",
 	}))
 	gs1.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-	app.Servers.AddOrUpdate(ctx, gs1) // nolint: errcheck
+	app.Servers.Add(ctx, gs1, servers.OnConflictIgnore) // nolint: errcheck
 	<-time.After(time.Millisecond * 5)
 
 	gs2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
@@ -143,14 +150,13 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"maxplayers":  "5",
 	}))
 	gs2.UpdateDiscoveryStatus(ds.Master | ds.Info)
-	app.Servers.AddOrUpdate(ctx, gs2) // nolint: errcheck
+	app.Servers.Add(ctx, gs2, servers.OnConflictIgnore) // nolint: errcheck
 
 	respJSON := make([]serverListSchema, 0)
-	resp, _ := testutils.DoTestRequest(
+	resp := testutils.DoTestRequest(
 		ts, http.MethodGet, "/api/servers", nil,
 		testutils.MustBindJSON(&respJSON),
 	)
-	resp.Body.Close()
 	assert.Equal(t, 200, resp.StatusCode)
 	assert.Len(t, respJSON, 2)
 
@@ -172,6 +178,11 @@ func TestAPI_ListServers_OK(t *testing.T) {
 	assert.Equal(t, 5, svr1.PlayerMax)
 	assert.Equal(t, 0, svr1.RoundNum)
 	assert.Equal(t, 0, svr1.RoundMax)
+	assert.Equal(t, 0, svr1.TimeLeft)
+	assert.Equal(t, 0, svr1.SwatScore)
+	assert.Equal(t, 0, svr1.SuspectsScore)
+	assert.Equal(t, 0, svr1.SwatWon)
+	assert.Equal(t, 0, svr1.SuspectsWon)
 
 	svr2 := respJSON[1]
 	assert.Equal(t, `[C=FFFFFF]Swat4[\c] [b]Server`, svr2.Hostname)
@@ -191,6 +202,11 @@ func TestAPI_ListServers_OK(t *testing.T) {
 	assert.Equal(t, 16, svr2.PlayerMax)
 	assert.Equal(t, 4, svr2.RoundNum)
 	assert.Equal(t, 5, svr2.RoundMax)
+	assert.Equal(t, 877, svr2.TimeLeft)
+	assert.Equal(t, 98, svr2.SwatScore)
+	assert.Equal(t, 76, svr2.SuspectsScore)
+	assert.Equal(t, 1, svr2.SwatWon)
+	assert.Equal(t, 2, svr2.SuspectsWon)
 }
 
 func TestAPI_ListServers_Filters(t *testing.T) {
@@ -213,7 +229,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 		"maxplayers":  "16",
 	}))
 	vip.UpdateDiscoveryStatus(ds.Master | ds.Info)
-	app.Servers.AddOrUpdate(ctx, vip) // nolint: errcheck
+	app.Servers.Add(ctx, vip, servers.OnConflictIgnore) // nolint: errcheck
 
 	vip10, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
 	vip10.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -228,7 +244,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 		"maxplayers":  "18",
 	}))
 	vip10.UpdateDiscoveryStatus(ds.Master | ds.Info)
-	app.Servers.AddOrUpdate(ctx, vip10) // nolint: errcheck
+	app.Servers.Add(ctx, vip10, servers.OnConflictIgnore) // nolint: errcheck
 
 	bs, _ := servers.New(net.ParseIP("3.3.3.3"), 10480, 10481)
 	bs.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -243,7 +259,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 		"maxplayers":  "16",
 	}))
 	bs.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-	app.Servers.AddOrUpdate(ctx, bs) // nolint: errcheck
+	app.Servers.Add(ctx, bs, servers.OnConflictIgnore) // nolint: errcheck
 
 	coop, _ := servers.New(net.ParseIP("4.4.4.4"), 10480, 10481)
 	coop.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -258,7 +274,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 		"maxplayers":  "5",
 	}))
 	coop.UpdateDiscoveryStatus(ds.Details | ds.Info)
-	app.Servers.AddOrUpdate(ctx, coop) // nolint: errcheck
+	app.Servers.Add(ctx, coop, servers.OnConflictIgnore) // nolint: errcheck
 
 	sg, _ := servers.New(net.ParseIP("5.5.5.5"), 10480, 10481)
 	sg.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -273,7 +289,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 		"maxplayers":  "16",
 	}))
 	sg.UpdateDiscoveryStatus(ds.Master | ds.Info | ds.NoDetails)
-	app.Servers.AddOrUpdate(ctx, sg) // nolint: errcheck
+	app.Servers.Add(ctx, sg, servers.OnConflictIgnore) // nolint: errcheck
 
 	coopx, _ := servers.New(net.ParseIP("6.6.6.6"), 10480, 10481)
 	coopx.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -288,7 +304,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 		"maxplayers":  "10",
 	}))
 	coopx.UpdateDiscoveryStatus(ds.Master | ds.Info)
-	app.Servers.AddOrUpdate(ctx, coopx) // nolint: errcheck
+	app.Servers.Add(ctx, coopx, servers.OnConflictIgnore) // nolint: errcheck
 
 	passworded, _ := servers.New(net.ParseIP("7.7.7.7"), 10480, 10481)
 	passworded.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -303,7 +319,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 		"maxplayers":  "16",
 	}))
 	passworded.UpdateDiscoveryStatus(ds.Details | ds.Info)
-	app.Servers.AddOrUpdate(ctx, passworded) // nolint: errcheck
+	app.Servers.Add(ctx, passworded, servers.OnConflictIgnore) // nolint: errcheck
 
 	tests := []struct {
 		name    string
@@ -475,11 +491,10 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 			if len(tt.qs) > 0 {
 				uri = fmt.Sprintf("%s?%s", uri, tt.qs.Encode())
 			}
-			resp, _ := testutils.DoTestRequest(
+			resp := testutils.DoTestRequest(
 				ts, http.MethodGet, uri, nil,
 				testutils.MustBindJSON(&respJSON),
 			)
-			resp.Body.Close()
 			assert.Equal(t, 200, resp.StatusCode)
 
 			actualNames := make([]string, 0, len(respJSON))
@@ -498,11 +513,10 @@ func TestAPI_ListServers_Empty(t *testing.T) {
 	defer cancel()
 
 	respJSON := make([]serverListSchema, 0)
-	resp, _ := testutils.DoTestRequest(
+	resp := testutils.DoTestRequest(
 		ts, http.MethodGet, "/api/servers", nil,
 		testutils.MustBindJSON(&respJSON),
 	)
-	resp.Body.Close()
 	assert.Equal(t, 200, resp.StatusCode)
 	assert.Len(t, respJSON, 0)
 }

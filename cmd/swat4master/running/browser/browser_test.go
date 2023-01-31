@@ -56,7 +56,7 @@ func TestBrowser_Run(t *testing.T) {
 		"gametype":    "VIP Escort",
 	}))
 	gs1.UpdateDiscoveryStatus(ds.Master)
-	app.Servers.AddOrUpdate(ctx, gs1) // nolint: errcheck
+	app.Servers.Add(ctx, gs1, servers.OnConflictIgnore) // nolint: errcheck
 
 	gs2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
 	gs2.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -68,7 +68,7 @@ func TestBrowser_Run(t *testing.T) {
 		"gametype":    "Barricaded Suspects",
 	}))
 	gs2.UpdateDiscoveryStatus(ds.Details)
-	app.Servers.AddOrUpdate(ctx, gs2) // nolint: errcheck
+	app.Servers.Add(ctx, gs2, servers.OnConflictIgnore) // nolint: errcheck
 
 	copy(gameKey[:], "tG3j8c")
 	copy(challenge[:], testutils.GenBrowserChallenge8())

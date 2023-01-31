@@ -28,9 +28,9 @@ func TestCleaner_Run(t *testing.T) {
 	runner.Add(cleaner.Run, ctx)
 
 	gs1, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	app.Servers.AddOrUpdate(ctx, gs1) // nolint: errcheck
+	app.Servers.Add(ctx, gs1, nil) // nolint: errcheck
 	gs2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
-	app.Servers.AddOrUpdate(ctx, gs2) // nolint: errcheck
+	app.Servers.Add(ctx, gs2, servers.OnConflictIgnore) // nolint: errcheck
 
 	cnt, _ := app.Servers.Count(ctx)
 	assert.Equal(t, 2, cnt)
@@ -38,7 +38,7 @@ func TestCleaner_Run(t *testing.T) {
 	<-time.After(time.Millisecond * 75)
 
 	gs3, _ := servers.New(net.ParseIP("3.3.3.3"), 10480, 10481)
-	app.Servers.AddOrUpdate(ctx, gs3) // nolint: errcheck
+	app.Servers.Add(ctx, gs3, servers.OnConflictIgnore) // nolint: errcheck
 
 	<-time.After(time.Millisecond * 30)
 

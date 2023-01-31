@@ -15,7 +15,13 @@ import (
 
 func Run(ctx context.Context, runner *running.Runner, app *application.App, cfg config.Config) {
 	defer runner.Quit(ctx.Done())
-	mrs := reporting.NewService(app.Servers, app.Instances, app.FindingService, app.MetricService)
+	mrs := reporting.NewService(
+		app.Servers,
+		app.Instances,
+		app.ServerService,
+		app.FindingService,
+		app.MetricService,
+	)
 	svr, err := udp.New(
 		cfg.ReporterListenAddr,
 		udp.WithBufferSize(cfg.ReporterBufferSize),

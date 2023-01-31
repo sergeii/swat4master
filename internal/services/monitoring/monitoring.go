@@ -293,7 +293,7 @@ func (ms *MetricService) observeDiscoveredServers(
 		case ds.NoStatus:
 			continue
 		default:
-			ms.GameDiscoveredServers.WithLabelValues(status.String()).Set(float64(serverCount))
+			ms.GameDiscoveredServers.WithLabelValues(status.BitString()).Set(float64(serverCount))
 		}
 	}
 }

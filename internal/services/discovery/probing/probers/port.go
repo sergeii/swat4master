@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"strconv"
 	"sync"
 	"time"
 
@@ -76,7 +77,7 @@ func (s *PortProber) Probe(
 	ip := netip.AddrFrom4(svrAddr.GetIP4())
 	for _, pIdx := range s.offsets {
 		wg.Add(1)
-		go s.probePort(ctx, wg, results, ip, svrAddr.Port+pIdx, timeout)
+		go s.probePort(ctx, wg, results, ip, svrAddr.Port, svrAddr.Port+pIdx, timeout)
 	}
 
 	go func() {
@@ -119,29 +120,46 @@ func (s *PortProber) probePort(
 	wg *sync.WaitGroup,
 	responses chan response,
 	ip netip.Addr,
-	port int,
+	gamePort int,
+	queryPort int,
 	timeout time.Duration,
 ) {
 	defer wg.Done()
 	queryStarted := time.Now()
 
-	resp, err := gs1.Query(ctx, netip.AddrPortFrom(ip, uint16(port)), timeout)
+	resp, err := gs1.Query(ctx, netip.AddrPortFrom(ip, uint16(queryPort)), timeout)
 	if err != nil {
 		log.Debug().
 			Err(err).
-			Dur("timeout", timeout).Stringer("ip", ip).Int("Port", port).
+			Dur("timeout", timeout).Stringer("ip", ip).Int("Port", queryPort).
 			Msg("Unable to probe port")
+		return
+	}
+
+	hostPort, err := strconv.Atoi(resp.Fields["hostport"])
+	switch {
+	case err != nil:
+		log.Error().
+			Err(err).
+			Stringer("ip", ip).Int("port", queryPort).
+			Msg("Unable to parse server hostport")
+		return
+	case hostPort != gamePort:
+		log.Warn().
+			Stringer("ip", ip).Int("port", queryPort).
+			Int("hostport", hostPort).Int("gameport", gamePort).
+			Msg("Server ports dont match")
 		return
 	}
 
 	queryDur := time.Since(queryStarted).Seconds()
 	s.metrics.DiscoveryQueryDurations.Observe(queryDur)
 	log.Debug().
-		Stringer("ip", ip).Int("port", port).
+		Stringer("ip", ip).Int("port", queryPort).
 		Stringer("version", resp.Version).Float64("duration", queryDur).
 		Msg("Successfully probed port")
 
-	responses <- response{resp, port}
+	responses <- response{resp, queryPort}
 }
 
 func (s *PortProber) collectResponses(

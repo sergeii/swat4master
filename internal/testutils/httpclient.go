@@ -7,6 +7,11 @@ import (
 	"net/http/httptest"
 )
 
+type Response struct {
+	StatusCode int
+	Body       string
+}
+
 type TestRequestOpt func(*http.Request, *http.Response)
 
 func MustBindJSON(v interface{}) TestRequestOpt {
@@ -23,9 +28,23 @@ func MustBindJSON(v interface{}) TestRequestOpt {
 	}
 }
 
+func MustHaveNoBody() TestRequestOpt {
+	return func(req *http.Request, resp *http.Response) {
+		if resp != nil {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				panic(err)
+			}
+			if len(body) > 0 {
+				panic("must have no body")
+			}
+		}
+	}
+}
+
 func DoTestRequest(
 	ts *httptest.Server, method, path string, body io.Reader, opts ...TestRequestOpt,
-) (*http.Response, string) {
+) Response {
 	req, err := http.NewRequest(method, ts.URL+path, body) // nolint: noctx
 	if err != nil {
 		panic(err)
@@ -57,5 +76,8 @@ func DoTestRequest(
 		panic(err)
 	}
 
-	return resp, string(respBody)
+	return Response{
+		StatusCode: resp.StatusCode,
+		Body:       string(respBody),
+	}
 }

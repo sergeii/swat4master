@@ -32,92 +32,93 @@ func New() *Repository {
 	return repo
 }
 
-func (mr *Repository) AddOrUpdate(_ context.Context, svr servers.Server) (servers.Server, error) {
+func (mr *Repository) Add(
+	ctx context.Context,
+	svr servers.Server,
+	onConflict func(*servers.Server) bool,
+) (servers.Server, error) {
 	mr.mutex.Lock()
 	defer mr.mutex.Unlock()
 
-	var rep *server
+	var item *server
 
 	key := svr.GetAddr()
-	// first check whether this instance has already been reported
-	item, exists := mr.servers[key]
+	elem, exists := mr.servers[key]
 	if !exists {
-		rep = &server{
+		item = &server{
 			Server:    svr,
 			UpdatedAt: time.Now(),
 		}
-		item = mr.history.PushFront(rep)
-		mr.servers[key] = item
+		elem = mr.history.PushFront(item)
+		mr.servers[key] = elem
 		return svr, nil
 	}
 
-	rep = item.Value.(*server) // nolint: forcetypeassert
-
-	// only allow writes when the updated server's version
-	// does not exceed the version of current saved version in the repository
-	if rep.Server.GetVersion() > svr.GetVersion() {
-		log.Warn().
-			Stringer("server", svr).
-			Int("ours", svr.GetVersion()).
-			Int("theirs", rep.Server.GetVersion()).
-			Msg("Unable to save server due to version conflict")
-		return svr, servers.ErrVersionConflict
+	// in case the server already exists
+	// let the caller decide what to do with the conflict
+	item = elem.Value.(*server) // nolint: forcetypeassert
+	resolved := item.Server
+	if !onConflict(&resolved) {
+		// in case the caller has decided not to resolve the conflict, return error
+		return servers.Blank, servers.ErrServerExists
 	}
-
-	// bump the version counter
-	// so this version of the server instance
-	// maybe be only rewritten when other writers
-	// are acknowledged with the changes
-	svr.IncVersion()
-
-	rep.Server = svr
-	rep.UpdatedAt = time.Now()
-
-	mr.history.MoveToFront(item)
-
-	return svr, nil
+	svr = resolved
+	return mr.update(ctx, elem, item, svr)
 }
 
 func (mr *Repository) Update(
 	ctx context.Context,
-	unlocker servers.Unlocker,
 	svr servers.Server,
+	onConflict func(*servers.Server) bool,
 ) (servers.Server, error) {
-	defer unlocker.Unlock()
-	return mr.update(ctx, svr)
-}
+	mr.mutex.Lock()
+	defer mr.mutex.Unlock()
 
-func (mr *Repository) update(_ context.Context, svr servers.Server) (servers.Server, error) {
 	key := svr.GetAddr()
-
-	item, exists := mr.servers[key]
+	elem, exists := mr.servers[key]
 	if !exists {
 		return servers.Blank, servers.ErrServerNotFound
 	}
 
-	rep := item.Value.(*server) // nolint: forcetypeassert
+	item := elem.Value.(*server) // nolint: forcetypeassert
 
 	// only allow writes when the updated server's version
 	// does not exceed the version of current saved version in the repository
-	if rep.Server.GetVersion() > svr.GetVersion() {
-		log.Warn().
+	if item.Server.GetVersion() > svr.GetVersion() {
+		log.Debug().
 			Stringer("server", svr).
 			Int("ours", svr.GetVersion()).
-			Int("theirs", rep.Server.GetVersion()).
-			Msg("Unable to save server due to version conflict")
-		return svr, servers.ErrVersionConflict
+			Int("theirs", item.Server.GetVersion()).
+			Msg("Got version conflict saving server")
+		resolved := item.Server
+		// let the caller resolve the conflict
+		if !onConflict(&resolved) {
+			// return the newer version of the server
+			// in case the caller has decided not to resolve the conflict
+			return item.Server, nil
+		}
+		svr = resolved
 	}
 
+	return mr.update(ctx, elem, item, svr)
+}
+
+func (mr *Repository) update(
+	_ context.Context,
+	elem *list.Element,
+	item *server,
+	svr servers.Server,
+) (servers.Server, error) {
 	// bump the version counter
 	// so this version of the server instance
 	// maybe be only rewritten when other writers
 	// are acknowledged with the changes
 	svr.IncVersion()
 
-	rep.Server = svr
-	rep.UpdatedAt = time.Now()
+	item.Server = svr
+	item.UpdatedAt = time.Now()
 
-	mr.history.MoveToFront(item)
+	mr.history.MoveToFront(elem)
 
 	return svr, nil
 }
@@ -135,27 +136,9 @@ func (mr *Repository) Remove(_ context.Context, svr servers.Server) error {
 	return nil
 }
 
-func (mr *Repository) Get(ctx context.Context, addr addr.Addr) (servers.Server, error) {
+func (mr *Repository) Get(_ context.Context, addr addr.Addr) (servers.Server, error) {
 	mr.mutex.RLock()
 	defer mr.mutex.RUnlock()
-	return mr.get(ctx, addr)
-}
-
-func (mr *Repository) GetForUpdate(
-	ctx context.Context,
-	addr addr.Addr,
-) (servers.Server, servers.Unlocker, error) {
-	mr.mutex.Lock()
-	svr, err := mr.get(ctx, addr)
-	if err != nil {
-		mr.mutex.Unlock()
-		return svr, nil, err
-	}
-	unlocker := NewUnlocker(&mr.mutex)
-	return svr, unlocker, nil
-}
-
-func (mr *Repository) get(_ context.Context, addr addr.Addr) (servers.Server, error) {
 	item, exists := mr.servers[addr]
 	if !exists {
 		return servers.Blank, servers.ErrServerNotFound

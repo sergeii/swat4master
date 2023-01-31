@@ -36,13 +36,13 @@ type ServerFilterForm struct {
 func (a *API) ListServers(c *gin.Context) {
 	var form ServerFilterForm
 	if err := c.ShouldBindQuery(&form); err != nil {
-		c.AbortWithStatus(http.StatusBadRequest)
+		c.Status(http.StatusBadRequest)
 		return
 	}
 	q := prepareQuery(form)
 	servers, err := a.app.ServerService.FilterRecent(c, a.cfg.BrowserServerLiveness, q, ds.Info)
 	if err != nil {
-		c.AbortWithStatus(http.StatusInternalServerError)
+		c.Status(http.StatusInternalServerError)
 		return
 	}
 	result := make([]model.Server, 0, len(servers))

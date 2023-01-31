@@ -28,7 +28,7 @@ func TestCollector_Run(t *testing.T) {
 	runner.Add(collector.Run, ctx)
 
 	gs, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	app.Servers.AddOrUpdate(ctx, gs) // nolint: errcheck
+	app.Servers.Add(ctx, gs, servers.OnConflictIgnore) // nolint: errcheck
 
 	valueBeforeTick := testutil.ToFloat64(app.MetricService.ServerRepositorySize)
 	assert.Equal(t, 0.0, valueBeforeTick)

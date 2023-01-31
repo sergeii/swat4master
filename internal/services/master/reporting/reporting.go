@@ -20,6 +20,7 @@ import (
 	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
 	"github.com/sergeii/swat4master/internal/services/discovery/finding"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
+	"github.com/sergeii/swat4master/internal/services/server"
 	"github.com/sergeii/swat4master/pkg/binutils"
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query/filter"
 )
@@ -55,23 +56,26 @@ func (msg MasterMsg) String() string {
 }
 
 type MasterReporterService struct {
-	servers   servers.Repository
-	instances instances.Repository
-	finder    *finding.Service
-	metrics   *monitoring.MetricService
+	servers        servers.Repository
+	instances      instances.Repository
+	FindingService *finding.Service
+	MetricService  *monitoring.MetricService
+	ServerService  *server.Service
 }
 
 func NewService(
 	servers servers.Repository,
 	instances instances.Repository,
-	finder *finding.Service,
-	metrics *monitoring.MetricService,
+	serverService *server.Service,
+	findingService *finding.Service,
+	metricService *monitoring.MetricService,
 ) *MasterReporterService {
 	mrs := &MasterReporterService{
-		servers:   servers,
-		instances: instances,
-		finder:    finder,
-		metrics:   metrics,
+		servers:        servers,
+		instances:      instances,
+		ServerService:  serverService,
+		FindingService: findingService,
+		MetricService:  metricService,
 	}
 	return mrs
 }
@@ -112,61 +116,6 @@ func (mrs *MasterReporterService) handleChallenge(req []byte) ([]byte, error) {
 	return resp, nil
 }
 
-func (mrs *MasterReporterService) handleHeartbeat(
-	ctx context.Context,
-	req []byte,
-	addr *net.UDPAddr,
-) ([]byte, error) {
-	instanceID, ok := parseInstanceID(req)
-	if !ok {
-		return nil, ErrInvalidRequestPayload
-	}
-
-	fields, err := parseHeartbeatFields(req[5:])
-	if err != nil || len(fields) == 0 {
-		return nil, ErrInvalidRequestPayload
-	}
-
-	svrAddr, queryPort, err := parseAddrFromParams(addr, fields)
-	if err != nil {
-		return nil, err
-	}
-
-	svr, err := mrs.obtainServerByAddr(ctx, svrAddr, queryPort)
-	if err != nil {
-		return nil, err
-	}
-
-	// remove the server from the list on statechanged=2
-	if statechanged, ok := fields["statechanged"]; ok && statechanged == "2" {
-		// in this case server missing in the repo should not be considered an error
-		// as this may be a result of a race condition triggered by a double request from the server
-		if err = mrs.removeServer(ctx, svr, addr, instanceID); err != nil {
-			return nil, err
-		}
-		// because the server is exiting, it does not expect a response from us
-		return nil, nil
-	}
-
-	// add the reported server to the list
-	if err := mrs.reportServer(ctx, svr, addr, instanceID, fields); err != nil {
-		return nil, err
-	}
-
-	// prepare the packed client address to be used in the response
-	clientAddr := make([]byte, 7)
-	copy(clientAddr[1:5], addr.IP.To4()) // the first byte is supposed to be null byte, so leave it zero value
-	binary.BigEndian.PutUint16(clientAddr[5:7], uint16(addr.Port))
-	// the last 28th byte remains zero, because the response payload is supposed to be null-terminated
-	resp := make([]byte, 28)
-	copy(resp[:3], []byte{0xfe, 0xfd, 0x01})  // initial bytes, 3 of them
-	copy(resp[3:7], instanceID)               // instance id (4 bytes)
-	copy(resp[7:13], MasterResponseChallenge) // challenge, we keep it constant, 6 bytes
-	hex.Encode(resp[13:27], clientAddr)       // hex-encoded client address, 14 bytes
-
-	return resp, nil
-}
-
 func (mrs *MasterReporterService) handleKeepalive(
 	ctx context.Context,
 	req []byte,
@@ -188,12 +137,10 @@ func (mrs *MasterReporterService) handleKeepalive(
 	}
 
 	// make sure no other concurrent update is possible
-	svr, unlocker, err := mrs.servers.GetForUpdate(ctx, instance.GetAddr())
+	svr, err := mrs.servers.Get(ctx, instance.GetAddr())
 	if err != nil {
 		return nil, err
 	}
-	// Unlock should be idempotent, so it's safe to call it multiple times
-	defer unlocker.Unlock()
 
 	// although keepalive request does not provide
 	// any additional information about their server such
@@ -202,58 +149,120 @@ func (mrs *MasterReporterService) handleKeepalive(
 	// so it keeps appearing in the list
 	svr.Refresh()
 
-	if _, err := mrs.servers.Update(ctx, unlocker, svr); err != nil {
-		return nil, err
+	if _, updateErr := mrs.servers.Update(ctx, svr, func(s *servers.Server) bool {
+		s.Refresh()
+		return true
+	}); updateErr != nil {
+		return nil, updateErr
 	}
 
 	return nil, nil
 }
 
+func (mrs *MasterReporterService) handleHeartbeat(
+	ctx context.Context,
+	req []byte,
+	connAddr *net.UDPAddr,
+) ([]byte, error) {
+	instanceID, ok := parseInstanceID(req)
+	if !ok {
+		return nil, ErrInvalidRequestPayload
+	}
+
+	fields, err := parseHeartbeatFields(req[5:])
+	if err != nil || len(fields) == 0 {
+		return nil, ErrInvalidRequestPayload
+	}
+
+	svrAddr, queryPort, err := parseAddrFromParams(connAddr, fields)
+	if err != nil {
+		return nil, err
+	}
+
+	// remove the server from the list on statechanged=2
+	if statechanged, ok := fields["statechanged"]; ok && statechanged == "2" {
+		return mrs.removeServer(ctx, connAddr, svrAddr, instanceID)
+	}
+
+	svr, err := mrs.obtainServerByAddr(ctx, svrAddr, queryPort)
+	if err != nil {
+		return nil, err
+	}
+
+	// add the reported server to the list
+	return mrs.reportServer(ctx, connAddr, svr, instanceID, fields)
+}
+
 func (mrs *MasterReporterService) removeServer(
 	ctx context.Context,
-	svr servers.Server,
-	addr *net.UDPAddr,
+	connAddr *net.UDPAddr,
+	svrAddr addr.Addr,
 	instanceID string,
-) error {
+) ([]byte, error) {
+	svr, err := mrs.servers.Get(ctx, svrAddr)
+	if err != nil {
+		switch {
+		case errors.Is(err, servers.ErrServerNotFound):
+			log.Info().
+				Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
+				Msg("Removed server not found")
+			return nil, nil
+		default:
+			return nil, err
+		}
+	}
+
 	instance, err := mrs.instances.GetByID(ctx, instanceID)
 	if err != nil {
+		switch {
 		// this could be a race condition - ignore
-		if errors.Is(err, instances.ErrInstanceNotFound) {
-			return nil
+		case errors.Is(err, instances.ErrInstanceNotFound):
+			log.Info().
+				Stringer("src", connAddr).
+				Stringer("server", svr).
+				Str("instance", fmt.Sprintf("% x", instanceID)).
+				Msg("Instance for removed server not found")
+			return nil, nil
+		default:
+			return nil, err
 		}
-		return err
 	}
 	// make sure to verify the "owner" of the provided instance id
 	if instance.GetDottedIP() != svr.GetDottedIP() {
-		return ErrUnknownInstanceID
+		return nil, ErrUnknownInstanceID
 	}
+
 	if err = mrs.servers.Remove(ctx, svr); err != nil {
-		return err
+		return nil, err
 	}
 	if err = mrs.instances.RemoveByID(ctx, instanceID); err != nil {
-		return err
+		return nil, err
 	}
-	mrs.metrics.ReporterRemovals.Inc()
+
 	log.Info().
-		Stringer("src", addr).Str("instance", fmt.Sprintf("% x", instanceID)).
+		Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
 		Msg("Successfully removed server on request")
-	return nil
+
+	mrs.MetricService.ReporterRemovals.Inc()
+
+	// because the server is exiting, it does not expect a response from us
+	return nil, nil
 }
 
 func (mrs *MasterReporterService) reportServer(
 	ctx context.Context,
-	svr servers.Server,
 	connAddr *net.UDPAddr,
+	svr servers.Server,
 	instanceID string,
 	fields map[string]string,
-) error {
+) ([]byte, error) {
 	instance, err := instances.New(instanceID, svr.GetIP(), svr.GetGamePort())
 	if err != nil {
 		log.Error().
 			Err(err).
 			Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
 			Msg("Failed to create an instance")
-		return err
+		return nil, err
 	}
 
 	info, err := details.NewInfoFromParams(fields)
@@ -262,44 +271,87 @@ func (mrs *MasterReporterService) reportServer(
 			Err(err).
 			Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
 			Msg("Failed to parse reported fields")
-		return err
+		return nil, err
 	}
 	svr.UpdateInfo(info)
 	svr.UpdateDiscoveryStatus(ds.Master | ds.Info)
 
-	// discover query port for newly reporter servers
-	if svr.HasNoDiscoveryStatus(ds.Port | ds.PortRetry) {
-		if err := mrs.finder.DiscoverPort(ctx, svr.GetAddr(), probes.NC, probes.NC); err != nil {
-			log.Error().
-				Err(err).
-				Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
-				Stringer("server", svr).
-				Msg("Failed to add server for port discovery")
-			return err
-		}
-		svr.UpdateDiscoveryStatus(ds.PortRetry)
-	}
-
-	if _, err := mrs.servers.AddOrUpdate(ctx, svr); err != nil {
+	if svr, err = mrs.ServerService.CreateOrUpdate(ctx, svr, func(conflict *servers.Server) {
+		// in case of conflict, just do all the same
+		conflict.UpdateInfo(info)
+		conflict.UpdateDiscoveryStatus(ds.Master | ds.Info)
+	}); err != nil {
 		log.Error().
 			Err(err).
 			Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
 			Msg("Failed to add server to repository")
-		return err
+		return nil, err
 	}
+
 	if err := mrs.instances.Add(ctx, instance); err != nil {
 		log.Error().
 			Err(err).
 			Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
 			Msg("Failed to add instance to repository")
-		return err
+		return nil, err
+	}
+
+	// attempt to discover query port for newly reported servers
+	if err := mrs.maybeDiscoverPort(ctx, svr); err != nil {
+		// it's not critical if we fail here, so don't return an error but log it
+		log.Error().
+			Err(err).
+			Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
+			Stringer("server", svr).
+			Msg("Failed to add server for port discovery")
 	}
 
 	log.Info().
 		Stringer("src", connAddr).
 		Str("instance", fmt.Sprintf("% x", instanceID)).
-		Stringer("server", svr.GetAddr()).
+		Stringer("server", svr).
 		Msg("Successfully reported server")
+
+	// prepare the packed client address to be used in the response
+	clientAddr := make([]byte, 7)
+	copy(clientAddr[1:5], connAddr.IP.To4()) // the first byte is supposed to be null byte, so leave it zero value
+	binary.BigEndian.PutUint16(clientAddr[5:7], uint16(connAddr.Port))
+	// the last 28th byte remains zero, because the response payload is supposed to be null-terminated
+	resp := make([]byte, 28)
+	copy(resp[:3], []byte{0xfe, 0xfd, 0x01})  // initial bytes, 3 of them
+	copy(resp[3:7], instanceID)               // instance id (4 bytes)
+	copy(resp[7:13], MasterResponseChallenge) // challenge, we keep it constant, 6 bytes
+	hex.Encode(resp[13:27], clientAddr)       // hex-encoded client address, 14 bytes
+
+	return resp, nil
+}
+
+func (mrs *MasterReporterService) maybeDiscoverPort(ctx context.Context, pending servers.Server) error {
+	var err error
+	// the server has either already go its port discovered
+	// or it is currently in the queue
+	if !pending.HasNoDiscoveryStatus(ds.Port | ds.PortRetry) {
+		return nil
+	}
+
+	if err = mrs.FindingService.DiscoverPort(ctx, pending.GetAddr(), probes.NC, probes.NC); err != nil {
+		return err
+	}
+
+	pending.UpdateDiscoveryStatus(ds.PortRetry)
+
+	if _, err := mrs.ServerService.Update(ctx, pending, func(conflict *servers.Server) bool {
+		// while we were updating this server,
+		// it's got the port, or it was put in the queue.
+		// In such a case, resolve the conflict by not doing anything
+		if conflict.HasDiscoveryStatus(ds.Port | ds.PortRetry) {
+			return false
+		}
+		conflict.UpdateDiscoveryStatus(ds.PortRetry)
+		return true
+	}); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -310,12 +362,17 @@ func (mrs *MasterReporterService) obtainServerByAddr(
 	queryPort int,
 ) (servers.Server, error) {
 	svr, err := mrs.servers.Get(ctx, svrAddr)
-	if errors.Is(err, servers.ErrServerNotFound) {
-		if svr, err = servers.NewFromAddr(svrAddr, queryPort); err != nil {
+	if err != nil {
+		switch {
+		case errors.Is(err, servers.ErrServerNotFound):
+			// create new server
+			if svr, err = servers.NewFromAddr(svrAddr, queryPort); err != nil {
+				return servers.Blank, err
+			}
+			return svr, nil
+		default:
 			return servers.Blank, err
 		}
-	} else if err != nil {
-		return servers.Blank, err
 	}
 	return svr, nil
 }

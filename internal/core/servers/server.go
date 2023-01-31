@@ -87,6 +87,10 @@ func (gs *Server) HasDiscoveryStatus(status ds.DiscoveryStatus) bool {
 	return (gs.status & status) == status
 }
 
+func (gs *Server) HasAnyDiscoveryStatus(status ds.DiscoveryStatus) bool {
+	return (gs.status & status) > 0
+}
+
 func (gs *Server) HasNoDiscoveryStatus(status ds.DiscoveryStatus) bool {
 	return (gs.status &^ status) == gs.status
 }

@@ -2,6 +2,7 @@ package probing_test
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -85,16 +86,6 @@ func TestProbingService_ProbeDetails_OK(t *testing.T) {
 			queue, repo, service := makeService(probing.WithProbeTimeout(time.Millisecond * 10))
 
 			responses := make(chan []byte)
-			go func() {
-				responses <- []byte(
-					"\\hostname\\-==MYT Co-op Svr==-\\numplayers\\0\\maxplayers\\5\\gametype\\CO-OP" +
-						"\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store\\hostport\\10880" +
-						"\\password\\false\\gamever\\1.1\\round\\1\\numrounds\\1\\timeleft\\153" +
-						"\\timespecial\\0\\obj_Neutralize_All_Enemies\\1\\obj_Rescue_All_Hostages\\1" +
-						"\\obj_Rescue_Rosenstein\\1\\obj_Rescue_Fillinger\\1\\obj_Rescue_Victims\\1" +
-						"\\obj_Neutralize_Alice\\1\\tocreports\\8/13\\weaponssecured\\4/6\\queryid\\1\\final\\",
-				)
-			}()
 			udp, cancel := gs1.PrepareGS1Server(responses)
 			defer cancel()
 
@@ -102,11 +93,25 @@ func TestProbingService_ProbeDetails_OK(t *testing.T) {
 			svr, err := servers.NewFromAddr(addr.NewForTesting(svrAddr.IP, svrAddr.Port-1), svrAddr.Port)
 			require.NoError(t, err)
 
+			go func(port int) {
+				responses <- []byte(
+					fmt.Sprintf(
+						"\\hostname\\-==MYT Co-op Svr==-\\numplayers\\0\\maxplayers\\5\\gametype\\CO-OP"+
+							"\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store\\hostport\\%d"+
+							"\\password\\false\\gamever\\1.1\\round\\1\\numrounds\\1\\timeleft\\153"+
+							"\\timespecial\\0\\obj_Neutralize_All_Enemies\\1\\obj_Rescue_All_Hostages\\1"+
+							"\\obj_Rescue_Rosenstein\\1\\obj_Rescue_Fillinger\\1\\obj_Rescue_Victims\\1"+
+							"\\obj_Neutralize_Alice\\1\\tocreports\\8/13\\weaponssecured\\4/6\\queryid\\1\\final\\",
+						port,
+					),
+				)
+			}(svr.GetGamePort())
+
 			if tt.initStatus.HasStatus() {
 				svr.UpdateDiscoveryStatus(tt.initStatus)
 			}
 
-			repo.AddOrUpdate(ctx, svr) // nolint: errcheck
+			repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 
 			target := probes.New(svr.GetAddr(), svrAddr.Port, probes.GoalDetails)
 
@@ -241,7 +246,7 @@ func TestProbingService_ProbeDetails_RetryOnError(t *testing.T) {
 			}
 
 			if tt.serverExists {
-				repo.AddOrUpdate(ctx, svr) // nolint: errcheck
+				repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 			}
 
 			target := probes.New(svr.GetAddr(), svrAddr.Port, probes.GoalDetails)
@@ -319,7 +324,7 @@ func TestProbingService_ProbeDetails_OutOfRetries(t *testing.T) {
 			}
 
 			if tt.serverExists {
-				repo.AddOrUpdate(ctx, svr) // nolint: errcheck
+				repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 			}
 
 			target := probes.New(svr.GetAddr(), svrAddr.Port, probes.GoalDetails)
@@ -384,16 +389,6 @@ func TestService_ProbePort_OK(t *testing.T) {
 			)
 
 			responses := make(chan []byte)
-			go func() {
-				responses <- []byte(
-					"\\hostname\\-==MYT Co-op Svr==-\\numplayers\\0\\maxplayers\\5\\gametype\\CO-OP" +
-						"\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store\\hostport\\10880" +
-						"\\password\\false\\gamever\\1.1\\round\\1\\numrounds\\1\\timeleft\\153" +
-						"\\timespecial\\0\\obj_Neutralize_All_Enemies\\1\\obj_Rescue_All_Hostages\\1" +
-						"\\obj_Rescue_Rosenstein\\1\\obj_Rescue_Fillinger\\1\\obj_Rescue_Victims\\1" +
-						"\\obj_Neutralize_Alice\\1\\tocreports\\8/13\\weaponssecured\\4/6\\queryid\\1\\final\\",
-				)
-			}()
 			udp, cancel := gs1.PrepareGS1Server(responses)
 			defer cancel()
 
@@ -401,11 +396,25 @@ func TestService_ProbePort_OK(t *testing.T) {
 			svr, err := servers.NewFromAddr(addr.NewForTesting(svrAddr.IP, svrAddr.Port-4), svrAddr.Port-4)
 			require.NoError(t, err)
 
+			go func(port int) {
+				responses <- []byte(
+					fmt.Sprintf(
+						"\\hostname\\-==MYT Co-op Svr==-\\numplayers\\0\\maxplayers\\5\\gametype\\CO-OP"+
+							"\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store\\hostport\\%d"+
+							"\\password\\false\\gamever\\1.1\\round\\1\\numrounds\\1\\timeleft\\153"+
+							"\\timespecial\\0\\obj_Neutralize_All_Enemies\\1\\obj_Rescue_All_Hostages\\1"+
+							"\\obj_Rescue_Rosenstein\\1\\obj_Rescue_Fillinger\\1\\obj_Rescue_Victims\\1"+
+							"\\obj_Neutralize_Alice\\1\\tocreports\\8/13\\weaponssecured\\4/6\\queryid\\1\\final\\",
+						port,
+					),
+				)
+			}(svr.GetGamePort())
+
 			if tt.initStatus.HasStatus() {
 				svr.UpdateDiscoveryStatus(tt.initStatus)
 			}
 
-			repo.AddOrUpdate(ctx, svr) // nolint: errcheck
+			repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 
 			target := probes.New(svr.GetAddr(), svrAddr.Port, probes.GoalPort)
 
@@ -438,7 +447,7 @@ func TestService_ProbePort_RetryOnError(t *testing.T) {
 		name         string
 		initStatus   ds.DiscoveryStatus
 		serverExists bool
-		respFactory  ResponseFunc
+		respFactory  func(int) []byte
 		wantStatus   ds.DiscoveryStatus
 		wantErr      error
 	}{
@@ -446,13 +455,15 @@ func TestService_ProbePort_RetryOnError(t *testing.T) {
 			"positive case for existing server",
 			ds.Details,
 			true,
-			func(ctx context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, bytes []byte) {
-				packet := []byte(
-					"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16" +
-						"\\gametype\\VIP Escort\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store" +
-						"\\hostport\\10480\\password\\0\\gamever\\1.1\\final\\\\queryid\\1.1",
+			func(gamePort int) []byte {
+				return []byte(
+					fmt.Sprintf(
+						"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16"+
+							"\\gametype\\VIP Escort\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store"+
+							"\\hostport\\%d\\password\\0\\gamever\\1.1\\final\\\\queryid\\1.1",
+						gamePort,
+					),
 				)
-				conn.WriteToUDP(packet, udpAddr) // nolint: errcheck
 			},
 			ds.Details | ds.Info | ds.Port,
 			nil,
@@ -461,13 +472,15 @@ func TestService_ProbePort_RetryOnError(t *testing.T) {
 			"good response for nonexistent server",
 			ds.NoStatus,
 			false,
-			func(ctx context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, bytes []byte) {
-				packet := []byte(
-					"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16" +
-						"\\gametype\\VIP Escort\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store" +
-						"\\hostport\\10480\\password\\0\\gamever\\1.1\\final\\\\queryid\\1.1",
+			func(gamePort int) []byte {
+				return []byte(
+					fmt.Sprintf(
+						"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16"+
+							"\\gametype\\VIP Escort\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store"+
+							"\\hostport\\%d\\password\\0\\gamever\\1.1\\final\\\\queryid\\1.1",
+						gamePort,
+					),
 				)
-				conn.WriteToUDP(packet, udpAddr) // nolint: errcheck
 			},
 			ds.NoStatus,
 			servers.ErrServerNotFound,
@@ -476,7 +489,9 @@ func TestService_ProbePort_RetryOnError(t *testing.T) {
 			"timeout for existing server",
 			ds.Details | ds.Info,
 			true,
-			func(context.Context, *net.UDPConn, *net.UDPAddr, []byte) {},
+			func(_ int) []byte {
+				return nil
+			},
 			ds.Details | ds.Info | ds.PortRetry,
 			probing.ErrProbeRetried,
 		},
@@ -484,7 +499,9 @@ func TestService_ProbePort_RetryOnError(t *testing.T) {
 			"timeout for nonexistent server",
 			ds.NoStatus,
 			false,
-			func(context.Context, *net.UDPConn, *net.UDPAddr, []byte) {},
+			func(_ int) []byte {
+				return nil
+			},
 			ds.NoStatus,
 			servers.ErrServerNotFound,
 		},
@@ -492,14 +509,16 @@ func TestService_ProbePort_RetryOnError(t *testing.T) {
 			"no valid response for existing server",
 			ds.Master | ds.Details | ds.Info,
 			true,
-			func(ctx context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, bytes []byte) {
-				packet := []byte(
-					"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16\\gametype\\VIP Escort" +
-						"\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store\\hostport\\10480" +
-						"\\password\\false\\gamever\\1.1\\round\\4\\numrounds\\5\\timeleft\\1\\timespecial\\0" +
-						"\\swatscore\\0\\suspectsscore\\0\\swatwon\\3\\suspectswon\\0\\final\\",
+			func(gamePort int) []byte {
+				return []byte(
+					fmt.Sprintf(
+						"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16\\gametype\\VIP Escort"+
+							"\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store\\hostport\\%d"+
+							"\\password\\false\\gamever\\1.1\\round\\4\\numrounds\\5\\timeleft\\1\\timespecial\\0"+
+							"\\swatscore\\0\\suspectsscore\\0\\swatwon\\3\\suspectswon\\0\\final\\",
+						gamePort,
+					),
 				)
-				conn.WriteToUDP(packet, udpAddr) // nolint: errcheck
 			},
 			ds.Master | ds.Details | ds.Info | ds.PortRetry,
 			probing.ErrProbeRetried,
@@ -508,14 +527,16 @@ func TestService_ProbePort_RetryOnError(t *testing.T) {
 			"no valid response for nonexistent server",
 			ds.NoStatus,
 			false,
-			func(ctx context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, bytes []byte) {
-				packet := []byte(
-					"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16\\gametype\\VIP Escort" +
-						"\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store\\hostport\\10480" +
-						"\\password\\false\\gamever\\1.1\\round\\4\\numrounds\\5\\timeleft\\1\\timespecial\\0" +
-						"\\swatscore\\0\\suspectsscore\\0\\swatwon\\3\\suspectswon\\0\\final\\",
+			func(gamePort int) []byte {
+				return []byte(
+					fmt.Sprintf(
+						"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16\\gametype\\VIP Escort"+
+							"\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store\\hostport\\%d"+
+							"\\password\\false\\gamever\\1.1\\round\\4\\numrounds\\5\\timeleft\\1\\timespecial\\0"+
+							"\\swatscore\\0\\suspectsscore\\0\\swatwon\\3\\suspectswon\\0\\final\\",
+						gamePort,
+					),
 				)
-				conn.WriteToUDP(packet, udpAddr) // nolint: errcheck
 			},
 			ds.NoStatus,
 			servers.ErrServerNotFound,
@@ -531,19 +552,25 @@ func TestService_ProbePort_RetryOnError(t *testing.T) {
 				probing.WithPortSuggestions([]int{1, 4}),
 			)
 
-			udp, cancel := gs1.ServerFactory(tt.respFactory)
+			responses := make(chan []byte)
+			udp, cancel := gs1.PrepareGS1Server(responses)
 			defer cancel()
 
 			svrAddr := udp.LocalAddr()
 			svr, err := servers.NewFromAddr(addr.NewForTesting(svrAddr.IP, svrAddr.Port-1), svrAddr.Port-1)
 			require.NoError(t, err)
 
+			go func(ch chan []byte, port int, factory func(int) []byte) {
+				packet := factory(port)
+				ch <- packet
+			}(responses, svr.GetGamePort(), tt.respFactory)
+
 			if tt.initStatus.HasStatus() {
 				svr.UpdateDiscoveryStatus(tt.initStatus)
 			}
 
 			if tt.serverExists {
-				repo.AddOrUpdate(ctx, svr) // nolint: errcheck
+				repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 			}
 
 			target := probes.New(svr.GetAddr(), svrAddr.Port-4, probes.GoalPort)
@@ -629,23 +656,27 @@ func TestService_ProbePort_SelectedPortsAreTried(t *testing.T) {
 			)
 
 			responses := make(chan []byte)
-			go func() {
-				responses <- []byte(
-					"\\hostname\\-==MYT Co-op Svr==-\\numplayers\\0\\maxplayers\\5\\gametype\\CO-OP" +
-						"\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store\\hostport\\10880" +
-						"\\password\\false\\gamever\\1.1\\round\\1\\numrounds\\1\\timeleft\\153" +
-						"\\timespecial\\0\\obj_Neutralize_All_Enemies\\1\\obj_Rescue_All_Hostages\\1" +
-						"\\obj_Rescue_Rosenstein\\1\\obj_Rescue_Fillinger\\1\\obj_Rescue_Victims\\1" +
-						"\\obj_Neutralize_Alice\\1\\tocreports\\8/13\\weaponssecured\\4/6\\queryid\\1\\final\\",
-				)
-			}()
 			udp, cancel := gs1.PrepareGS1Server(responses)
 			defer cancel()
 
 			svrAddr := udp.LocalAddr()
 			svr, err := servers.NewFromAddr(addr.NewForTesting(svrAddr.IP, svrAddr.Port-tt.offset), 12345)
 			require.NoError(t, err)
-			repo.AddOrUpdate(ctx, svr) // nolint: errcheck
+			repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+
+			go func(ch chan []byte, port int) {
+				ch <- []byte(
+					fmt.Sprintf(
+						"\\hostname\\-==MYT Co-op Svr==-\\numplayers\\0\\maxplayers\\5\\gametype\\CO-OP"+
+							"\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store\\hostport\\%d"+
+							"\\password\\false\\gamever\\1.1\\round\\1\\numrounds\\1\\timeleft\\153"+
+							"\\timespecial\\0\\obj_Neutralize_All_Enemies\\1\\obj_Rescue_All_Hostages\\1"+
+							"\\obj_Rescue_Rosenstein\\1\\obj_Rescue_Fillinger\\1\\obj_Rescue_Victims\\1"+
+							"\\obj_Neutralize_Alice\\1\\tocreports\\8/13\\weaponssecured\\4/6\\queryid\\1\\final\\",
+						port,
+					),
+				)
+			}(responses, svr.GetGamePort())
 
 			target := probes.New(svr.GetAddr(), 12345, probes.GoalPort)
 			probeErr := service.Probe(ctx, target)
@@ -677,44 +708,19 @@ func TestService_ProbePort_SelectedPortsAreTried(t *testing.T) {
 }
 
 func TestService_ProbePort_MultiplePortsAreProbed(t *testing.T) {
-	udp1, cancel1 := gs1.ServerFactory(
-		func(ctx context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {
-			packet := []byte(
-				"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16\\gametype\\VIP Escort" +
-					"\\gamevariant\\SWAT 4\\mapname\\Fairfax Residence\\hostport\\10480\\password\\0" +
-					"\\gamever\\1.1\\final\\\\queryid\\1.1",
-			)
-			conn.WriteToUDP(packet, addr) // nolint: errcheck
-		},
-	)
+	responses1 := make(chan []byte)
+	responses2 := make(chan []byte)
+	responses3 := make(chan []byte)
+
+	udp1, cancel1 := gs1.PrepareGS1Server(responses1)
 	udpAddr1 := udp1.LocalAddr()
 	defer cancel1()
 
-	udp2, cancel2 := gs1.ServerFactory(
-		func(ctx context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {
-			packet := []byte(
-				"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16\\gametype\\VIP Escort" +
-					"\\gamevariant\\SWAT 4\\mapname\\Fairfax Residence\\hostport\\10480\\password\\false" +
-					"\\gamever\\1.1\\round\\1\\numrounds\\5\\timeleft\\0\\timespecial\\0\\swatscore\\0" +
-					"\\suspectsscore\\0\\swatwon\\1\\suspectswon\\1\\queryid\\1\\final\\",
-			)
-			conn.WriteToUDP(packet, addr) // nolint: errcheck
-		},
-	)
+	udp2, cancel2 := gs1.PrepareGS1Server(responses2)
 	udpAddr2 := udp2.LocalAddr()
 	defer cancel2()
 
-	// same response as udp1
-	udp3, cancel3 := gs1.ServerFactory(
-		func(ctx context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {
-			packet := []byte(
-				"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16\\gametype\\VIP Escort" +
-					"\\gamevariant\\SWAT 4\\mapname\\Fairfax Residence\\hostport\\10480\\password\\0" +
-					"\\gamever\\1.1\\final\\\\queryid\\1.1",
-			)
-			conn.WriteToUDP(packet, addr) // nolint: errcheck
-		},
-	)
+	udp3, cancel3 := gs1.PrepareGS1Server(responses3)
 	udpAddr3 := udp3.LocalAddr()
 	defer cancel3()
 
@@ -728,8 +734,47 @@ func TestService_ProbePort_MultiplePortsAreProbed(t *testing.T) {
 	)
 
 	svr, err := servers.NewFromAddr(addr.NewForTesting(udpAddr1.IP, udpAddr1.Port), 12345)
+	gamePort := svr.GetGamePort()
 	require.NoError(t, err)
-	repo.AddOrUpdate(ctx, svr) // nolint: errcheck
+	repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+
+	go func(ch chan []byte, port int) {
+		packet := []byte(
+			fmt.Sprintf(
+				"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16\\gametype\\VIP Escort"+
+					"\\gamevariant\\SWAT 4\\mapname\\Fairfax Residence\\hostport\\%d\\password\\0"+
+					"\\gamever\\1.1\\final\\\\queryid\\1.1",
+				port,
+			),
+		)
+		ch <- packet
+	}(responses1, gamePort)
+
+	go func(ch chan []byte, port int) {
+		packet := []byte(
+			fmt.Sprintf(
+				"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16\\gametype\\VIP Escort"+
+					"\\gamevariant\\SWAT 4\\mapname\\Fairfax Residence\\hostport\\%d\\password\\false"+
+					"\\gamever\\1.1\\round\\1\\numrounds\\5\\timeleft\\0\\timespecial\\0\\swatscore\\0"+
+					"\\suspectsscore\\0\\swatwon\\1\\suspectswon\\1\\queryid\\1\\final\\",
+				port,
+			),
+		)
+		ch <- packet
+	}(responses2, gamePort)
+
+	go func(ch chan []byte, port int) {
+		// same response as udp1
+		packet := []byte(
+			fmt.Sprintf(
+				"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16\\gametype\\VIP Escort"+
+					"\\gamevariant\\SWAT 4\\mapname\\Fairfax Residence\\hostport\\%d\\password\\0"+
+					"\\gamever\\1.1\\final\\\\queryid\\1.1",
+				port,
+			),
+		)
+		ch <- packet
+	}(responses3, gamePort)
 
 	target := probes.New(svr.GetAddr(), 12345, probes.GoalPort)
 	probeErr := service.Probe(ctx, target)
@@ -746,6 +791,10 @@ func TestService_ProbePort_MultiplePortsAreProbed(t *testing.T) {
 
 	_, popErr := queue.PopAny(ctx)
 	assert.ErrorIs(t, popErr, probes.ErrQueueIsEmpty)
+}
+
+func TestService_ProbePort_HostPortIsValidated(t *testing.T) {
+	// assert.Equal(t, 0, 1)
 }
 
 func TestService_ProbePort_OutOfRetries(t *testing.T) {
@@ -790,7 +839,7 @@ func TestService_ProbePort_OutOfRetries(t *testing.T) {
 			}
 
 			if tt.serverExists {
-				repo.AddOrUpdate(ctx, svr) // nolint: errcheck
+				repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 			}
 
 			target := probes.New(svr.GetAddr(), svrAddr.Port, probes.GoalPort)
