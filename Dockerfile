@@ -1,4 +1,4 @@
-FROM golang:1.19 AS build
+FROM golang:1.19-alpine AS build
 
 ARG build_commit_sha="-"
 ARG build_version="-"
