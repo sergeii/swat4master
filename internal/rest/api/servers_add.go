@@ -40,14 +40,15 @@ func (a *API) AddServer(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, repo.ErrServerNotFound):
-			if discErr := discoverNewServer(c, a.app.ServerService, a.app.FindingService, address); discErr != nil {
-				log.Warn().
-					Err(discErr).Stringer("addr", address).
-					Msg("Unable to submit discovery for new server")
+			newSvr, err := createServerFromAddress(c, address, a.app.ServerService)
+			if err != nil {
+				log.Error().
+					Err(err).Stringer("addr", address).
+					Msg("Unable to create new server")
 				c.Status(http.StatusInternalServerError)
-			} else {
-				c.Status(http.StatusAccepted)
+				return
 			}
+			a.addServer(c, newSvr)
 		default:
 			log.Warn().
 				Err(err).Stringer("addr", address).
@@ -57,6 +58,10 @@ func (a *API) AddServer(c *gin.Context) {
 		return
 	}
 
+	a.addServer(c, svr)
+}
+
+func (a *API) addServer(c *gin.Context, svr repo.Server) {
 	switch {
 	case svr.HasDiscoveryStatus(ds.Details):
 		log.Debug().
@@ -67,18 +72,23 @@ func (a *API) AddServer(c *gin.Context) {
 	case svr.HasAnyDiscoveryStatus(ds.PortRetry | ds.DetailsRetry):
 		log.Debug().
 			Stringer("server", svr).Stringer("status", svr.GetDiscoveryStatus()).
-			Msg("Server discovery is pending")
+			Msg("Server discovery is in progress")
 		c.Status(http.StatusAccepted)
+	case svr.HasDiscoveryStatus(ds.NoPort):
+		log.Debug().
+			Stringer("server", svr).Stringer("status", svr.GetDiscoveryStatus()).
+			Msg("No port has been discovered for server")
+		c.Status(http.StatusGone)
 	// other status - send the server for port discovery
 	default:
-		if rediscErr := rediscoverServer(c, a.app.ServerService, a.app.FindingService, svr); rediscErr != nil {
+		if discErr := discoverServer(c, a.app.ServerService, a.app.FindingService, svr); discErr != nil {
 			log.Warn().
-				Err(rediscErr).Stringer("server", svr).
-				Msg("Unable to submit rediscovery for existing server")
+				Err(discErr).Stringer("server", svr).
+				Msg("Unable to submit discovery for server")
 			c.Status(http.StatusInternalServerError)
-		} else {
-			c.Status(http.StatusAccepted)
+			return
 		}
+		c.Status(http.StatusAccepted)
 	}
 }
 
@@ -97,37 +107,28 @@ func parseAddServerAddress(c *gin.Context) (addr.Addr, error) {
 	return address, nil
 }
 
-func discoverNewServer(
+func createServerFromAddress(
 	ctx context.Context,
-	servers *server.Service,
-	finder *finding.Service,
 	address addr.Addr,
-) error {
+	servers *server.Service,
+) (repo.Server, error) {
 	svr, err := repo.NewFromAddr(address, address.Port+1)
 	if err != nil {
-		return err
+		return repo.Blank, err
 	}
-
-	svr.UpdateDiscoveryStatus(ds.PortRetry)
 
 	if svr, err = servers.Create(ctx, svr, func(upd *repo.Server) bool {
 		// a server with exactly same address was created in the process,
 		// we cannot proceed further
 		return false
 	}); err != nil {
-		return err
+		return repo.Blank, err
 	}
 
-	if err = finder.DiscoverPort(ctx, svr.GetAddr(), probes.NC, probes.NC); err != nil {
-		return err
-	}
-
-	log.Info().Stringer("server", svr).Msg("Added new server for discovery")
-
-	return nil
+	return svr, nil
 }
 
-func rediscoverServer(
+func discoverServer(
 	ctx context.Context,
 	servers *server.Service,
 	finder *finding.Service,

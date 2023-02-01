@@ -57,9 +57,6 @@ type serverAddErrorSchema struct {
 	Error string `json:"error"`
 }
 
-// validate server address
-// validate hostport (cannot submit +1 +2 and so forth)
-
 func TestAPI_AddServer_SubmitNew(t *testing.T) {
 	ctx := context.TODO()
 	ts, app, cancel := testutils.PrepareTestServer()
@@ -100,48 +97,63 @@ func TestAPI_AddServer_SubmitExisting(t *testing.T) {
 		initStatus ds.DiscoveryStatus
 		queued     bool
 		wantStatus ds.DiscoveryStatus
+		wantCode   int
 	}{
 		{
 			"server discovery is already pending",
 			ds.PortRetry,
 			false,
 			ds.PortRetry,
+			202,
 		},
 		{
 			"server has no details but discovery is in progress",
 			ds.DetailsRetry,
 			false,
 			ds.DetailsRetry,
+			202,
 		},
 		{
 			"server has both details and port discovery in progress",
 			ds.DetailsRetry | ds.PortRetry,
 			false,
 			ds.DetailsRetry | ds.PortRetry,
+			202,
+		},
+		{
+			"server has no port",
+			ds.NoPort,
+			false,
+			ds.NoPort,
+			410,
+		},
+		{
+			"server is reporting to master but has no port",
+			ds.Master | ds.Info | ds.NoPort,
+			false,
+			ds.Master | ds.Info | ds.NoPort,
+			410,
+		},
+		{
+			"server has both no details and no port",
+			ds.NoDetails | ds.NoPort,
+			false,
+			ds.NoDetails | ds.NoPort,
+			410,
 		},
 		{
 			"server is new",
 			ds.New,
 			true,
 			ds.PortRetry,
-		},
-		{
-			"server has no port",
-			ds.NoPort,
-			true,
-			ds.PortRetry | ds.NoPort,
+			202,
 		},
 		{
 			"server has no details",
 			ds.NoDetails,
 			true,
 			ds.NoDetails | ds.PortRetry,
-		},
-		{
-			"server has both no details and no port",
-			ds.NoDetails | ds.NoPort,
-			true,
-			ds.NoDetails | ds.NoPort | ds.PortRetry,
+			202,
 		},
 	}
 
@@ -164,7 +176,7 @@ func TestAPI_AddServer_SubmitExisting(t *testing.T) {
 				ts, http.MethodPost, "/api/servers", bytes.NewReader(payload),
 				testutils.MustHaveNoBody(),
 			)
-			assert.Equal(t, 202, resp.StatusCode)
+			assert.Equal(t, tt.wantCode, resp.StatusCode)
 
 			updatedSvr, err := app.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 			require.NoError(t, err)
