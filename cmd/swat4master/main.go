@@ -5,33 +5,32 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
-	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"github.com/sergeii/swat4master/cmd/swat4master/application"
+	"github.com/sergeii/swat4master/cmd/swat4master/build"
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
-	"github.com/sergeii/swat4master/cmd/swat4master/server/browser"
-	"github.com/sergeii/swat4master/cmd/swat4master/server/reporter"
-	"github.com/sergeii/swat4master/internal/server/memory"
-	"github.com/sergeii/swat4master/pkg/logging"
+	"github.com/sergeii/swat4master/cmd/swat4master/logging"
+	"github.com/sergeii/swat4master/cmd/swat4master/running"
+	"github.com/sergeii/swat4master/cmd/swat4master/running/api"
+	"github.com/sergeii/swat4master/cmd/swat4master/running/browser"
+	"github.com/sergeii/swat4master/cmd/swat4master/running/cleaner"
+	"github.com/sergeii/swat4master/cmd/swat4master/running/collector"
+	"github.com/sergeii/swat4master/cmd/swat4master/running/exporter"
+	"github.com/sergeii/swat4master/cmd/swat4master/running/finder"
+	"github.com/sergeii/swat4master/cmd/swat4master/running/prober"
+	"github.com/sergeii/swat4master/cmd/swat4master/running/reporter"
+	"github.com/sergeii/swat4master/internal/validation"
 	"github.com/sergeii/swat4master/pkg/random"
 )
 
-var (
-	BuildVersion = "development"
-	BuildCommit  = "uncommitted"
-	BuildTime    = "unknown"
-)
-
 func main() {
-	fail := make(chan struct{}, 2)
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
-	version := fmt.Sprintf("Version: %s (%s) built at %s", BuildVersion, BuildCommit, BuildTime)
+	version := fmt.Sprintf("Version: %s (%s) built at %s", build.Version, build.Commit, build.Time)
 	cfg := config.Init()
 
 	if cfg.Version {
@@ -39,7 +38,15 @@ func main() {
 		os.Exit(0)
 	}
 
-	configureLogging(cfg)
+	logger, err := logging.ConfigureLogging(cfg)
+	if err != nil {
+		panic(err)
+	}
+	log.Logger = logger
+
+	if err := validation.Register(); err != nil {
+		log.Panic().Err(err).Msg("Unable to start without validate")
+	}
 
 	// must have properly seeded rng
 	if err := random.Seed(); err != nil {
@@ -48,44 +55,35 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	app := application.Configure()
+	runner := running.NewRunner(app, cfg)
+
+	runner.Add(reporter.Run, ctx)
+	runner.Add(browser.Run, ctx)
+	runner.Add(api.Run, ctx)
+	runner.Add(finder.Run, ctx)
+	runner.Add(prober.Run, ctx)
+	runner.Add(exporter.Run, ctx)
+	runner.Add(cleaner.Run, ctx)
+	runner.Add(collector.Run, ctx)
+
 	go func() {
 		select {
-		case <-fail:
-			log.Error().Msg("Exiting due to failure")
+		case <-runner.Exit:
+			log.Error().Msg("Exiting due to a service failure")
 			cancel()
 		case <-shutdown:
-			log.Warn().Msg("Exiting due to shutdown signal")
+			log.Info().Msg("Exiting due to shutdown signal")
 			cancel()
 		}
 	}()
 
-	repo := memory.New(memory.WithCleaner(ctx, cfg.MemoryCleanInterval, cfg.MemoryRetention))
-	wg := &sync.WaitGroup{}
-	wg.Add(2)
-	go reporter.Run(ctx, wg, cfg, fail, repo)
-	go browser.Run(ctx, wg, cfg, fail, repo)
-
 	log.Info().
-		Str("version", BuildVersion).
-		Str("commit", BuildCommit).
-		Str("built", BuildTime).
+		Str("version", build.Version).
+		Str("commit", build.Commit).
+		Str("built", build.Time).
 		Msg("Welcome to SWAT4 master server!")
 
-	wg.Wait()
-}
-
-func configureLogging(cfg *config.Config) {
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMicro
-	zerolog.DurationFieldUnit = time.Second
-	zerolog.CallerMarshalFunc = logging.ShortCallerFormatter
-
-	log.Logger = log.
-		With().Caller().Logger().
-		Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
-
-	if cfg.Debug {
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	} else {
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	}
+	runner.WaitQuit()
 }

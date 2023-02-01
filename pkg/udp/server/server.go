@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 
 	"github.com/rs/zerolog/log"
 )
@@ -16,11 +17,11 @@ type Option func(*Server) error
 type HandlerFunc func(context.Context, *net.UDPConn, *net.UDPAddr, []byte)
 
 type Server struct {
-	addr       *net.UDPAddr
-	conn       *net.UDPConn
-	bufferSize int
-	handler    HandlerFunc
-	ready      chan struct{}
+	addr          *net.UDPAddr
+	conn          *net.UDPConn
+	bufferSize    int
+	handler       HandlerFunc
+	readyCallback func()
 }
 
 func WithBufferSize(sz int) Option {
@@ -37,9 +38,9 @@ func WithHandler(hf HandlerFunc) Option {
 	}
 }
 
-func WithReadySignal(ch chan struct{}) Option {
+func WithReadySignal(cb func()) Option {
 	return func(s *Server) error {
-		s.ready = ch
+		s.readyCallback = cb
 		return nil
 	}
 }
@@ -74,9 +75,9 @@ func (s *Server) Listen(ctx context.Context) error {
 
 	defer s.conn.Close()
 	log.Info().Stringer("addr", s.conn.LocalAddr()).Msg("UDP server launched")
-	// unblock the ready channel listener, if any
-	if s.ready != nil {
-		close(s.ready)
+
+	if s.readyCallback != nil {
+		s.readyCallback()
 	}
 
 	go func() {
@@ -88,7 +89,7 @@ func (s *Server) Listen(ctx context.Context) error {
 				fatal <- err
 				return
 			}
-			if s.handler != nil {
+			if n > 0 && s.handler != nil {
 				payload := make([]byte, n)
 				copy(payload, buffer[:n])
 				go s.handler(ctx, s.conn, raddr, payload)
@@ -104,8 +105,16 @@ func (s *Server) Listen(ctx context.Context) error {
 	return s.Stop()
 }
 
-func (s *Server) LocalAddr() net.Addr {
-	return s.conn.LocalAddr()
+func (s *Server) LocalAddr() *net.UDPAddr {
+	udpAddr, ok := s.conn.LocalAddr().(*net.UDPAddr)
+	if !ok {
+		panic("address must be of type *UDPAddr")
+	}
+	return udpAddr
+}
+
+func (s *Server) LocalAddrPort() netip.AddrPort {
+	return s.LocalAddr().AddrPort()
 }
 
 func (s *Server) Stop() error {

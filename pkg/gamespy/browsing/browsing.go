@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/sergeii/swat4master/pkg/binutils"
-	"github.com/sergeii/swat4master/pkg/gamespy/query/filter"
+	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query/filter"
 )
 
 const MinRequestPayloadLength = 26
@@ -109,7 +109,7 @@ func (req *Request) parseFields() error {
 
 	fieldsUnparsed := fieldsBinString[1:] // skip the leading \
 	fields := make([]string, 0, 1)        // make a room for at least 1 field
-	for fieldsUnparsed != nil && len(fieldsUnparsed) > 0 {
+	for len(fieldsUnparsed) > 0 {
 		fieldNameBin, fieldsUnparsed = binutils.ConsumeString(fieldsUnparsed, '\\')
 		field := string(fieldNameBin)
 		if !filter.IsQueryField(field) {

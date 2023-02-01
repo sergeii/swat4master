@@ -7,7 +7,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/sergeii/swat4master/internal/api/master/browser"
+	"github.com/sergeii/swat4master/internal/services/master/browsing"
 	"github.com/sergeii/swat4master/pkg/binutils"
 	gscrypt "github.com/sergeii/swat4master/pkg/gamespy/crypt"
 	"github.com/sergeii/swat4master/pkg/random"
@@ -110,7 +110,7 @@ func UnpackServerList(resp []byte) []map[string]string {
 }
 
 func SendBrowserRequest(
-	service *browser.MasterBrowserService,
+	service *browsing.MasterBrowserService,
 	filters string,
 	getAddrFunc func() (net.IP, int),
 ) ([]byte, error) {

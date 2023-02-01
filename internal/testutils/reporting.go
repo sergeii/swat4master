@@ -4,21 +4,22 @@ import (
 	"context"
 	"net"
 
-	"github.com/sergeii/swat4master/internal/api/master/reporter"
+	"github.com/sergeii/swat4master/internal/services/master/reporting"
 )
 
 func SendHeartbeat(
-	service *reporter.MasterReporterService,
+	service *reporting.MasterReporterService,
 	instanceID []byte,
 	getParamsFunc func() map[string]string,
 	getAddrFunc func() (net.IP, int),
 ) ([]byte, error) {
 	ip, port := getAddrFunc()
-	return service.DispatchRequest(
+	resp, _, err := service.DispatchRequest(
 		context.TODO(),
 		PackHeartbeatRequest(instanceID, getParamsFunc()),
 		&net.UDPAddr{IP: ip, Port: port},
 	)
+	return resp, err
 }
 
 func PackHeartbeatRequest(instanceID []byte, params map[string]string) []byte {

@@ -52,7 +52,7 @@ func Encrypt(gameSecret [GMSL]byte, challenge [CCHL]byte, data []byte) []byte {
 	// prepare an encrypted payload that is then sent to a client
 	// the first 23 bytes is the header, the rest is 1:1 ciphertext
 	payload := make([]byte, HDRL+len(data))
-	// init crypt header and fill it with random bytes
+	// init crypt header and fill it with random
 	// bytes 9-23 will be the crypt key xor'ed with the game secret and the client's challenge
 	for i := 0; i < HDRL; i++ {
 		payload[i] = uint8(random.RandInt(1, 255)) ^ gameSecret[i%GMSL] ^ challenge[i%CCHL]

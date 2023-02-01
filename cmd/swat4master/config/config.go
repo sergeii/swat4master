@@ -1,56 +1,170 @@
 package config
 
 import (
+	"errors"
 	"flag"
+	"strconv"
+	"strings"
 	"time"
 )
 
 type Config struct {
 	Version bool
 
-	Debug                 bool
-	ReporterListenAddr    string
-	ReporterBufferSize    int
+	LogLevel  string
+	LogOutput string
+
+	ReporterListenAddr string
+	ReporterBufferSize int
+
 	BrowserListenAddr     string
 	BrowserClientTimeout  time.Duration
 	BrowserServerLiveness time.Duration
-	MemoryRetention       time.Duration
-	MemoryCleanInterval   time.Duration
+
+	HTTPListenAddr      string
+	HTTPReadTimeout     time.Duration
+	HTTPWriteTimeout    time.Duration
+	HTTPShutdownTimeout time.Duration
+
+	CollectorInterval time.Duration
+
+	ExporterListenAddr string
+
+	DiscoveryRefreshInterval  time.Duration
+	DiscoveryRevivalInterval  time.Duration
+	DiscoveryRevivalScope     time.Duration
+	DiscoveryRevivalCountdown time.Duration
+	DiscoveryRevivalPorts     []int
+
+	ProbePollSchedule time.Duration
+	ProbeTimeout      time.Duration
+	ProbeRetries      int
+	ProbeConcurrency  int
+
+	CleanRetention time.Duration
+	CleanInterval  time.Duration
 }
 
-func Init() *Config {
-	cfg := Config{}
-	flag.BoolVar(&cfg.Version, "v", false, "Prints the version")
-	flag.BoolVar(&cfg.Version, "version", false, "Prints the version")
-	flag.BoolVar(&cfg.Debug, "debug", false, "Enable debug logging")
+func Init() Config {
+	cfg := Config{
+		// set default value for port suggestions
+		DiscoveryRevivalPorts: []int{1, 2, 3, 4},
+	}
+	flag.BoolVar(&cfg.Version, "v", false, "Show the version")
+	flag.BoolVar(&cfg.Version, "version", false, "Show the version")
+	flag.StringVar(
+		&cfg.LogLevel, "log.level", "info",
+		"Only log messages with the given severity or above.\n"+
+			"For example: debug, info, warn, error and other levels supported by zerolog",
+	)
+	flag.StringVar(
+		&cfg.LogOutput, "log.output", "console",
+		"Output format of log messages. Available options: console, stdout, json",
+	)
 	flag.StringVar(
 		&cfg.ReporterListenAddr, "reporter.address", ":27900",
-		"Reporter server listen address in the form of [host]:port",
+		"Address to listen on for the reporter service",
 	)
 	flag.IntVar(
 		&cfg.ReporterBufferSize, "reporter.buffer", 2048,
-		"UDP read buffer size used by reporter server",
+		"UDP buffer size used by reporter for reading incoming connections",
 	)
 	flag.StringVar(
 		&cfg.BrowserListenAddr, "browser.address", ":28910",
-		"Browser server listen address in the form of [host]:port",
+		"Address to listen on for the browser service",
 	)
 	flag.DurationVar(
 		&cfg.BrowserClientTimeout, "browser.timeout", time.Second,
-		"Client timeout value for connections accepted by browser server",
+		"Maximum duration before timing out an accepted connection by the browser service",
 	)
 	flag.DurationVar(
-		&cfg.BrowserServerLiveness, "browser.liveness", time.Second*60,
-		"The amount of time since the most recent communication a server is considered alive",
+		&cfg.BrowserServerLiveness, "browser.liveness", time.Second*180,
+		"Total amount of time since the most recent heartbeat it takes to declare a game server offline",
+	)
+	flag.StringVar(
+		&cfg.HTTPListenAddr, "http.address", ":3000",
+		"Address to listen on for the API server",
 	)
 	flag.DurationVar(
-		&cfg.MemoryRetention, "memory.retention", time.Hour,
-		"Define how long a server should stay in the memory storage after going offline",
+		&cfg.HTTPShutdownTimeout, "http.shutdown-timeout", time.Second*10,
+		"The amount of time the server will wait gracefully closing connections before exiting",
 	)
 	flag.DurationVar(
-		&cfg.MemoryCleanInterval, "memory.clean", time.Minute,
-		"Define how often should the memory storage should be cleaned",
+		&cfg.HTTPReadTimeout, "http.read-timeout", time.Second*5,
+		"Limits the time it takes from accepting a new connection till reading of the request body",
+	)
+	flag.DurationVar(
+		&cfg.HTTPWriteTimeout, "http.write-timeout", time.Second*5,
+		"Limits the time it takes from reading the body of a request till the end of the response",
+	)
+	flag.DurationVar(
+		&cfg.CollectorInterval, "collector.interval", time.Second,
+		"Defines the interval between periodic metric collector runs",
+	)
+	flag.StringVar(
+		&cfg.ExporterListenAddr, "exporter.address", ":9000",
+		"Prometheus exporter address to listen on",
+	)
+	flag.DurationVar(
+		&cfg.DiscoveryRefreshInterval, "discovery.interval", time.Second*5,
+		"Defines how often servers' details are refreshed",
+	)
+	flag.DurationVar(
+		&cfg.DiscoveryRevivalInterval, "revival.interval", time.Minute*10,
+		"Defines how often unlisted servers are checked for a chance of occasional revival",
+	)
+	flag.DurationVar(
+		&cfg.DiscoveryRevivalScope, "revival.scope", time.Hour,
+		"Limits the time period beyond which the unlisted servers are not revived",
+	)
+	flag.DurationVar(
+		&cfg.DiscoveryRevivalCountdown, "revival.countdown", time.Minute*5,
+		"Limits the upper bound for random countdown at which revival probes are launched",
+	)
+	flag.Func(
+		"revival.ports",
+		"List of port offsets to search for a good query port (+1 +2 and so forth)",
+		func(value string) error {
+			portNumbers := strings.Fields(value)
+			ports := make([]int, 0, len(portNumbers))
+			for _, portNumber := range portNumbers {
+				port, err := strconv.Atoi(portNumber)
+				if err != nil {
+					return errors.New("must contain a list of integer values")
+				}
+				ports = append(ports, port)
+			}
+			if len(ports) == 0 {
+				return errors.New("must contain a non-empty list of port offsets")
+			}
+			cfg.DiscoveryRevivalPorts = ports
+			return nil
+		},
+	)
+	flag.DurationVar(
+		&cfg.ProbePollSchedule, "probe.schedule", time.Millisecond*50,
+		"Defines how often the discovery queue is checked for new targets",
+	)
+	flag.DurationVar(
+		&cfg.ProbeTimeout, "probe.timeout", time.Second,
+		"Limits the maximum time a discovery target will be waited for a complete response",
+	)
+	flag.IntVar(
+		&cfg.ProbeRetries, "probe.retries", 5,
+		"Defines how many times a failed probe is retried ",
+	)
+	flag.IntVar(
+		&cfg.ProbeConcurrency, "probe.concurrency", 25,
+		"Limits how many discovery targets can be probed simultaneously",
+	)
+	flag.DurationVar(
+		&cfg.CleanRetention, "clean.retention", time.Hour,
+		"Defines how long a game server should stay in the memory storage after going offline",
+	)
+	flag.DurationVar(
+		&cfg.CleanInterval, "clean.interval", time.Minute*10,
+		"Defines how often should the memory storage should be cleaned",
 	)
 	flag.Parse()
-	return &cfg
+	return cfg
 }
