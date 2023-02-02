@@ -215,31 +215,26 @@ func TestServerMemoryRepo_Update_ResolveConflict(t *testing.T) {
 			gotOutdated := make(chan struct{})
 			updatedMain := make(chan struct{})
 			updatedParallel := make(chan struct{})
-			go func(a addr.Addr) {
+			go func(a addr.Addr, shouldResolve bool) {
 				other, err := repo.Get(ctx, a)
 				require.NoError(t, err)
 				close(gotOutdated)
+				<-updatedMain
 				assert.Equal(t, 0, other.GetVersion())
 				assert.Equal(t, ds.New, other.GetDiscoveryStatus())
 				other.UpdateDiscoveryStatus(ds.Master)
 				other, err = repo.Update(ctx, other, func(s *servers.Server) bool {
 					s.UpdateDiscoveryStatus(ds.Master)
-					return true
+					return shouldResolve
 				})
 				require.NoError(t, err)
 				close(updatedParallel)
-			}(svr.GetAddr())
-
-			resolved := make(chan bool)
-			go func(testValue bool) {
-				resolved <- testValue
-			}(tt.resolved)
+			}(svr.GetAddr(), tt.resolved)
 
 			<-gotOutdated
 			svr.UpdateDiscoveryStatus(ds.Info | ds.Details)
 			svr, err = repo.Update(ctx, svr, func(s *servers.Server) bool {
-				s.UpdateDiscoveryStatus(ds.Info | ds.Details)
-				return <-resolved
+				panic("should never be called")
 			})
 			require.NoError(t, err)
 			close(updatedMain)
@@ -253,7 +248,7 @@ func TestServerMemoryRepo_Update_ResolveConflict(t *testing.T) {
 				assert.Equal(t, ds.Master|ds.Info|ds.Details, svr.GetDiscoveryStatus())
 			} else {
 				assert.Equal(t, 1, svr.GetVersion())
-				assert.Equal(t, ds.Master, svr.GetDiscoveryStatus())
+				assert.Equal(t, ds.Info|ds.Details, svr.GetDiscoveryStatus())
 			}
 		})
 	}
