@@ -1,30 +1,22 @@
 name: ci
 
-on:
-  push:
+on: [push]
 
 jobs:
-  verify:
+  meta:
     runs-on: ubuntu-latest
+    outputs:
+      date: ${{ steps.meta.outputs.date }}
+      pkg: ${{ steps.meta.outputs.pkg }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Setup Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: 1.19.x
-
-      - name: Verify dependencies
-        run: go mod verify
-
-      - name: Build binary
+      - name: Configure build meta
+        id: meta
         run: |
-          go build -o swat4master cmd/swat4master/main.go
+          echo "::set-output name=date::$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          echo "::set-output name=pkg::github.com/sergeii/swat4master/cmd/swat4master"
 
   test:
     runs-on: ubuntu-latest
-    needs: verify
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -32,7 +24,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v3
         with:
-          go-version: 1.19.x
+          go-version-file: go.mod
 
       - name: Run tests with coverage
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
@@ -44,7 +36,6 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
-    needs: verify
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -52,37 +43,16 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v3
         with:
-          go-version: 1.19.x
+          go-version-file: go.mod
 
       - name: Run golangci
         uses: golangci/golangci-lint-action@v2
         with:
           version: v1.50.1
 
-  meta:
+  smoke-binary:
     runs-on: ubuntu-latest
-    outputs:
-      date: ${{ steps.meta.outputs.date }}
-    steps:
-      - name: Prepare release meta
-        id: meta
-        run: |
-          echo "::set-output name=date::$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          echo "::set-output name=pkg::github.com/sergeii/swat4master/cmd/swat4master"
-
-  release-bin:
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs:
-      - verify
-      - test
-      - lint
-      - meta
-    strategy:
-      fail-fast: false
-      matrix:
-        goos: [darwin, linux]
-        goarch: [amd64, arm64]
+    needs: meta
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -90,47 +60,24 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v3
         with:
-          go-version: 1.19.x
+          go-version-file: go.mod
 
-      - name: Install swag
-        run: go install github.com/swaggo/swag/cmd/swag@v1.8.10
-
-      - name: Prepare build meta
-        id: build_meta
-        run: |
-          echo "::set-output name=asset::swat4master-${{ github.ref_name }}.${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz"
+      - name: Verify dependencies
+        run: go mod verify
 
       - name: Configure linker flags
         id: ldflags
-        run: echo "::set-output name=ldflags::-X '${{ needs.meta.outputs.date }}/build.Time=${{ needs.meta.outputs.date }}' -X '${{ needs.meta.outputs.date }}/build.Commit=${{ github.sha }}' -X '${{ needs.meta.outputs.date }}/build.Version=${{ github.ref_name }}'"
+        run: echo "::set-output name=ldflags::-X '${{ needs.meta.outputs.pkg }}/build.Time=${{ needs.meta.outputs.date }}' -X '${{ needs.meta.outputs.pkg }}/build.Commit=${{ github.sha }}' -X '${{ needs.meta.outputs.pkg }}/build.Version=${{ github.ref_name }}'"
 
-      - name: Generate API docs schema
-        run: swag init -g schema.go -o api/docs/ -d api/,internal/rest/
-
-      - name: Build binaries
+      - name: Build test binary
         run: go build -v -ldflags="${{ steps.ldflags.outputs.ldflags }}" -o swat4master cmd/swat4master/main.go
-        env:
-          GOOS: "${{ matrix.goos }}"
-          GOARCH: "${{ matrix.goarch }}"
 
-      - name: Pack release files
-        run: tar -czf ${{ steps.build_meta.outputs.asset }} swat4master LICENSE
+      - name: Test built binary
+        run: ./swat4master -version
 
-      - name: Upload packed binaries to release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          prerelease: true
-          file: ${{ steps.build_meta.outputs.asset }}
-          asset_name: ${{ steps.build_meta.outputs.asset }}
-          tag: ${{ github.ref }}
-
-  release-image:
+  smoke-image:
     runs-on: ubuntu-latest
     needs:
-      - verify
-      - test
-      - lint
       - meta
     steps:
       - name: Checkout code
@@ -139,34 +86,15 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
 
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v3
+      - name: Build test image
+        uses: docker/build-push-action@v3
         with:
-          images: |
-            ghcr.io/sergeii/swat4master
-          tags: |
-            type=sha,prefix=
-            type=ref,event=tag,prefix=
-          flavor: |
-            latest=true
-            prefix=
-            suffix=
-
-      - name: Login to Github Packages
-        uses: docker/login-action@v1
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v2
-        with:
-          context: .
+          load: true
+          tags: testing
           build-args: |
             build_commit_sha=${{ github.sha }}
-            build_version=development
+            build_version=testing
             build_time=${{ needs.meta.outputs.date }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
+
+      - name: Test built image
+        run: docker run --rm testing -version
