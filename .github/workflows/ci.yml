@@ -15,7 +15,42 @@ jobs:
           echo "::set-output name=date::$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           echo "::set-output name=pkg::github.com/sergeii/swat4master/cmd/swat4master"
 
-  build:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests with coverage
+        run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: go.mod
+
+      - name: Run golangci
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.50.1
+
+  smoke-binary:
     runs-on: ubuntu-latest
     needs: meta
     steps:
@@ -40,47 +75,9 @@ jobs:
       - name: Test built binary
         run: ./swat4master -version
 
-  test:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Setup Go
-        uses: actions/setup-go@v3
-        with:
-          go-version-file: go.mod
-
-      - name: Run tests with coverage
-        run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v2
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-
-  lint:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Setup Go
-        uses: actions/setup-go@v3
-        with:
-          go-version-file: go.mod
-
-      - name: Run golangci
-        uses: golangci/golangci-lint-action@v2
-        with:
-          version: v1.50.1
-
-  image:
+  smoke-image:
     runs-on: ubuntu-latest
     needs:
-      - build
       - meta
     steps:
       - name: Checkout code
