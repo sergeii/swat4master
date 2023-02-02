@@ -10,7 +10,6 @@ import (
 )
 
 var ErrServerNotFound = errors.New("the requested server was not found")
-var ErrVersionConflict = errors.New("version conflict")
 var ErrServerExists = errors.New("server already exists")
 
 func OnConflictIgnore(_ *Server) bool {

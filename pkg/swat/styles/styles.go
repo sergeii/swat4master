@@ -6,30 +6,28 @@ import (
 )
 
 func Clean(text string) string {
-	clean := text
 	r := regexp.MustCompile(`(?i)(\[[\\/]?[cub]\]|\[c[^\w][^\[\]]*?\])`)
 	for {
-		if !r.MatchString(clean) {
+		if !r.MatchString(text) {
 			break
 		}
-		clean = r.ReplaceAllString(clean, "")
+		text = r.ReplaceAllString(text, "")
 	}
-	return strings.TrimSpace(clean)
+	return strings.TrimSpace(text)
 }
 
 func ToHTML(text string) string {
-	formatted := text
 	// remove [b], [\b], [u], [\u] tags
-	formatted = regexp.
+	text = regexp.
 		MustCompile(`(?i)\[(?:\\)?[bu]\]`).
-		ReplaceAllString(formatted, "")
+		ReplaceAllString(text, "")
 	// replace [c=XXXXXX] with spans
-	formatted = regexp.
+	text = regexp.
 		MustCompile(`(?i)\[c[^\w]([a-f0-9]{6})\]([^\[]+)`).
-		ReplaceAllString(formatted, `<span style="color:#$1;">$2</span>`)
+		ReplaceAllString(text, `<span style="color:#$1;">$2</span>`)
 	// remove unparsed and remaining [c=XXXXXX] and [\c] tags
-	formatted = regexp.
+	text = regexp.
 		MustCompile(`(?i)\[(?:\\)?c(?:[^\w][^\[\]]*)?\]`).
-		ReplaceAllString(formatted, "")
-	return formatted
+		ReplaceAllString(text, "")
+	return text
 }

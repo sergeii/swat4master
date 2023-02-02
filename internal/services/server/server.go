@@ -11,9 +11,6 @@ import (
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query"
 )
 
-var ErrCreateAborted = errors.New("server creation aborted on caller decision")
-var ErrUpdateAborted = errors.New("server update aborted on caller decision")
-
 type Service struct {
 	servers servers.Repository
 }
