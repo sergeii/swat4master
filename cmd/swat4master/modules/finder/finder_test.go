@@ -200,8 +200,8 @@ func TestFinder_Run_Expiry(t *testing.T) {
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
-				DiscoveryRefreshInterval:  time.Millisecond * 5,
-				DiscoveryRevivalInterval:  time.Millisecond * 5,
+				DiscoveryRefreshInterval:  time.Millisecond * 25,
+				DiscoveryRevivalInterval:  time.Millisecond * 25,
 				DiscoveryRevivalScope:     time.Second,
 				DiscoveryRevivalCountdown: time.Millisecond,
 				DiscoveryRevivalPorts:     []int{0},
@@ -219,7 +219,7 @@ func TestFinder_Run_Expiry(t *testing.T) {
 		app.Stop(context.TODO()) // nolint: errcheck
 	}()
 
-	<-time.After(time.Millisecond * 18)
+	<-time.After(time.Millisecond * 90)
 
 	countAfterManyTicks, _ := repos.Probes.Count(ctx)
 	assert.Equal(t, 6, countAfterManyTicks)
