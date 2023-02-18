@@ -10,21 +10,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/sergeii/swat4master/internal/entity/details"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
-	"github.com/sergeii/swat4master/internal/validation"
-
 	"github.com/sergeii/swat4master/internal/core/servers"
 	"github.com/sergeii/swat4master/internal/core/servers/memory"
 	"github.com/sergeii/swat4master/internal/entity/addr"
+	"github.com/sergeii/swat4master/internal/entity/details"
+	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/testutils"
 )
-
-func TestMain(m *testing.M) {
-	if err := validation.Register(); err != nil {
-		panic(err)
-	}
-	m.Run()
-}
 
 func TestServerMemoryRepo_Add_New(t *testing.T) {
 	ctx := context.TODO()
@@ -298,7 +290,7 @@ func TestServerMemoryRepo_Update_MultipleConflicts(t *testing.T) {
 	assert.Equal(t, ds.Info|ds.Master|ds.Details|ds.Port, svr.GetDiscoveryStatus())
 }
 
-func TestServerMemoryRepo_Remove(t *testing.T) {
+func TestServerMemoryRepo_Remove_NoConflict(t *testing.T) {
 	tests := []struct {
 		name    string
 		server  servers.Server
@@ -318,132 +310,87 @@ func TestServerMemoryRepo_Remove(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.TODO()
-			before := time.Now()
 			repo := memory.New()
 			svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-			svr.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-				"hostname":    "Swat4 Server",
-				"hostport":    "10480",
-				"mapname":     "A-Bomb Nightclub",
-				"gamever":     "1.1",
-				"gamevariant": "SWAT 4",
-				"gametype":    "Barricaded Suspects",
-			}))
 			repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 
-			reportedSinceBefore, _ := repo.Filter(ctx, servers.NewFilterSet().After(before))
-			assert.Len(t, reportedSinceBefore, 1)
-
-			err := repo.Remove(ctx, tt.server)
+			err := repo.Remove(ctx, tt.server, func(s *servers.Server) bool {
+				panic("should not be called")
+			})
 			assert.NoError(t, err)
 
-			getInst, getErr := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
-			reportedAfterRemove, _ := repo.Filter(ctx, servers.NewFilterSet().After(before))
+			got, getErr := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 			if !tt.removed {
 				assert.NoError(t, getErr)
-				assert.Equal(t, "1.1.1.1", getInst.GetDottedIP())
-				assert.Len(t, reportedAfterRemove, 1)
+				assert.Equal(t, "1.1.1.1", got.GetDottedIP())
 			} else {
 				assert.NoError(t, err)
 				assert.ErrorIs(t, getErr, servers.ErrServerNotFound)
-				assert.Len(t, reportedAfterRemove, 0)
 			}
 		})
 	}
 }
 
-func TestServerMemoryRepo_CleanNext(t *testing.T) {
-	repo := memory.New()
-	ctx := context.TODO()
+func TestServerMemoryRepo_Remove_ResolveConflict(t *testing.T) {
+	tests := []struct {
+		name     string
+		resolved bool
+	}{
+		{
+			"conflict is resolved",
+			true,
+		},
+		{
+			"conflict is ignored",
+			false,
+		},
+	}
 
-	before := time.Now()
-	oldSvr := servers.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	oldSvr.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Old Swat4 Server",
-		"hostport":    "10480",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "Barricaded Suspects",
-	}))
-	repo.Add(ctx, oldSvr, servers.OnConflictIgnore) // nolint: errcheck
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.TODO()
+			repo := memory.New()
+			svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+			repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 
-	after := time.Now()
-	newSvr := servers.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
-	newSvr.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "New Swat4 Server",
-		"hostport":    "10480",
-		"mapname":     "The Wolcott Projects",
-		"gamever":     "1.0",
-		"gamevariant": "SWAT 4X",
-		"gametype":    "VIP Escort",
-	}))
-	repo.Add(ctx, newSvr, servers.OnConflictIgnore) // nolint: errcheck
+			obtained := make(chan struct{})
+			updated := make(chan struct{})
+			removed := make(chan struct{})
 
-	// no servers are affected
-	_, cleaned := repo.CleanNext(ctx, before)
-	assert.False(t, cleaned)
-	afterFirstClean, _ := repo.Filter(ctx, servers.NewFilterSet().After(before))
-	assert.Len(t, afterFirstClean, 2)
+			go func(a addr.Addr, resolved bool) {
+				outdated, err := repo.Get(ctx, a)
+				require.NoError(t, err)
+				assert.Equal(t, 0, outdated.GetVersion())
+				close(obtained)
 
-	// the older instance was removed
-	svr, cleaned := repo.CleanNext(ctx, after)
-	assert.True(t, cleaned)
-	assert.Equal(t, "1.1.1.1:10480", svr.GetAddr().String())
-	afterSecondClean, _ := repo.Filter(ctx, servers.NewFilterSet().After(before))
-	assert.Len(t, afterSecondClean, 1)
-	assert.Equal(t, 0, cleanAll(repo, after))
+				<-updated
+				err = repo.Remove(ctx, outdated, func(s *servers.Server) bool {
+					return resolved
+				})
+				require.NoError(t, err)
+				close(removed)
+			}(svr.GetAddr(), tt.resolved)
 
-	_, err := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
-	assert.ErrorIs(t, err, servers.ErrServerNotFound)
+			<-obtained
+			svr.Refresh()
+			svr, err := repo.Update(ctx, svr, func(_ *servers.Server) bool {
+				panic("should not be called")
+			})
+			require.NoError(t, err)
+			close(updated)
 
-	newSvr, err = repo.Get(ctx, addr.MustNewFromString("2.2.2.2", 10480))
-	require.NoError(t, err)
-	assert.Equal(t, "New Swat4 Server", newSvr.GetInfo().Hostname)
-
-	// all servers are removed
-	now := time.Now()
-	svr, cleaned = repo.CleanNext(ctx, now)
-	assert.True(t, cleaned)
-	assert.Equal(t, "2.2.2.2:10480", svr.GetAddr().String())
-	afterThirdClean, _ := repo.Filter(ctx, servers.NewFilterSet().After(before))
-	assert.Len(t, afterThirdClean, 0)
-	assert.Equal(t, 0, cleanAll(repo, now))
-
-	_, err = repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
-	assert.ErrorIs(t, err, servers.ErrServerNotFound)
-
-	_, err = repo.Get(ctx, addr.MustNewFromString("2.2.2.2", 10480))
-	assert.ErrorIs(t, err, servers.ErrServerNotFound)
-}
-
-func TestServerMemoryRepo_CleanBefore_Multiple(t *testing.T) {
-	repo := memory.New()
-	ctx := context.TODO()
-
-	before := time.Now()
-	server1 := servers.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	repo.Add(ctx, server1, servers.OnConflictIgnore) // nolint: errcheck
-
-	server2 := servers.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
-	repo.Add(ctx, server2, servers.OnConflictIgnore) // nolint: errcheck
-
-	assert.Equal(t, 2, cleanAll(repo, time.Now()))
-
-	afterFirstClean, _ := repo.Filter(ctx, servers.NewFilterSet().After(before))
-	assert.Len(t, afterFirstClean, 0)
-
-	_, err := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
-	assert.ErrorIs(t, err, servers.ErrServerNotFound)
-
-	_, err = repo.Get(ctx, addr.MustNewFromString("2.2.2.2", 10480))
-	assert.ErrorIs(t, err, servers.ErrServerNotFound)
-}
-
-func TestServerMemoryRepo_CleanBefore_EmptyStorageNoError(t *testing.T) {
-	repo := memory.New()
-	_, cleaned := repo.CleanNext(context.TODO(), time.Now())
-	assert.False(t, cleaned)
+			<-removed
+			got, getErr := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+			if !tt.resolved {
+				assert.NoError(t, getErr)
+				assert.Equal(t, "1.1.1.1", got.GetDottedIP())
+				assert.Equal(t, 1, got.GetVersion())
+			} else {
+				assert.NoError(t, err)
+				assert.ErrorIs(t, getErr, servers.ErrServerNotFound)
+			}
+		})
+	}
 }
 
 func TestServerMemoryRepo_Count(t *testing.T) {
@@ -466,14 +413,14 @@ func TestServerMemoryRepo_Count(t *testing.T) {
 	repo.Add(ctx, server2, servers.OnConflictIgnore) // nolint: errcheck
 	assertCount(2)
 
-	_ = repo.Remove(ctx, server1)
+	_ = repo.Remove(ctx, server1, servers.OnConflictIgnore)
 	assertCount(1)
 
-	_ = repo.Remove(ctx, server2)
+	_ = repo.Remove(ctx, server2, servers.OnConflictIgnore)
 	assertCount(0)
 
 	// double remove
-	_ = repo.Remove(ctx, server1)
+	_ = repo.Remove(ctx, server1, servers.OnConflictIgnore)
 	assertCount(0)
 }
 
@@ -526,14 +473,242 @@ func TestServerMemoryRepo_CountByStatus(t *testing.T) {
 	assert.Equal(t, 2, count[ds.NoPort])
 }
 
-func cleanAll(repo servers.Repository, before time.Time) int {
-	var runs int
-	for {
-		_, cleaned := repo.CleanNext(context.TODO(), before)
-		if !cleaned {
-			break
-		}
-		runs++
+func TestServerMemoryRepo_Filter(t *testing.T) {
+	tests := []struct {
+		name        string
+		fsfactory   func(time.Time, time.Time, time.Time, time.Time, time.Time) servers.FilterSet
+		wantServers []string
+	}{
+		{
+			"no filter",
+			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+				return servers.NewFilterSet()
+			},
+			[]string{
+				"5.5.5.5:10480",
+				"4.4.4.4:10480",
+				"3.3.3.3:10480",
+				"2.2.2.2:10480",
+				"1.1.1.1:10480",
+			},
+		},
+		{
+			"exclude status",
+			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+				return servers.NewFilterSet().NoStatus(ds.Master)
+			},
+			[]string{
+				"5.5.5.5:10480",
+				"4.4.4.4:10480",
+				"2.2.2.2:10480",
+			},
+		},
+		{
+			"exclude multiple status",
+			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+				return servers.NewFilterSet().NoStatus(ds.PortRetry | ds.NoDetails)
+			},
+			[]string{
+				"3.3.3.3:10480",
+				"2.2.2.2:10480",
+				"1.1.1.1:10480",
+			},
+		},
+		{
+			"include status",
+			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+				return servers.NewFilterSet().WithStatus(ds.Master)
+			},
+			[]string{
+				"3.3.3.3:10480",
+				"1.1.1.1:10480",
+			},
+		},
+		{
+			"include multiple status",
+			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+				return servers.NewFilterSet().WithStatus(ds.Master | ds.Details)
+			},
+			[]string{
+				"3.3.3.3:10480",
+			},
+		},
+		{
+			"filter by multiple status",
+			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+				return servers.NewFilterSet().WithStatus(ds.Master | ds.Details)
+			},
+			[]string{
+				"3.3.3.3:10480",
+			},
+		},
+		{
+			"filter by update date - after",
+			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+				return servers.NewFilterSet().UpdatedAfter(t4)
+			},
+			[]string{
+				"5.5.5.5:10480",
+				"4.4.4.4:10480",
+			},
+		},
+		{
+			"filter by update date - before",
+			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+				return servers.NewFilterSet().UpdatedBefore(t4)
+			},
+			[]string{
+				"3.3.3.3:10480",
+				"2.2.2.2:10480",
+				"1.1.1.1:10480",
+			},
+		},
+		{
+			"filter by update date - after and before",
+			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+				return servers.NewFilterSet().
+					UpdatedAfter(t4).
+					UpdatedBefore(t5)
+			},
+			[]string{
+				"4.4.4.4:10480",
+			},
+		},
+		{
+			"filter by update date - no match",
+			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+				return servers.NewFilterSet().UpdatedAfter(time.Now())
+			},
+			[]string{},
+		},
+		{
+			"filter by refresh date - after",
+			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+				return servers.NewFilterSet().ActiveAfter(t2)
+			},
+			[]string{
+				"3.3.3.3:10480",
+				"2.2.2.2:10480",
+			},
+		},
+		{
+			"filter by refresh date - before",
+			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+				return servers.NewFilterSet().ActiveBefore(t3)
+			},
+			[]string{
+				"2.2.2.2:10480",
+				"1.1.1.1:10480",
+			},
+		},
+		{
+			"filter by refresh date - after and before",
+			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+				return servers.NewFilterSet().
+					ActiveAfter(t2).
+					ActiveBefore(t3)
+			},
+			[]string{
+				"2.2.2.2:10480",
+			},
+		},
+		{
+			"filter by refresh date - no match",
+			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+				return servers.NewFilterSet().ActiveAfter(time.Now())
+			},
+			[]string{},
+		},
+		{
+			"filter by multiple fields",
+			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+				return servers.NewFilterSet().
+					UpdatedBefore(t5).
+					ActiveAfter(t2).
+					WithStatus(ds.Master)
+			},
+			[]string{
+				"3.3.3.3:10480",
+			},
+		},
 	}
-	return runs
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.TODO()
+			repo := memory.New()
+
+			t1 := time.Now()
+
+			svr1, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+			svr1.UpdateDiscoveryStatus(ds.Master | ds.Info)
+			svr1.Refresh()
+			repo.Add(ctx, svr1, servers.OnConflictIgnore) // nolint: errcheck
+
+			t2 := time.Now()
+
+			svr2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
+			svr2.UpdateDiscoveryStatus(ds.Details | ds.Info)
+			svr2.Refresh()
+			repo.Add(ctx, svr2, servers.OnConflictIgnore) // nolint: errcheck
+
+			t3 := time.Now()
+
+			svr3, _ := servers.New(net.ParseIP("3.3.3.3"), 10480, 10481)
+			svr3.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
+			svr3.Refresh()
+			repo.Add(ctx, svr3, servers.OnConflictIgnore) // nolint: errcheck
+
+			t4 := time.Now()
+
+			svr4, _ := servers.New(net.ParseIP("4.4.4.4"), 10480, 10481)
+			svr4.UpdateDiscoveryStatus(ds.NoDetails | ds.NoPort)
+			repo.Add(ctx, svr4, servers.OnConflictIgnore) // nolint: errcheck
+
+			t5 := time.Now()
+
+			svr5, _ := servers.New(net.ParseIP("5.5.5.5"), 10480, 10481)
+			svr5.UpdateDiscoveryStatus(ds.NoPort | ds.PortRetry)
+			repo.Add(ctx, svr5, servers.OnConflictIgnore) // nolint: errcheck
+
+			gotServers, err := repo.Filter(ctx, tt.fsfactory(t1, t2, t3, t4, t5))
+			require.NoError(t, err)
+			testutils.AssertServers(t, tt.wantServers, gotServers)
+		})
+	}
+}
+
+func TestServerMemoryRepo_Filter_Empty(t *testing.T) {
+	tests := []struct {
+		name string
+		fs   servers.FilterSet
+	}{
+		{
+			"default filterset",
+			servers.NewFilterSet(),
+		},
+		{
+			"filter by no status",
+			servers.NewFilterSet().NoStatus(ds.Master),
+		},
+		{
+			"filter by status",
+			servers.NewFilterSet().WithStatus(ds.Master),
+		},
+		{
+			"filter by status and update date",
+			servers.NewFilterSet().WithStatus(ds.Master).UpdatedBefore(time.Now()),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := memory.New()
+			ctx := context.TODO()
+
+			items, err := repo.Filter(ctx, tt.fs)
+			require.NoError(t, err)
+			assert.Equal(t, []servers.Server{}, items)
+		})
+	}
 }

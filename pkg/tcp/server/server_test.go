@@ -16,18 +16,17 @@ import (
 
 func TestServerListen(t *testing.T) {
 	ready := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+
 	server, err := tcp.New(
 		"localhost:0", // 0 - listen an any available port
-		tcp.WithHandler(func(ctx context.Context, conn *net.TCPConn) {
+		tcp.HandleFunc(func(ctx context.Context, conn *net.TCPConn) {
 			defer conn.Close()
 			buf := make([]byte, 1024)
 			n, _ := conn.Read(buf)
 			resp := slice.Reverse(buf[:n])
 			conn.Write(resp) // nolint: errcheck
 		}),
-		tcp.WithReadySignal(func() {
+		tcp.WithReadySignal(func(net.Addr) {
 			ready <- struct{}{}
 		}),
 	)
@@ -35,7 +34,7 @@ func TestServerListen(t *testing.T) {
 	require.NoError(t, err)
 
 	go func() {
-		server.Listen(ctx) // nolint: errcheck
+		server.Listen() // nolint: errcheck
 	}()
 	// wait for the server to start
 	<-ready
@@ -55,11 +54,10 @@ func TestServerListen(t *testing.T) {
 
 func TestServerTimeout(t *testing.T) {
 	ready := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+
 	server, err := tcp.New(
 		"localhost:0", // 0 - listen an any available port
-		tcp.WithHandler(func(ctx context.Context, conn *net.TCPConn) {
+		tcp.HandleFunc(func(ctx context.Context, conn *net.TCPConn) {
 			defer conn.Close()
 			buf := make([]byte, 1024)
 			n, _ := conn.Read(buf)
@@ -67,7 +65,7 @@ func TestServerTimeout(t *testing.T) {
 			time.Sleep(time.Millisecond * 20)
 			conn.Write(buf[:n]) // nolint: errcheck
 		}),
-		tcp.WithReadySignal(func() {
+		tcp.WithReadySignal(func(net.Addr) {
 			ready <- struct{}{}
 		}),
 		tcp.WithTimeout(time.Millisecond*10),
@@ -76,7 +74,7 @@ func TestServerTimeout(t *testing.T) {
 	require.NoError(t, err)
 
 	go func() {
-		server.Listen(ctx) // nolint: errcheck
+		server.Listen() // nolint: errcheck
 	}()
 	// wait for the server to start
 	<-ready

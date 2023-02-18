@@ -9,12 +9,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/sergeii/swat4master/internal/core/probes"
 	"github.com/sergeii/swat4master/internal/core/servers"
 	"github.com/sergeii/swat4master/internal/entity/addr"
 	"github.com/sergeii/swat4master/internal/entity/details"
 	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/testutils"
 )
 
@@ -58,8 +60,14 @@ type serverAddErrorSchema struct {
 }
 
 func TestAPI_AddServer_SubmitNew(t *testing.T) {
+	repos := memory.New()
 	ctx := context.TODO()
-	ts, app, cancel := testutils.PrepareTestServer()
+	ts, cancel := testutils.PrepareTestServer(
+		t,
+		fx.Decorate(func() (servers.Repository, probes.Repository) {
+			return repos.Servers, repos.Probes
+		}),
+	)
 	defer cancel()
 
 	payload, _ := json.Marshal(serverAddReqSchema{ // nolint: errchkjson
@@ -72,19 +80,19 @@ func TestAPI_AddServer_SubmitNew(t *testing.T) {
 	)
 	assert.Equal(t, 202, resp.StatusCode)
 
-	svrCount, _ := app.Servers.Count(ctx)
+	svrCount, _ := repos.Servers.Count(ctx)
 	require.Equal(t, 1, svrCount)
 
-	addedSvr, err := app.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	addedSvr, err := repos.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 	require.NoError(t, err)
 	assert.Equal(t, "1.1.1.1", addedSvr.GetDottedIP())
 	assert.Equal(t, 10480, addedSvr.GetGamePort())
 	assert.Equal(t, 10481, addedSvr.GetQueryPort())
 	assert.Equal(t, ds.PortRetry, addedSvr.GetDiscoveryStatus())
 
-	tgtCount, _ := app.Probes.Count(ctx)
+	tgtCount, _ := repos.Probes.Count(ctx)
 	assert.Equal(t, 1, tgtCount)
-	addedTgt, err := app.Probes.PopAny(ctx)
+	addedTgt, err := repos.Probes.PopAny(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, probes.GoalPort, addedTgt.GetGoal())
 	assert.Equal(t, "1.1.1.1:10480", addedTgt.GetAddr().String())
@@ -159,14 +167,20 @@ func TestAPI_AddServer_SubmitExisting(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			repos := memory.New()
 			ctx := context.TODO()
-			ts, app, cancel := testutils.PrepareTestServer()
+			ts, cancel := testutils.PrepareTestServer(
+				t,
+				fx.Decorate(func() (servers.Repository, probes.Repository) {
+					return repos.Servers, repos.Probes
+				}),
+			)
 			defer cancel()
 
 			svr, err := servers.NewFromAddr(addr.MustNewFromString("1.1.1.1", 10480), 10484)
 			require.NoError(t, err)
 			svr.UpdateDiscoveryStatus(tt.initStatus)
-			app.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+			repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 
 			payload, _ := json.Marshal(serverAddReqSchema{
 				IP:   "1.1.1.1",
@@ -178,18 +192,18 @@ func TestAPI_AddServer_SubmitExisting(t *testing.T) {
 			)
 			assert.Equal(t, tt.wantCode, resp.StatusCode)
 
-			updatedSvr, err := app.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+			updatedSvr, err := repos.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 			require.NoError(t, err)
 			assert.Equal(t, "1.1.1.1", updatedSvr.GetDottedIP())
 			assert.Equal(t, 10480, updatedSvr.GetGamePort())
 			assert.Equal(t, 10484, updatedSvr.GetQueryPort())
 			assert.Equal(t, tt.wantStatus, updatedSvr.GetDiscoveryStatus())
 
-			tgtCount, err := app.Probes.Count(ctx)
+			tgtCount, err := repos.Probes.Count(ctx)
 			require.NoError(t, err)
 			if tt.queued {
 				assert.Equal(t, 1, tgtCount)
-				addedTgt, err := app.Probes.PopAny(ctx)
+				addedTgt, err := repos.Probes.PopAny(ctx)
 				require.NoError(t, err)
 				assert.Equal(t, probes.GoalPort, addedTgt.GetGoal())
 				assert.Equal(t, "1.1.1.1:10480", addedTgt.GetAddr().String())
@@ -202,8 +216,14 @@ func TestAPI_AddServer_SubmitExisting(t *testing.T) {
 }
 
 func TestAPI_AddServer_AlreadyDiscovered(t *testing.T) {
+	repos := memory.New()
 	ctx := context.TODO()
-	ts, app, cancel := testutils.PrepareTestServer()
+	ts, cancel := testutils.PrepareTestServer(
+		t,
+		fx.Decorate(func() (servers.Repository, probes.Repository) {
+			return repos.Servers, repos.Probes
+		}),
+	)
 	defer cancel()
 
 	fields := map[string]string{
@@ -230,7 +250,7 @@ func TestAPI_AddServer_AlreadyDiscovered(t *testing.T) {
 	require.NoError(t, err)
 	svr.UpdateDiscoveryStatus(ds.Details)
 	svr.UpdateDetails(det)
-	app.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 
 	payload, _ := json.Marshal(serverAddReqSchema{ // nolint: errchkjson
 		IP:   "1.1.1.1",
@@ -258,12 +278,12 @@ func TestAPI_AddServer_AlreadyDiscovered(t *testing.T) {
 	assert.Equal(t, "a-bomb-nightclub", obj.MapNameSlug)
 
 	// no probe is added
-	tgtCount, err := app.Probes.Count(ctx)
+	tgtCount, err := repos.Probes.Count(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 0, tgtCount)
 
 	// server status is not affected
-	notUpdatedSvr, _ := app.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	notUpdatedSvr, _ := repos.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 	assert.Equal(t, ds.Details, notUpdatedSvr.GetDiscoveryStatus())
 }
 
@@ -326,8 +346,14 @@ func TestAPI_AddServer_ValidateAddress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			repos := memory.New()
 			ctx := context.TODO()
-			ts, app, cancel := testutils.PrepareTestServer()
+			ts, cancel := testutils.PrepareTestServer(
+				t,
+				fx.Decorate(func() (servers.Repository, probes.Repository) {
+					return repos.Servers, repos.Probes
+				}),
+			)
 			defer cancel()
 
 			payload, _ := json.Marshal(serverAddReqSchema{
@@ -349,9 +375,9 @@ func TestAPI_AddServer_ValidateAddress(t *testing.T) {
 				assert.Equal(t, 400, resp.StatusCode)
 			}
 
-			svrCount, err := app.Servers.Count(ctx)
+			svrCount, err := repos.Servers.Count(ctx)
 			require.NoError(t, err)
-			tgtCount, err := app.Probes.Count(ctx)
+			tgtCount, err := repos.Probes.Count(ctx)
 			require.NoError(t, err)
 
 			if tt.want {

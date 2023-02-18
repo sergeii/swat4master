@@ -6,14 +6,10 @@ import (
 	"github.com/sergeii/swat4master/internal/validation/validators"
 )
 
-var (
-	Validate *validator.Validate
-)
-
-func Register() error {
-	Validate = validator.New()
-	if err := Validate.RegisterValidation("ratio", validators.ValidateRatio); err != nil {
-		return err
+func New() (*validator.Validate, error) {
+	validate := validator.New()
+	if err := validate.RegisterValidation("ratio", validators.ValidateRatio); err != nil {
+		return nil, err
 	}
-	return nil
+	return validate, nil
 }

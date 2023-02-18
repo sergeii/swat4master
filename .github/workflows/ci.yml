@@ -48,7 +48,7 @@ jobs:
       - name: Run golangci
         uses: golangci/golangci-lint-action@v2
         with:
-          version: v1.50.1
+          version: v1.51.1
 
   smoke-binary:
     runs-on: ubuntu-latest

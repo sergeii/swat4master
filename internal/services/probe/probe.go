@@ -13,10 +13,10 @@ type Service struct {
 	metrics *monitoring.MetricService
 }
 
-func NewService(repo probes.Repository, ms *monitoring.MetricService) *Service {
+func NewService(repo probes.Repository, metrics *monitoring.MetricService) *Service {
 	return &Service{
 		queue:   repo,
-		metrics: ms,
+		metrics: metrics,
 	}
 }
 

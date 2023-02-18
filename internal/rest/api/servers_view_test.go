@@ -8,10 +8,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
 	"github.com/sergeii/swat4master/internal/core/servers"
 	"github.com/sergeii/swat4master/internal/entity/details"
 	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/testutils"
 )
 
@@ -83,8 +85,14 @@ type serverDetailSchema struct {
 }
 
 func TestAPI_ViewServer_OK(t *testing.T) {
+	repos := memory.New()
 	ctx := context.TODO()
-	ts, app, cancel := testutils.PrepareTestServer()
+	ts, cancel := testutils.PrepareTestServer(
+		t,
+		fx.Decorate(func() servers.Repository {
+			return repos.Servers
+		}),
+	)
 	defer cancel()
 
 	fields := map[string]string{
@@ -133,7 +141,7 @@ func TestAPI_ViewServer_OK(t *testing.T) {
 	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10580, 10581)
 	svr.UpdateDetails(details.MustNewDetailsFromParams(fields, players, nil))
 	svr.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-	app.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 	<-time.After(time.Millisecond * 5)
 
 	obj := serverDetailSchema{}
@@ -186,8 +194,14 @@ func TestAPI_ViewServer_OK(t *testing.T) {
 }
 
 func TestAPI_ViewServer_Coop_OK(t *testing.T) {
+	repos := memory.New()
 	ctx := context.TODO()
-	ts, app, cancel := testutils.PrepareTestServer()
+	ts, cancel := testutils.PrepareTestServer(
+		t,
+		fx.Decorate(func() servers.Repository {
+			return repos.Servers
+		}),
+	)
 	defer cancel()
 
 	fields := map[string]string{
@@ -251,7 +265,7 @@ func TestAPI_ViewServer_Coop_OK(t *testing.T) {
 	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10880, 10881)
 	svr.UpdateDetails(details.MustNewDetailsFromParams(fields, players, objectives))
 	svr.UpdateDiscoveryStatus(ds.Details | ds.Info)
-	app.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 	<-time.After(time.Millisecond * 5)
 
 	obj := serverDetailSchema{}
@@ -307,8 +321,14 @@ func TestAPI_ViewServer_Coop_OK(t *testing.T) {
 }
 
 func TestAPI_ViewServer_MinimalInfo_OK(t *testing.T) {
+	repos := memory.New()
 	ctx := context.TODO()
-	ts, app, cancel := testutils.PrepareTestServer()
+	ts, cancel := testutils.PrepareTestServer(
+		t,
+		fx.Decorate(func() servers.Repository {
+			return repos.Servers
+		}),
+	)
 	defer cancel()
 
 	fields := map[string]string{
@@ -323,7 +343,7 @@ func TestAPI_ViewServer_MinimalInfo_OK(t *testing.T) {
 	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil))
 	svr.UpdateDiscoveryStatus(ds.Details | ds.Info)
-	app.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 	<-time.After(time.Millisecond * 5)
 
 	obj := serverDetailSchema{}
@@ -352,13 +372,19 @@ func TestAPI_ViewServer_MinimalInfo_OK(t *testing.T) {
 }
 
 func TestAPI_ViewServer_NoInfo_OK(t *testing.T) {
+	repos := memory.New()
 	ctx := context.TODO()
-	ts, app, cancel := testutils.PrepareTestServer()
+	ts, cancel := testutils.PrepareTestServer(
+		t,
+		fx.Decorate(func() servers.Repository {
+			return repos.Servers
+		}),
+	)
 	defer cancel()
 
 	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	svr.UpdateDiscoveryStatus(ds.Details | ds.Info)
-	app.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 	<-time.After(time.Millisecond * 5)
 
 	obj := serverDetailSchema{}
@@ -405,8 +431,14 @@ func TestAPI_ViewServer_NotFound(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			repos := memory.New()
 			ctx := context.TODO()
-			ts, app, cancel := testutils.PrepareTestServer()
+			ts, cancel := testutils.PrepareTestServer(
+				t,
+				fx.Decorate(func() servers.Repository {
+					return repos.Servers
+				}),
+			)
 			defer cancel()
 
 			fields := map[string]string{
@@ -421,7 +453,7 @@ func TestAPI_ViewServer_NotFound(t *testing.T) {
 			svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 			svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil))
 			svr.UpdateDiscoveryStatus(ds.Details)
-			app.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+			repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 			<-time.After(time.Millisecond * 5)
 
 			path := "/api/servers/" + tt.address
@@ -525,8 +557,14 @@ func TestAPI_ViewServer_AddressValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			repos := memory.New()
 			ctx := context.TODO()
-			ts, app, cancel := testutils.PrepareTestServer()
+			ts, cancel := testutils.PrepareTestServer(
+				t,
+				fx.Decorate(func() servers.Repository {
+					return repos.Servers
+				}),
+			)
 			defer cancel()
 
 			fields := map[string]string{
@@ -541,7 +579,7 @@ func TestAPI_ViewServer_AddressValidation(t *testing.T) {
 			svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 			svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil))
 			svr.UpdateDiscoveryStatus(ds.Details)
-			app.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+			repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 			<-time.After(time.Millisecond * 5)
 
 			obj := serverDetailSchema{}
@@ -594,8 +632,14 @@ func TestAPI_ViewServer_StatusValidation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			repos := memory.New()
 			ctx := context.TODO()
-			ts, app, cancel := testutils.PrepareTestServer()
+			ts, cancel := testutils.PrepareTestServer(
+				t,
+				fx.Decorate(func() servers.Repository {
+					return repos.Servers
+				}),
+			)
 			defer cancel()
 
 			fields := map[string]string{
@@ -610,7 +654,7 @@ func TestAPI_ViewServer_StatusValidation(t *testing.T) {
 			svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 			svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil))
 			svr.UpdateDiscoveryStatus(tt.status)
-			app.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+			repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 			<-time.After(time.Millisecond * 5)
 
 			if tt.want {

@@ -9,17 +9,18 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+	"go.uber.org/fx/fxtest"
 
 	"github.com/sergeii/swat4master/internal/core/instances"
-	insrepo "github.com/sergeii/swat4master/internal/core/instances/memory"
 	"github.com/sergeii/swat4master/internal/core/probes"
-	prbrepo "github.com/sergeii/swat4master/internal/core/probes/memory"
 	"github.com/sergeii/swat4master/internal/core/servers"
-	svrrepo "github.com/sergeii/swat4master/internal/core/servers/memory"
 	"github.com/sergeii/swat4master/internal/entity/addr"
 	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/services/discovery/finding"
 	"github.com/sergeii/swat4master/internal/services/master/reporting"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
@@ -29,55 +30,41 @@ import (
 	"github.com/sergeii/swat4master/internal/validation"
 )
 
-type Fixture struct {
-	Servers        servers.Repository
-	Instances      instances.Repository
-	Probes         probes.Repository
-	ServerService  *server.Service
-	MetricService  *monitoring.MetricService
-	ProbeService   *probe.Service
-	FindingService *finding.Service
-	Service        *reporting.MasterReporterService
-}
-
-func makeService() Fixture {
-	fixture := Fixture{
-		Servers:   svrrepo.New(),
-		Instances: insrepo.New(),
-		Probes:    prbrepo.New(),
+func makeApp(tb fxtest.TB, extra ...fx.Option) {
+	fxopts := []fx.Option{
+		fx.Provide(memory.New),
+		fx.Provide(validation.New),
+		fx.Provide(func() *zerolog.Logger {
+			logger := zerolog.Nop()
+			return &logger
+		}),
+		fx.Provide(
+			monitoring.NewMetricService,
+			server.NewService,
+			probe.NewService,
+			finding.NewService,
+			reporting.NewService,
+		),
+		fx.NopLogger,
 	}
-	fixture.ServerService = server.NewService(fixture.Servers)
-	fixture.MetricService = monitoring.NewMetricService()
-	fixture.ProbeService = probe.NewService(fixture.Probes, fixture.MetricService)
-	fixture.FindingService = finding.NewService(fixture.ProbeService)
-	fixture.Service = reporting.NewService(
-		fixture.Servers,
-		fixture.Instances,
-		fixture.ServerService,
-		fixture.FindingService,
-		fixture.MetricService,
-	)
-	return fixture
-}
-
-func TestMain(m *testing.M) {
-	if err := validation.Register(); err != nil {
-		panic(err)
-	}
-	m.Run()
+	fxopts = append(fxopts, extra...)
+	app := fxtest.New(tb, fxopts...)
+	app.RequireStart().RequireStop()
 }
 
 func TestReporter_DispatchAvailableRequest_OK(t *testing.T) {
-	f := makeService()
-	resp, msgT, err := f.Service.DispatchRequest(context.TODO(), []byte{0x09}, &net.UDPAddr{})
+	var service *reporting.Service
+	makeApp(t, fx.Populate(&service))
+	resp, msgT, err := service.DispatchRequest(context.TODO(), []byte{0x09}, &net.UDPAddr{})
 	assert.NoError(t, err)
 	assert.Equal(t, reporting.MasterMsgAvailable, msgT)
 	assert.Equal(t, resp, []byte{0xfe, 0xfd, 0x09, 0x00, 0x00, 0x00, 0x00})
 }
 
 func TestReporter_DispatchChallengeRequest_OK(t *testing.T) {
-	f := makeService()
-	resp, msgT, err := f.Service.DispatchRequest(context.TODO(), []byte{0x01, 0xfe, 0xed, 0xf0, 0x0d}, &net.UDPAddr{})
+	var service *reporting.Service
+	makeApp(t, fx.Populate(&service))
+	resp, msgT, err := service.DispatchRequest(context.TODO(), []byte{0x01, 0xfe, 0xed, 0xf0, 0x0d}, &net.UDPAddr{})
 	assert.NoError(t, err)
 	assert.Equal(t, reporting.MasterMsgChallenge, msgT)
 	assert.Equal(t, resp, []byte{0xfe, 0xfd, 0x0a, 0xfe, 0xed, 0xf0, 0x0d})
@@ -113,8 +100,9 @@ func TestReporter_DispatchChallengeRequest_InvalidInstanceID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := makeService()
-			resp, _, err := f.Service.DispatchRequest(context.TODO(), tt.payload, &net.UDPAddr{})
+			var service *reporting.Service
+			makeApp(t, fx.Populate(&service))
+			resp, _, err := service.DispatchRequest(context.TODO(), tt.payload, &net.UDPAddr{})
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 			} else {
@@ -125,8 +113,10 @@ func TestReporter_DispatchChallengeRequest_InvalidInstanceID(t *testing.T) {
 }
 
 func TestReporter_DispatchHeartbeatRequest_OK(t *testing.T) {
-	f := makeService()
-	resp, msgT, err := f.Service.DispatchRequest(
+	var service *reporting.Service
+	makeApp(t, fx.Populate(&service))
+
+	resp, msgT, err := service.DispatchRequest(
 		context.TODO(),
 		testutils.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, testutils.GenServerParams()),
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
@@ -146,8 +136,11 @@ func TestReporter_DispatchHeartbeatRequest_OK(t *testing.T) {
 }
 
 func TestReporter_DispatchHeartbeatRequest_ServerIsAddedAndUpdated(t *testing.T) {
+	var service *reporting.Service
+	var repo servers.Repository
+
 	ctx := context.TODO()
-	f := makeService()
+	makeApp(t, fx.Populate(&service, &repo))
 
 	instanceID := []byte{0xfe, 0xed, 0xf0, 0x0d}
 	paramsBefore := testutils.GenExtraServerParams(map[string]string{
@@ -157,7 +150,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsAddedAndUpdated(t *testing.T)
 		"hostport":   "10580",
 		"localport":  "10584",
 	})
-	resp, _, err := f.Service.DispatchRequest(
+	resp, _, err := service.DispatchRequest(
 		context.TODO(),
 		testutils.PackHeartbeatRequest(instanceID, paramsBefore),
 		&net.UDPAddr{IP: net.ParseIP("55.55.55.55"), Port: 22712}, // server is behind nat
@@ -165,7 +158,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsAddedAndUpdated(t *testing.T)
 	assert.NoError(t, err)
 	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
 
-	svr, err := f.Servers.Get(ctx, addr.MustNewFromString("55.55.55.55", 10580))
+	svr, err := repo.Get(ctx, addr.MustNewFromString("55.55.55.55", 10580))
 	require.NoError(t, err)
 
 	details := svr.GetInfo()
@@ -183,12 +176,12 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsAddedAndUpdated(t *testing.T)
 		"numplayers": "15",
 		"hostport":   "10480",
 	})
-	f.Service.DispatchRequest( // nolint: errcheck
+	service.DispatchRequest( // nolint: errcheck
 		context.TODO(),
 		testutils.PackHeartbeatRequest(instanceID, paramsAfter),
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
 	)
-	svr, _ = f.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	svr, _ = repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 	details = svr.GetInfo()
 	assert.Equal(t, 15, details.NumPlayers)
 	assert.Equal(t, "VIP Escort", details.GameType)
@@ -219,15 +212,18 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdated(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var service *reporting.Service
+			var repo servers.Repository
+
 			ctx := context.TODO()
-			f := makeService()
+			makeApp(t, fx.Populate(&service, &repo))
 
 			if !tt.isNew {
 				svr := servers.MustNew(net.ParseIP("55.55.55.55"), 10580, 10584)
 				if tt.initStatus.HasStatus() {
 					svr.UpdateDiscoveryStatus(tt.initStatus)
 				}
-				f.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+				repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 			}
 
 			instanceID := []byte{0xfe, 0xed, 0xf0, 0x0d}
@@ -238,14 +234,14 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdated(t *testing.T) {
 				"hostport":   "10580",
 				"localport":  "10581",
 			})
-			_, _, err := f.Service.DispatchRequest(
+			_, _, err := service.DispatchRequest(
 				context.TODO(),
 				testutils.PackHeartbeatRequest(instanceID, params),
 				&net.UDPAddr{IP: net.ParseIP("55.55.55.55"), Port: 22712},
 			)
 			assert.NoError(t, err)
 
-			reportedSvr, err := f.Servers.Get(ctx, addr.MustNewFromString("55.55.55.55", 10580))
+			reportedSvr, err := repo.Get(ctx, addr.MustNewFromString("55.55.55.55", 10580))
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantStatus, reportedSvr.GetDiscoveryStatus())
@@ -308,15 +304,19 @@ func TestReporter_DispatchHeartbeatRequest_ServerPortIsDiscovered(t *testing.T) 
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var service *reporting.Service
+			var serversRepo servers.Repository
+			var probesRepo probes.Repository
+
 			ctx := context.TODO()
-			f := makeService()
+			makeApp(t, fx.Populate(&service, &serversRepo, &probesRepo))
 
 			if !tt.isNew {
 				svr := servers.MustNew(net.ParseIP("55.55.55.55"), 10580, 10584)
 				if tt.initStatus.HasStatus() {
 					svr.UpdateDiscoveryStatus(tt.initStatus)
 				}
-				f.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+				serversRepo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 			}
 
 			instanceID := []byte{0xfe, 0xed, 0xf0, 0x0d}
@@ -327,24 +327,24 @@ func TestReporter_DispatchHeartbeatRequest_ServerPortIsDiscovered(t *testing.T) 
 				"hostport":   "10580",
 				"localport":  "10584",
 			})
-			_, _, err := f.Service.DispatchRequest(
+			_, _, err := service.DispatchRequest(
 				context.TODO(),
 				testutils.PackHeartbeatRequest(instanceID, params),
 				&net.UDPAddr{IP: net.ParseIP("55.55.55.55"), Port: 22712},
 			)
 			assert.NoError(t, err)
 
-			reportedSvr, err := f.Servers.Get(ctx, addr.MustNewFromString("55.55.55.55", 10580))
+			reportedSvr, err := serversRepo.Get(ctx, addr.MustNewFromString("55.55.55.55", 10580))
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantStatus, reportedSvr.GetDiscoveryStatus())
 
-			queueCount, err := f.Probes.Count(ctx)
+			queueCount, err := probesRepo.Count(ctx)
 			require.NoError(t, err)
 
 			if tt.isDiscovered {
 				assert.Equal(t, 1, queueCount)
-				target, err := f.Probes.Pop(ctx)
+				target, err := probesRepo.Pop(ctx)
 				require.NoError(t, err)
 				assert.Equal(t, probes.GoalPort, target.GetGoal())
 				assert.Equal(t, "55.55.55.55:10580", target.GetAddr().String())
@@ -357,8 +357,11 @@ func TestReporter_DispatchHeartbeatRequest_ServerPortIsDiscovered(t *testing.T) 
 }
 
 func TestReporter_DispatchHeartbeatRequest_HandleServerBehindNAT(t *testing.T) {
+	var service *reporting.Service
+	var repo servers.Repository
+
 	ctx := context.TODO()
-	f := makeService()
+	makeApp(t, fx.Populate(&service, &repo))
 
 	before := time.Now()
 	instanceID := []byte{0xfe, 0xed, 0xf0, 0x0d}
@@ -370,14 +373,14 @@ func TestReporter_DispatchHeartbeatRequest_HandleServerBehindNAT(t *testing.T) {
 		"localport":  "10484",
 	})
 	resp, err := testutils.SendHeartbeat(
-		f.Service, instanceID,
+		service, instanceID,
 		testutils.WithServerParams(paramsBefore),
 		// server is behind nat, connection port is different from the query port
 		testutils.WithCustomAddr("1.1.1.1", 22712),
 	)
 	assert.NoError(t, err)
 	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
-	svr, _ := f.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	svr, _ := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 	details := svr.GetInfo()
 	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
 	assert.Equal(t, 16, details.NumPlayers)
@@ -395,11 +398,11 @@ func TestReporter_DispatchHeartbeatRequest_HandleServerBehindNAT(t *testing.T) {
 		"localport":  "10484",
 	})
 	testutils.SendHeartbeat( // nolint: errcheck
-		f.Service, instanceID,
+		service, instanceID,
 		testutils.WithServerParams(paramsAfter),
 		testutils.WithCustomAddr("1.1.1.1", 37122),
 	)
-	svr, _ = f.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	svr, _ = repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 	details = svr.GetInfo()
 	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
 	assert.Equal(t, 15, details.NumPlayers)
@@ -407,13 +410,17 @@ func TestReporter_DispatchHeartbeatRequest_HandleServerBehindNAT(t *testing.T) {
 	assert.Equal(t, 10480, svr.GetGamePort())
 	assert.Equal(t, 10484, svr.GetQueryPort())
 
-	svrs, _ := f.Servers.Filter(ctx, servers.NewFilterSet().After(before).WithStatus(ds.Master))
+	svrs, _ := repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, svrs, 1)
 }
 
 func TestReporter_DispatchHeartbeatRequest_ServerIsUpdatedWithNewInstanceID(t *testing.T) {
+	var service *reporting.Service
+	var serversRepo servers.Repository
+	var instancesRepo instances.Repository
+
 	ctx := context.TODO()
-	f := makeService()
+	makeApp(t, fx.Populate(&service, &serversRepo, &instancesRepo))
 
 	oldInstanceID := []byte{0xfe, 0xed, 0xf0, 0x0d}
 	params := testutils.GenExtraServerParams(map[string]string{
@@ -422,7 +429,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdatedWithNewInstanceID(t *t
 		"numplayers": "16",
 		"hostport":   "10480",
 	})
-	resp, _, err := f.Service.DispatchRequest(
+	resp, _, err := service.DispatchRequest(
 		context.TODO(),
 		testutils.PackHeartbeatRequest(oldInstanceID, params),
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
@@ -430,9 +437,9 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdatedWithNewInstanceID(t *t
 	assert.NoError(t, err)
 	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
 
-	instance, err := f.Instances.GetByID(ctx, string(oldInstanceID))
+	instance, err := instancesRepo.GetByID(ctx, string(oldInstanceID))
 	require.NoError(t, err)
-	svr, _ := f.Servers.Get(ctx, instance.GetAddr())
+	svr, _ := serversRepo.Get(ctx, instance.GetAddr())
 	details := svr.GetInfo()
 	assert.Equal(t, 16, details.NumPlayers)
 	assert.Equal(t, "VIP Escort", details.GameType)
@@ -446,12 +453,12 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdatedWithNewInstanceID(t *t
 		"hostport":   "10480",
 	})
 	newInstanceID := []byte{0xde, 0xad, 0xbe, 0xef}
-	f.Service.DispatchRequest( // nolint: errcheck
+	service.DispatchRequest( // nolint: errcheck
 		context.TODO(),
 		testutils.PackHeartbeatRequest(newInstanceID, newParams),
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
 	)
-	svr, _ = f.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	svr, _ = serversRepo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 	details = svr.GetInfo()
 	assert.Equal(t, 15, details.NumPlayers)
 	assert.Equal(t, "Barricaded Suspects", details.GameType)
@@ -459,7 +466,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdatedWithNewInstanceID(t *t
 	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
 
 	// at the same time the server is no longer accessible by the former instance key
-	_, getErr := f.Instances.GetByID(ctx, string(oldInstanceID))
+	_, getErr := instancesRepo.GetByID(ctx, string(oldInstanceID))
 	assert.ErrorIs(t, getErr, instances.ErrInstanceNotFound)
 }
 
@@ -467,27 +474,35 @@ func TestReporter_DispatchHeartbeatRequest_InvalidPayload(t *testing.T) {
 	tests := []struct {
 		name    string
 		payload []byte
-		wantErr error
+		wantErr bool
 	}{
+		{
+			name: "positive case",
+			payload: testutils.PackHeartbeatRequest(
+				[]byte{0xfe, 0xed, 0xf0, 0x0d},
+				testutils.GenServerParams(),
+			),
+			wantErr: false,
+		},
 		{
 			name:    "insufficient payload length #1",
 			payload: []byte{0x03},
-			wantErr: reporting.ErrInvalidRequestPayload,
+			wantErr: true,
 		},
 		{
 			name:    "insufficient payload length #2",
 			payload: []byte{0x03, 0xfe, 0xed, 0xf0, 0x0d},
-			wantErr: reporting.ErrInvalidRequestPayload,
+			wantErr: true,
 		},
 		{
 			name:    "no fields are present",
 			payload: testutils.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, nil),
-			wantErr: reporting.ErrInvalidRequestPayload,
+			wantErr: true,
 		},
 		{
 			name:    "invalid instance id",
 			payload: testutils.PackHeartbeatRequest([]byte{0xfe, 0x00, 0x00, 0x0d}, testutils.GenServerParams()),
-			wantErr: reporting.ErrInvalidRequestPayload,
+			wantErr: true,
 		},
 		{
 			name: "no known fields are present",
@@ -495,7 +510,7 @@ func TestReporter_DispatchHeartbeatRequest_InvalidPayload(t *testing.T) {
 				[]byte{0xfe, 0xed, 0xf0, 0x0d},
 				map[string]string{"somefield": "Swat4 Server", "other": "1.1"},
 			),
-			wantErr: reporting.ErrInvalidRequestPayload,
+			wantErr: true,
 		},
 		{
 			name: "field has no value",
@@ -503,20 +518,30 @@ func TestReporter_DispatchHeartbeatRequest_InvalidPayload(t *testing.T) {
 				[]byte{0xfe, 0xed, 0xf0, 0x0d},
 				map[string]string{"hostname": "Swat4 Server", "gamever": ""},
 			),
-			wantErr: reporting.ErrInvalidRequestPayload,
+			wantErr: true,
+		},
+		{
+			name: "invalid field value",
+			payload: testutils.PackHeartbeatRequest(
+				[]byte{0xfe, 0xed, 0xf0, 0x0d},
+				testutils.GenExtraServerParams(map[string]string{"numplayers": "-1"}),
+			),
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := makeService()
-			resp, _, err := f.Service.DispatchRequest(
+			var service *reporting.Service
+			makeApp(t, fx.Populate(&service))
+			resp, _, err := service.DispatchRequest(
 				context.TODO(),
 				tt.payload,
 				&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
 			)
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
+			if tt.wantErr {
+				require.ErrorIs(t, err, reporting.ErrInvalidRequestPayload)
 			} else {
+				require.NoError(t, err)
 				assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
 			}
 		})
@@ -542,8 +567,9 @@ func TestReporter_DispatchHeartbeatRequest_OnlyIPv4IsSupported(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := makeService()
-			resp, _, err := f.Service.DispatchRequest(
+			var service *reporting.Service
+			makeApp(t, fx.Populate(&service))
+			resp, _, err := service.DispatchRequest(
 				context.TODO(),
 				testutils.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, testutils.GenServerParams()),
 				&net.UDPAddr{IP: net.ParseIP(tt.ipaddr), Port: 10481},
@@ -558,12 +584,15 @@ func TestReporter_DispatchHeartbeatRequest_OnlyIPv4IsSupported(t *testing.T) {
 }
 
 func TestReporter_DispatchHeartbeatRequest_ServerLivenessIsRefreshed(t *testing.T) {
+	var service *reporting.Service
+	var repo servers.Repository
+
 	ctx := context.TODO()
-	f := makeService()
+	makeApp(t, fx.Populate(&service, &repo))
 
 	// initial report
 	resp, err := testutils.SendHeartbeat(
-		f.Service, []byte{0xfe, 0xed, 0xf0, 0x0d},
+		service, []byte{0xfe, 0xed, 0xf0, 0x0d},
 		testutils.GenServerParams, testutils.StandardAddr,
 	)
 	assert.NoError(t, err)
@@ -571,37 +600,40 @@ func TestReporter_DispatchHeartbeatRequest_ServerLivenessIsRefreshed(t *testing.
 
 	time.Sleep(time.Millisecond)
 	before := time.Now()
-	reportedSinceBefore, _ := f.Servers.Filter(ctx, servers.NewFilterSet().After(before).WithStatus(ds.Master))
+	reportedSinceBefore, _ := repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceBefore, 0)
 
 	// successive report refreshes the server
 	resp, err = testutils.SendHeartbeat(
-		f.Service, []byte{0xfe, 0xed, 0xf0, 0x0d},
+		service, []byte{0xfe, 0xed, 0xf0, 0x0d},
 		testutils.GenServerParams, testutils.StandardAddr,
 	)
 	assert.NoError(t, err)
 	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
-	reportedSinceBefore, _ = f.Servers.Filter(ctx, servers.NewFilterSet().After(before).WithStatus(ds.Master))
+	reportedSinceBefore, _ = repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceBefore, 1)
 }
 
 func TestReporter_DispatchHeartbeatRequest_ServerIsRemoved(t *testing.T) {
+	var service *reporting.Service
+	var repo servers.Repository
+
 	ctx := context.TODO()
-	f := makeService()
+	makeApp(t, fx.Populate(&service, &repo))
 
 	before := time.Now()
 	resp, err := testutils.SendHeartbeat(
-		f.Service, []byte{0xfe, 0xed, 0xf0, 0x0d},
+		service, []byte{0xfe, 0xed, 0xf0, 0x0d},
 		testutils.GenServerParams, testutils.StandardAddr,
 	)
 	assert.NoError(t, err)
 	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
-	reportedSinceBefore, _ := f.Servers.Filter(ctx, servers.NewFilterSet().After(before).WithStatus(ds.Master))
+	reportedSinceBefore, _ := repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceBefore, 1)
 
 	// remove the server by sending param statechanged=2
 	resp, err = testutils.SendHeartbeat(
-		f.Service,
+		service,
 		[]byte{0xfe, 0xed, 0xf0, 0x0d},
 		func() map[string]string {
 			return testutils.GenExtraServerParams(map[string]string{"statechanged": "2"})
@@ -610,12 +642,12 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsRemoved(t *testing.T) {
 	)
 	assert.NoError(t, err)
 	assert.Empty(t, resp) // no response
-	reportedSinceBefore, _ = f.Servers.Filter(ctx, servers.NewFilterSet().After(before).WithStatus(ds.Master))
+	reportedSinceBefore, _ = repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceBefore, 0)
 
 	// subsequent statechanged=2 requests should produce no errors
 	resp, err = testutils.SendHeartbeat(
-		f.Service,
+		service,
 		[]byte{0xfe, 0xed, 0xf0, 0x0d},
 		func() map[string]string {
 			return testutils.GenExtraServerParams(map[string]string{"statechanged": "2"})
@@ -624,10 +656,10 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsRemoved(t *testing.T) {
 	)
 	assert.NoError(t, err)
 	assert.Empty(t, resp)
-	reportedSinceBefore, _ = f.Servers.Filter(ctx, servers.NewFilterSet().After(before).WithStatus(ds.Master))
+	reportedSinceBefore, _ = repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceBefore, 0)
 
-	remainingServers, _ := f.Servers.Count(ctx)
+	remainingServers, _ := repo.Count(ctx)
 	assert.Equal(t, 0, remainingServers)
 }
 
@@ -678,12 +710,17 @@ func TestReporter_DispatchHeartbeatRequest_ServerRemovalIsValidated(t *testing.T
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var service *reporting.Service
+			var metrics *monitoring.MetricService
+			var repo servers.Repository
+
 			ctx := context.TODO()
+			makeApp(t, fx.Populate(&service, &metrics, &repo))
+
 			before := time.Now()
-			f := makeService()
 
 			// initial report
-			_, _, err := f.Service.DispatchRequest(
+			_, _, err := service.DispatchRequest(
 				context.TODO(),
 				testutils.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, testutils.GenServerParams()),
 				&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
@@ -691,15 +728,15 @@ func TestReporter_DispatchHeartbeatRequest_ServerRemovalIsValidated(t *testing.T
 			require.NoError(t, err)
 
 			// removal request
-			_, _, err = f.Service.DispatchRequest(
+			_, _, err = service.DispatchRequest(
 				context.TODO(),
 				testutils.PackHeartbeatRequest(tt.instanceID, tt.params),
 				&net.UDPAddr{IP: net.ParseIP(tt.ipaddr), Port: 10481},
 			)
 			require.NoError(t, err)
 
-			reportedSinceBefore, _ := f.Servers.Filter(ctx, servers.NewFilterSet().After(before).WithStatus(ds.Master))
-			metricValue := testutil.ToFloat64(f.MetricService.ReporterRemovals)
+			reportedSinceBefore, _ := repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(before).WithStatus(ds.Master))
+			metricValue := testutil.ToFloat64(metrics.ReporterRemovals)
 			if tt.wantSuccess {
 				assert.Len(t, reportedSinceBefore, 0)
 				assert.Equal(t, float64(1), metricValue)
@@ -712,33 +749,36 @@ func TestReporter_DispatchHeartbeatRequest_ServerRemovalIsValidated(t *testing.T
 }
 
 func TestReporter_DispatchKeepaliveRequest_RefreshesServerLiveness(t *testing.T) {
+	var service *reporting.Service
+	var repo servers.Repository
+
 	ctx := context.TODO()
-	f := makeService()
+	makeApp(t, fx.Populate(&service, &repo))
 
 	before := time.Now()
 	// initial report
-	_, _, err := f.Service.DispatchRequest(
+	_, _, err := service.DispatchRequest(
 		context.TODO(),
 		testutils.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, testutils.GenServerParams()),
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
 	)
 	require.NoError(t, err)
-	reportedSinceBefore, _ := f.Servers.Filter(ctx, servers.NewFilterSet().After(before).WithStatus(ds.Master))
+	reportedSinceBefore, _ := repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceBefore, 1)
 
 	time.Sleep(time.Millisecond)
 	after := time.Now()
-	reportedSinceAfter, _ := f.Servers.Filter(ctx, servers.NewFilterSet().After(after).WithStatus(ds.Master))
+	reportedSinceAfter, _ := repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(after).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceAfter, 0)
 
-	resp, _, _ := f.Service.DispatchRequest(
+	resp, _, _ := service.DispatchRequest(
 		context.TODO(),
 		[]byte{0x08, 0xfe, 0xed, 0xf0, 0x0d},
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
 	)
 	assert.Empty(t, resp)
 	// the server is now live again
-	reportedSinceAfter, _ = f.Servers.Filter(ctx, servers.NewFilterSet().After(after).WithStatus(ds.Master))
+	reportedSinceAfter, _ = repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(after).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceAfter, 1)
 }
 
@@ -784,10 +824,14 @@ func TestReporter_DispatchKeepaliveRequest_Errors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var service *reporting.Service
+			var repo servers.Repository
+
 			ctx := context.TODO()
-			f := makeService()
+			makeApp(t, fx.Populate(&service, &repo))
+
 			// initial heartbeat report
-			f.Service.DispatchRequest( // nolint: errcheck
+			service.DispatchRequest( // nolint: errcheck
 				context.TODO(),
 				testutils.PackHeartbeatRequest(reportedInstanceID, testutils.GenServerParams()),
 				&net.UDPAddr{IP: net.ParseIP(reportedServerIP), Port: 10481},
@@ -795,12 +839,12 @@ func TestReporter_DispatchKeepaliveRequest_Errors(t *testing.T) {
 			// keepalive request in a while
 			time.Sleep(time.Millisecond)
 			since := time.Now()
-			_, _, err := f.Service.DispatchRequest(
+			_, _, err := service.DispatchRequest(
 				context.TODO(),
 				tt.payload,
 				&net.UDPAddr{IP: net.ParseIP(tt.ipaddr), Port: 10481},
 			)
-			reportedSinceAfter, _ := f.Servers.Filter(ctx, servers.NewFilterSet().After(since).WithStatus(ds.Master))
+			reportedSinceAfter, _ := repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(since).WithStatus(ds.Master))
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				assert.Len(t, reportedSinceAfter, 0)

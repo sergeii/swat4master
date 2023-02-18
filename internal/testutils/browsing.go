@@ -110,7 +110,7 @@ func UnpackServerList(resp []byte) []map[string]string {
 }
 
 func SendBrowserRequest(
-	service *browsing.MasterBrowserService,
+	service *browsing.Service,
 	filters string,
 	getAddrFunc func() (net.IP, int),
 ) ([]byte, error) {

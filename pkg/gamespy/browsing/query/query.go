@@ -2,9 +2,8 @@ package query
 
 import (
 	"errors"
+	"fmt"
 	"strings"
-
-	"github.com/rs/zerolog/log"
 
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query/filter"
 )
@@ -32,19 +31,25 @@ func NewFromString(query string) (Query, error) {
 		rawFilter, unscanned = scanFilter(unscanned)
 		parsed, err := filter.ParseFilter(rawFilter)
 		if err != nil {
-			log.Warn().Err(err).Str("filter", rawFilter).Msg("Unable to parse filter")
-			return Blank, err
+			return Blank, fmt.Errorf("invalid filter value %s (%w)", rawFilter, err)
 		}
 		filters = append(filters, parsed)
 	}
 	return New(filters)
 }
 
+func MustNewFromString(query string) Query {
+	q, err := NewFromString(query)
+	if err != nil {
+		panic(err)
+	}
+	return q
+}
+
 func (q Query) Match(fields any) bool {
 	for _, f := range q.filters {
 		ok, err := f.Match(fields)
 		if err != nil {
-			log.Warn().Err(err).Stringer("filter", f).Msg("Unable to apply filter")
 			return false
 		}
 		if !ok {
@@ -52,6 +57,14 @@ func (q Query) Match(fields any) bool {
 		}
 	}
 	return true
+}
+
+func (q Query) String() string {
+	filtersToString := make([]string, 0, len(q.filters))
+	for _, f := range q.filters {
+		filtersToString = append(filtersToString, f.String())
+	}
+	return strings.Join(filtersToString, ",")
 }
 
 func scanFilter(s string) (string, string) {

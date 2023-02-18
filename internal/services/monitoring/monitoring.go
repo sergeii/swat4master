@@ -7,17 +7,25 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog"
 
-	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/internal/core/instances"
 	"github.com/sergeii/swat4master/internal/core/probes"
 	"github.com/sergeii/swat4master/internal/core/servers"
 	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
 )
 
+type ObserverConfig struct {
+	ServerLiveness time.Duration
+}
+
 type MetricService struct {
 	registry *prometheus.Registry
+	logger   *zerolog.Logger
+
+	servers   servers.Repository
+	instances instances.Repository
+	probes    probes.Repository
 
 	ReporterRequests  *prometheus.CounterVec
 	ReporterErrors    *prometheus.CounterVec
@@ -57,13 +65,21 @@ type MetricService struct {
 	GamePlayers           *prometheus.GaugeVec
 }
 
-func NewMetricService() *MetricService {
+func NewMetricService(
+	servers servers.Repository,
+	instances instances.Repository,
+	probes probes.Repository,
+) *MetricService {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	registry.MustRegister(collectors.NewGoCollector())
 
 	ms := &MetricService{
 		registry: registry,
+
+		servers:   servers,
+		instances: instances,
+		probes:    probes,
 
 		ReporterRequests: promauto.With(registry).NewCounterVec(prometheus.CounterOpts{
 			Name: "reporter_requests_total",
@@ -203,40 +219,37 @@ func (ms *MetricService) GetRegistry() *prometheus.Registry {
 
 func (ms *MetricService) Observe(
 	ctx context.Context,
-	cfg config.Config,
-	serversRepo servers.Repository,
-	instancesRepo instances.Repository,
-	probesRepo probes.Repository,
+	config ObserverConfig,
 ) {
-	go ms.observeServerRepoSize(ctx, serversRepo)
-	go ms.observeInstanceRepoSize(ctx, instancesRepo)
-	go ms.observeProbeRepoSize(ctx, probesRepo)
-	go ms.observeActiveServers(ctx, serversRepo, cfg)
-	go ms.observeDiscoveredServers(ctx, serversRepo)
+	go ms.observeServerRepoSize(ctx)
+	go ms.observeInstanceRepoSize(ctx)
+	go ms.observeProbeRepoSize(ctx)
+	go ms.observeActiveServers(ctx, config)
+	go ms.observeDiscoveredServers(ctx)
 }
 
-func (ms *MetricService) observeServerRepoSize(ctx context.Context, svrRepo servers.Repository) {
-	count, err := svrRepo.Count(ctx)
+func (ms *MetricService) observeServerRepoSize(ctx context.Context) {
+	count, err := ms.servers.Count(ctx)
 	if err != nil {
-		log.Error().Err(err).Msg("Unable to observe server count")
+		ms.logger.Error().Err(err).Msg("Unable to observe server count")
 		return
 	}
 	ms.ServerRepositorySize.Set(float64(count))
 }
 
-func (ms *MetricService) observeInstanceRepoSize(ctx context.Context, insRepo instances.Repository) {
-	count, err := insRepo.Count(ctx)
+func (ms *MetricService) observeInstanceRepoSize(ctx context.Context) {
+	count, err := ms.instances.Count(ctx)
 	if err != nil {
-		log.Error().Err(err).Msg("Unable to observe instance count")
+		ms.logger.Error().Err(err).Msg("Unable to observe instance count")
 		return
 	}
 	ms.InstanceRepositorySize.Set(float64(count))
 }
 
-func (ms *MetricService) observeProbeRepoSize(ctx context.Context, probRepo probes.Repository) {
-	count, err := probRepo.Count(ctx)
+func (ms *MetricService) observeProbeRepoSize(ctx context.Context) {
+	count, err := ms.probes.Count(ctx)
 	if err != nil {
-		log.Error().Err(err).Msg("Unable to observe probe count")
+		ms.logger.Error().Err(err).Msg("Unable to observe probe count")
 		return
 	}
 	ms.ProbeRepositorySize.Set(float64(count))
@@ -244,18 +257,17 @@ func (ms *MetricService) observeProbeRepoSize(ctx context.Context, probRepo prob
 
 func (ms *MetricService) observeActiveServers(
 	ctx context.Context,
-	svrRepo servers.Repository,
-	cfg config.Config,
+	cfg ObserverConfig,
 ) {
 	players := make(map[string]int)
 	allServers := make(map[string]int)
 	playedServers := make(map[string]int)
 
-	activeSince := time.Now().Add(-cfg.BrowserServerLiveness)
-	fs := servers.NewFilterSet().After(activeSince).WithStatus(ds.Info)
-	activeServers, err := svrRepo.Filter(ctx, fs)
+	activeSince := time.Now().Add(-cfg.ServerLiveness)
+	fs := servers.NewFilterSet().ActiveAfter(activeSince).WithStatus(ds.Info)
+	activeServers, err := ms.servers.Filter(ctx, fs)
 	if err != nil {
-		log.Error().Err(err).Msg("Unable to observe active server count")
+		ms.logger.Error().Err(err).Msg("Unable to observe active server count")
 		return
 	}
 
@@ -279,13 +291,10 @@ func (ms *MetricService) observeActiveServers(
 	}
 }
 
-func (ms *MetricService) observeDiscoveredServers(
-	ctx context.Context,
-	svrRepo servers.Repository,
-) {
-	countByStatus, err := svrRepo.CountByStatus(ctx)
+func (ms *MetricService) observeDiscoveredServers(ctx context.Context) {
+	countByStatus, err := ms.servers.CountByStatus(ctx)
 	if err != nil {
-		log.Error().Err(err).Msg("Unable to observe discovered server count")
+		ms.logger.Error().Err(err).Msg("Unable to observe discovered server count")
 		return
 	}
 	for status, serverCount := range countByStatus {

@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-
-	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -14,26 +12,19 @@ const (
 )
 
 type Option func(*Server) error
-type HandlerFunc func(context.Context, *net.UDPConn, *net.UDPAddr, []byte)
 
 type Server struct {
 	addr          *net.UDPAddr
 	conn          *net.UDPConn
 	bufferSize    int
-	handler       HandlerFunc
+	handler       Handler
+	closer        chan struct{}
 	readyCallback func()
 }
 
 func WithBufferSize(sz int) Option {
 	return func(s *Server) error {
 		s.bufferSize = sz
-		return nil
-	}
-}
-
-func WithHandler(hf HandlerFunc) Option {
-	return func(s *Server) error {
-		s.handler = hf
 		return nil
 	}
 }
@@ -45,13 +36,15 @@ func WithReadySignal(cb func()) Option {
 	}
 }
 
-func New(addr string, opts ...Option) (*Server, error) {
+func New(addr string, handler Handler, opts ...Option) (*Server, error) {
 	udpAddr, err := net.ResolveUDPAddr("udp4", addr)
 	if err != nil {
 		return nil, err
 	}
 	server := &Server{
-		addr: udpAddr,
+		addr:    udpAddr,
+		handler: handler,
+		closer:  make(chan struct{}),
 		// set defaults
 		bufferSize: defaultBufferSize,
 	}
@@ -63,46 +56,51 @@ func New(addr string, opts ...Option) (*Server, error) {
 	return server, nil
 }
 
-func (s *Server) Listen(ctx context.Context) error {
+func (s *Server) Listen() error {
 	fatal := make(chan error, 1)
 
-	log.Info().Stringer("addr", s.addr).Msg("Starting UDP server")
 	conn, err := net.ListenUDP("udp", s.addr)
 	if err != nil {
 		return err
 	}
-	s.conn = conn
+	defer conn.Close()
 
-	defer s.conn.Close()
-	log.Info().Stringer("addr", s.conn.LocalAddr()).Msg("UDP server launched")
+	s.conn = conn
 
 	if s.readyCallback != nil {
 		s.readyCallback()
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		<-s.closer
+		cancel()
+	}()
 
 	go func() {
 		buffer := make([]byte, s.bufferSize)
 		for {
 			n, raddr, err := s.conn.ReadFromUDP(buffer)
 			if err != nil {
-				log.Error().Err(err).Stringer("addr", s.addr).Msg("Failed to read on UDP socket")
 				fatal <- err
 				return
 			}
 			if n > 0 && s.handler != nil {
 				payload := make([]byte, n)
 				copy(payload, buffer[:n])
-				go s.handler(ctx, s.conn, raddr, payload)
+				go s.handler.Handle(ctx, s.conn, raddr, payload)
 			}
 		}
 	}()
 
 	select {
 	case err := <-fatal:
-		log.Warn().Err(err).Stringer("addr", s.addr).Msg("UDP server failed unexpectedly")
+		return err
 	case <-ctx.Done():
+		return nil
 	}
-	return s.Stop()
 }
 
 func (s *Server) LocalAddr() *net.UDPAddr {
@@ -118,10 +116,9 @@ func (s *Server) LocalAddrPort() netip.AddrPort {
 }
 
 func (s *Server) Stop() error {
-	log.Info().Stringer("addr", s.addr).Msg("Stopping UDP server")
+	close(s.closer)
 	if err := s.conn.Close(); err != nil {
 		return fmt.Errorf("failed to stop UDP server %s due to: %w", s.addr, err)
 	}
-	log.Info().Stringer("addr", s.addr).Msg("UDP server stopped successfully")
 	return nil
 }

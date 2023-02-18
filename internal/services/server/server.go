@@ -21,34 +21,6 @@ func NewService(repo servers.Repository) *Service {
 	}
 }
 
-func (s *Service) FilterRecent(
-	ctx context.Context,
-	recentness time.Duration,
-	q query.Query,
-	withStatus ds.DiscoveryStatus,
-) ([]servers.Server, error) {
-	fs := servers.NewFilterSet().After(time.Now().Add(-recentness)).WithStatus(withStatus)
-
-	recent, err := s.servers.Filter(ctx, fs)
-	if err != nil {
-		return nil, err
-	}
-
-	filtered := make([]servers.Server, 0, len(recent))
-	for _, svr := range recent {
-		details := svr.GetInfo()
-		if q.Match(&details) {
-			filtered = append(filtered, svr)
-		}
-	}
-
-	return filtered, nil
-}
-
-func (s *Service) Get(ctx context.Context, address addr.Addr) (servers.Server, error) {
-	return s.servers.Get(ctx, address)
-}
-
 func (s *Service) Create(
 	ctx context.Context,
 	svr servers.Server,
@@ -84,4 +56,32 @@ func (s *Service) CreateOrUpdate(
 		}
 	}
 	return s.servers.Update(ctx, svr, repoOnConflict)
+}
+
+func (s *Service) Get(ctx context.Context, address addr.Addr) (servers.Server, error) {
+	return s.servers.Get(ctx, address)
+}
+
+func (s *Service) FilterRecent(
+	ctx context.Context,
+	recentness time.Duration,
+	q query.Query,
+	withStatus ds.DiscoveryStatus,
+) ([]servers.Server, error) {
+	fs := servers.NewFilterSet().ActiveAfter(time.Now().Add(-recentness)).WithStatus(withStatus)
+
+	recent, err := s.servers.Filter(ctx, fs)
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := make([]servers.Server, 0, len(recent))
+	for _, svr := range recent {
+		details := svr.GetInfo()
+		if q.Match(&details) {
+			filtered = append(filtered, svr)
+		}
+	}
+
+	return filtered, nil
 }

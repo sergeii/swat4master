@@ -6,9 +6,11 @@ import (
 	"time"
 )
 
-var ErrQueueIsEmpty = errors.New("queue is empty")
-var ErrTargetIsNotReady = errors.New("queue has waiting targets")
-var ErrTargetHasExpired = errors.New("target item has expired")
+var (
+	ErrQueueIsEmpty     = errors.New("queue is empty")
+	ErrTargetIsNotReady = errors.New("queue has waiting targets")
+	ErrTargetHasExpired = errors.New("target item has expired")
+)
 
 var NC = time.Time{} // no constraint
 

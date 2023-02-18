@@ -7,8 +7,6 @@ import (
 	"net"
 	"net/http"
 	"time"
-
-	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -16,8 +14,6 @@ const (
 	defaultReadTimeout     = time.Second * 60
 	defaultWriteTimeout    = time.Second * 60
 )
-
-var ErrServerShutdownFailed = fmt.Errorf("server shutdown failed")
 
 type serverConfig struct {
 	readTimeout     time.Duration
@@ -31,7 +27,8 @@ type HTTPServer struct {
 	listener      *net.TCPListener
 	svr           *http.Server
 	cfg           *serverConfig
-	readyCallback func()
+	closer        chan struct{}
+	readyCallback func(net.Addr)
 }
 
 type Option func(*HTTPServer) error
@@ -64,7 +61,7 @@ func WithHandler(handler http.Handler) Option {
 	}
 }
 
-func WithReadySignal(cb func()) Option {
+func WithReadySignal(cb func(net.Addr)) Option {
 	return func(s *HTTPServer) error {
 		s.readyCallback = cb
 		return nil
@@ -84,9 +81,10 @@ func New(addr string, opts ...Option) (*HTTPServer, error) {
 	}
 	svr := &http.Server{Addr: addr} // nolint: gosec
 	server := &HTTPServer{
-		addr: tcpAddr,
-		cfg:  cfg,
-		svr:  svr,
+		addr:   tcpAddr,
+		cfg:    cfg,
+		svr:    svr,
+		closer: make(chan struct{}),
 	}
 	for _, opt := range opts {
 		if optErr := opt(server); optErr != nil {
@@ -100,56 +98,46 @@ func New(addr string, opts ...Option) (*HTTPServer, error) {
 	return server, nil
 }
 
-func (s *HTTPServer) ListenAndServe(ctx context.Context) error {
+func (s *HTTPServer) ListenAndServe() error {
 	fatal := make(chan error, 1)
 
-	log.Info().Stringer("addr", s.addr).Msg("Preparing HTTP server")
 	listener, err := net.ListenTCP("tcp", s.addr)
 	if err != nil {
 		return err
 	}
 	s.listener = listener
 	defer listener.Close()
-	log.Info().Stringer("addr", s.listener.Addr()).Msg("HTTP server connection ready")
 
 	// signal to any possible watchers that we are ready to listen
 	if s.readyCallback != nil {
-		s.readyCallback()
+		s.readyCallback(s.listener.Addr())
 	}
 
 	go func() {
-		log.Info().Stringer("addr", s.addr).Msg("Starting HTTP server")
 		if err := s.svr.Serve(s.listener); err != nil {
 			fatal <- err
 		}
 	}()
-	log.Info().Stringer("addr", s.addr).Msg("HTTP server launched")
 
 	select {
 	case err := <-fatal:
-		if !errors.Is(err, http.ErrServerClosed) {
-			log.Error().Err(err).Stringer("addr", s.addr).Msg("HTTP server failed unexpectedly")
-		} else {
-			log.Warn().Stringer("addr", s.addr).Msg("HTTP server closed")
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
 		}
-	case <-ctx.Done():
+		return err
+	case <-s.closer:
+		return nil
 	}
-	return s.Stop() // nolint: contextcheck
 }
 
 func (s *HTTPServer) ListenAddr() net.Addr {
 	return s.listener.Addr()
 }
 
-func (s *HTTPServer) Stop() error {
-	ctx, cancel := context.WithTimeout(context.Background(), s.cfg.shutdownTimeout)
-	defer cancel()
-	log.Info().
-		Stringer("addr", s.addr).Dur("timeout", s.cfg.shutdownTimeout).
-		Msg("Stopping HTTP server gracefully")
+func (s *HTTPServer) Stop(ctx context.Context) error {
+	close(s.closer)
 	if err := s.svr.Shutdown(ctx); err != nil {
-		return ErrServerShutdownFailed
+		return fmt.Errorf("failed to stop HTTP server %s due to %w", s.addr, err)
 	}
-	log.Info().Stringer("addr", s.addr).Msg("HTTP server stopped successfully")
 	return nil
 }

@@ -8,7 +8,7 @@ import (
 )
 
 func SendHeartbeat(
-	service *reporting.MasterReporterService,
+	service *reporting.Service,
 	instanceID []byte,
 	getParamsFunc func() map[string]string,
 	getAddrFunc func() (net.IP, int),

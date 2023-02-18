@@ -41,11 +41,13 @@ import (
 	"github.com/sergeii/swat4master/pkg/random"
 )
 
-const GMSL = 6        // game secret length
-const SCHL = 14       // server challenge length
-const CCHL = 8        // client challenge length
-const CRTL = CCHL     // crypt key length, same as client challenge
-const HDRL = 9 + SCHL // header length
+const (
+	GMSL = 6        // game secret length
+	SCHL = 14       // server challenge length
+	CCHL = 8        // client challenge length
+	CRTL = CCHL     // crypt key length, same as client challenge
+	HDRL = 9 + SCHL // header length
+)
 
 func Encrypt(gameSecret [GMSL]byte, challenge [CCHL]byte, data []byte) []byte {
 	var cryptKey [CRTL]byte

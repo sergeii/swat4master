@@ -6,11 +6,10 @@ import (
 	"net"
 	"time"
 
-	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog"
 
 	"github.com/sergeii/swat4master/internal/core/servers"
 	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
-	"github.com/sergeii/swat4master/internal/services/monitoring"
 	"github.com/sergeii/swat4master/internal/services/server"
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing"
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query"
@@ -21,34 +20,32 @@ import (
 
 const GameEncKey = "tG3j8c"
 
-type MasterBrowserService struct {
-	MetricService *monitoring.MetricService
-	ServerService *server.Service
-	liveness      time.Duration
+type ServiceOpts struct {
+	Liveness time.Duration
+}
+
+type Service struct {
+	serverService *server.Service
+	logger        *zerolog.Logger
+	opts          ServiceOpts
 	gameKey       [6]byte
 }
 
-type Option func(mbs *MasterBrowserService)
-
-func NewService(ss *server.Service, opts ...Option) *MasterBrowserService {
-	mbs := &MasterBrowserService{
-		ServerService: ss,
-		liveness:      time.Hour,
+func NewService(
+	ss *server.Service,
+	logger *zerolog.Logger,
+	opts ServiceOpts,
+) *Service {
+	mbs := &Service{
+		serverService: ss,
+		logger:        logger,
+		opts:          opts,
 	}
 	copy(mbs.gameKey[:], GameEncKey)
-	for _, opt := range opts {
-		opt(mbs)
-	}
 	return mbs
 }
 
-func WithLivenessDuration(dur time.Duration) Option {
-	return func(mbs *MasterBrowserService) {
-		mbs.liveness = dur
-	}
-}
-
-func (mbs *MasterBrowserService) HandleRequest(ctx context.Context, addr *net.TCPAddr, payload []byte) ([]byte, error) {
+func (s *Service) HandleRequest(ctx context.Context, addr *net.TCPAddr, payload []byte) ([]byte, error) {
 	var q query.Query
 
 	req, err := browsing.NewRequest(payload)
@@ -60,30 +57,30 @@ func (mbs *MasterBrowserService) HandleRequest(ctx context.Context, addr *net.TC
 	if req.Filters != "" {
 		q, err = query.NewFromString(req.Filters)
 		if err != nil {
-			log.Warn().
+			s.logger.Warn().
 				Err(err).
 				Stringer("src", addr).Str("filters", req.Filters).
 				Msg("Unable to apply filters")
 		}
 	}
 
-	available, err := mbs.ServerService.FilterRecent(ctx, mbs.liveness, q, ds.Master)
+	available, err := s.serverService.FilterRecent(ctx, s.opts.Liveness, q, ds.Master)
 	if err != nil {
 		return nil, err
 	}
 
-	resp := packServers(available, addr, req.Fields)
-	log.Debug().
+	resp := s.packServers(available, addr, req.Fields)
+	s.logger.Debug().
 		Int("count", len(available)).Stringer("src", addr).Str("filters", req.Filters).
 		Msg("Packed available")
-	if e := log.Debug(); e.Enabled() {
+	if e := s.logger.Debug(); e.Enabled() {
 		logutils.Hexdump(resp) // nolint: errcheck
 	}
 
-	return crypt.Encrypt(mbs.gameKey, req.Challenge, resp), nil
+	return crypt.Encrypt(s.gameKey, req.Challenge, resp), nil
 }
 
-func packServers(servers []servers.Server, addr *net.TCPAddr, fields []string) []byte {
+func (s *Service) packServers(servers []servers.Server, addr *net.TCPAddr, fields []string) []byte {
 	payload := make([]byte, 6, 26)
 	// the first 6 bytes are the client's IP and port
 	copy(payload[:4], addr.IP.To4())
@@ -99,7 +96,7 @@ func packServers(servers []servers.Server, addr *net.TCPAddr, fields []string) [
 		svrDetails := svr.GetInfo()
 		svrParams, err := params.Marshal(&svrDetails)
 		if err != nil {
-			log.Warn().
+			s.logger.Warn().
 				Err(err).Stringer("addr", svr.GetAddr()).
 				Msg("Unable to obtain params for server")
 			continue
@@ -115,7 +112,7 @@ func packServers(servers []servers.Server, addr *net.TCPAddr, fields []string) [
 			payload = append(payload, 0xff)
 			val, exists := svrParams[field]
 			if !exists {
-				log.Warn().
+				s.logger.Warn().
 					Str("field", field).Stringer("server", svr.GetAddr()).Stringer("src", addr).
 					Msg("Requested field is missing")
 			} else {

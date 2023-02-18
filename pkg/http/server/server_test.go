@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"testing"
@@ -17,8 +18,6 @@ import (
 
 func TestHTTPServerListenAndServe(t *testing.T) {
 	ready := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	svr, err := server.New(
 		"localhost:0", // 0 - listen an any available port
 		server.WithHandler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -26,15 +25,15 @@ func TestHTTPServerListenAndServe(t *testing.T) {
 			rw.WriteHeader(http.StatusTeapot)
 			rw.Write(slice.Reverse(body)) // nolint:errcheck
 		})),
-		server.WithReadySignal(func() {
-			ready <- struct{}{}
+		server.WithReadySignal(func(net.Addr) {
+			close(ready)
 		}),
 	)
-	defer svr.Stop() // nolint: errcheck
+	defer svr.Stop(context.TODO()) // nolint: errcheck
 	require.NoError(t, err)
 
 	go func() {
-		svr.ListenAndServe(ctx) // nolint: errcheck
+		svr.ListenAndServe() // nolint: errcheck
 	}()
 	// wait for the server to start
 	<-ready

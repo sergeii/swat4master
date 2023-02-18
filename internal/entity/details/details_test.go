@@ -5,18 +5,11 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/sergeii/swat4master/internal/entity/details"
 	"github.com/sergeii/swat4master/internal/validation"
-	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/params"
 )
-
-func TestMain(m *testing.M) {
-	if err := validation.Register(); err != nil {
-		panic(err)
-	}
-	m.Run()
-}
 
 func TestDetailsFromParams_OK(t *testing.T) {
 	tests := []struct {
@@ -431,7 +424,54 @@ func TestDetailsFromParams_OK(t *testing.T) {
 	}
 }
 
-func TestDetailsFromParams_Validation(t *testing.T) {
+func TestDetailsFromParams_ValidateTypes(t *testing.T) {
+	tests := []struct {
+		name         string
+		serverParams map[string]string
+		playerParams []map[string]string
+		objParams    []map[string]string
+		wantErr      bool
+		wantErrMsg   string
+	}{
+		{
+			"case secured can not be greater than 1",
+			map[string]string{
+				"hostname":    "{FAB} Clan Server",
+				"hostport":    "10480",
+				"gametype":    "Smash And Grab",
+				"mapname":     "Red Library Offices",
+				"gamevariant": "SWAT 4",
+				"gamever":     "1.0",
+			},
+			[]map[string]string{
+				{
+					"player":    "{FAB}Nikki_Sixx<CPL>",
+					"score":     "-18",
+					"ping":      "192",
+					"sgcrybaby": "2",
+					"team":      "1",
+				},
+			},
+			nil,
+			true,
+			"invalid value '2' for boolean field 'CaseSecured'",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := details.NewDetailsFromParams(tt.serverParams, tt.playerParams, tt.objParams)
+			if tt.wantErr {
+				assert.ErrorContains(t, err, tt.wantErrMsg)
+				assert.Equal(t, "", got.Info.Hostname)
+			} else {
+				assert.NoError(t, err)
+				assert.NotEqual(t, "", got.Info.Hostname)
+			}
+		})
+	}
+}
+
+func TestDetailsFromParams_ValidateValues(t *testing.T) {
 	tests := []struct {
 		name         string
 		serverParams map[string]string
@@ -731,28 +771,6 @@ func TestDetailsFromParams_Validation(t *testing.T) {
 			validator.ValidationErrors{},
 		},
 		{
-			"case secured can not be greater than 1",
-			map[string]string{
-				"hostname":    "{FAB} Clan Server",
-				"hostport":    "10480",
-				"gametype":    "Smash And Grab",
-				"mapname":     "Red Library Offices",
-				"gamevariant": "SWAT 4",
-				"gamever":     "1.0",
-			},
-			[]map[string]string{
-				{
-					"player":    "{FAB}Nikki_Sixx<CPL>",
-					"score":     "-18",
-					"ping":      "192",
-					"sgcrybaby": "2",
-					"team":      "1",
-				},
-			},
-			nil,
-			params.ErrInvalidValue,
-		},
-		{
 			"bombs defused can not be negative",
 			map[string]string{
 				"hostname":    "{FAB} Clan Server",
@@ -836,13 +854,15 @@ func TestDetailsFromParams_Validation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			validate, _ := validation.New()
 			got, err := details.NewDetailsFromParams(tt.serverParams, tt.playerParams, tt.objParams)
+			require.NoError(t, err)
+			validateErr := got.Validate(validate)
 			if tt.wantErr != nil {
-				assert.IsType(t, err, tt.wantErr)
-				assert.Equal(t, "", got.Info.Hostname)
+				assert.Error(t, validateErr)
+				assert.IsType(t, validateErr, tt.wantErr)
 			} else {
-				assert.NoError(t, err)
-				assert.NotEqual(t, "", got.Info.Hostname)
+				assert.NoError(t, validateErr)
 			}
 		})
 	}

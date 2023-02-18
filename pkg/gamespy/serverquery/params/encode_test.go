@@ -60,9 +60,10 @@ func TestParamsUnmarshal_OK(t *testing.T) {
 
 func TestParamsUnmarshal_ValueErrors(t *testing.T) {
 	tests := []struct {
-		name    string
-		data    map[string]string
-		wantErr bool
+		name       string
+		data       map[string]string
+		wantErr    bool
+		wantErrMsg string
 	}{
 		{
 			"general positive case",
@@ -73,6 +74,7 @@ func TestParamsUnmarshal_ValueErrors(t *testing.T) {
 				"statsenabled": "true",
 			},
 			false,
+			"",
 		},
 		{
 			"positive case - negative integer",
@@ -83,6 +85,7 @@ func TestParamsUnmarshal_ValueErrors(t *testing.T) {
 				"statsenabled": "true",
 			},
 			false,
+			"",
 		},
 		{
 			"positive case - empty string",
@@ -93,6 +96,7 @@ func TestParamsUnmarshal_ValueErrors(t *testing.T) {
 				"statsenabled": "true",
 			},
 			false,
+			"",
 		},
 		{
 			"bad integer value #1",
@@ -103,6 +107,7 @@ func TestParamsUnmarshal_ValueErrors(t *testing.T) {
 				"statsenabled": "true",
 			},
 			true,
+			"invalid value 'foo' for integer field 'SwatScore'",
 		},
 		{
 			"bad integer value #2",
@@ -113,6 +118,7 @@ func TestParamsUnmarshal_ValueErrors(t *testing.T) {
 				"statsenabled": "true",
 			},
 			true,
+			"invalid value '1.0' for integer field 'SwatScore'",
 		},
 		{
 			"bad boolean value #1",
@@ -123,6 +129,7 @@ func TestParamsUnmarshal_ValueErrors(t *testing.T) {
 				"statsenabled": "true",
 			},
 			true,
+			"invalid value '3' for boolean field 'Password'",
 		},
 		{
 			"bad boolean value #2",
@@ -133,6 +140,7 @@ func TestParamsUnmarshal_ValueErrors(t *testing.T) {
 				"statsenabled": "true",
 			},
 			true,
+			"invalid value '-1' for boolean field 'Password'",
 		},
 		{
 			"bad boolean value #3",
@@ -143,6 +151,7 @@ func TestParamsUnmarshal_ValueErrors(t *testing.T) {
 				"statsenabled": "true",
 			},
 			true,
+			"invalid value 'yes' for boolean field 'Password'",
 		},
 	}
 	for _, tt := range tests {
@@ -150,7 +159,7 @@ func TestParamsUnmarshal_ValueErrors(t *testing.T) {
 			schema := TestSchema2{}
 			err := params.Unmarshal(tt.data, &schema)
 			if tt.wantErr {
-				assert.ErrorIs(t, err, params.ErrInvalidValue)
+				assert.ErrorContains(t, err, tt.wantErrMsg)
 			} else {
 				assert.NoError(t, err)
 			}

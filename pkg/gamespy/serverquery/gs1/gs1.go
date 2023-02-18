@@ -11,14 +11,15 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/rs/zerolog/log"
 	"golang.org/x/text/encoding/charmap"
 
 	"github.com/sergeii/swat4master/pkg/binutils"
 )
 
-var ErrResponseIncomplete = errors.New("response payload is not complete")
-var ErrResponseMalformed = errors.New("response payload contains invalid data")
+var (
+	ErrResponseIncomplete = errors.New("response payload is not complete")
+	ErrResponseMalformed  = errors.New("response payload contains invalid data")
+)
 
 type QueryVersion int
 
@@ -83,8 +84,6 @@ func Query(ctx context.Context, addr netip.AddrPort, timeout time.Duration) (Res
 		}
 	}()
 
-	log.Debug().Stringer("src", conn.RemoteAddr()).Msg("Connected to server")
-
 	_, err = conn.Write([]byte("\\status\\"))
 	if err != nil {
 		return Blank, err
@@ -97,7 +96,7 @@ func getResponse(conn *net.UDPConn) (Response, error) {
 	packets := make([][]byte, 0, 4)
 	for {
 		buffer := make([]byte, bufferSize)
-		n, raddr, err := conn.ReadFromUDP(buffer)
+		n, _, err := conn.ReadFromUDP(buffer)
 		if err != nil {
 			return Blank, err
 		}
@@ -106,8 +105,6 @@ func getResponse(conn *net.UDPConn) (Response, error) {
 		if len(packet) == 0 {
 			return Blank, ErrResponseIncomplete
 		}
-
-		log.Debug().Stringer("src", raddr).Int("size", n).Msg("Received data")
 
 		packets = append(packets, packet)
 		payload, version, err := collectPayload(packets)

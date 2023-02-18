@@ -2,13 +2,13 @@ package logging
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"go.uber.org/fx"
 
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/pkg/logutils"
@@ -19,7 +19,14 @@ var (
 	ErrInvalidLogLevel  = errors.New("unknown logging level")
 )
 
-func ConfigureLogging(cfg config.Config) (zerolog.Logger, error) {
+type Result struct {
+	fx.Out
+
+	Logger   *zerolog.Logger
+	LogLevel zerolog.Level
+}
+
+func Provide(cfg config.Config) (Result, error) {
 	var output io.Writer
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMicro
 	zerolog.DurationFieldUnit = time.Second
@@ -27,13 +34,12 @@ func ConfigureLogging(cfg config.Config) (zerolog.Logger, error) {
 
 	lvl, err := zerolog.ParseLevel(cfg.LogLevel)
 	if err != nil {
-		return zerolog.Logger{}, ErrInvalidLogLevel
+		return Result{}, ErrInvalidLogLevel
 	}
 	zerolog.SetGlobalLevel(lvl)
-	fmt.Fprintf(os.Stderr, "Global logging level is set to %s\n", zerolog.GlobalLevel())
 
 	switch cfg.LogOutput {
-	case "console":
+	case "console", "":
 		output = zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
 	case "stdout":
 		output = zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339, NoColor: true}
@@ -42,12 +48,21 @@ func ConfigureLogging(cfg config.Config) (zerolog.Logger, error) {
 	case "json":
 		output = nil
 	default:
-		return zerolog.Logger{}, ErrInvalidLogOutput
+		return Result{}, ErrInvalidLogOutput
 	}
 
 	logger := log.With().Caller().Logger()
 	if output != nil {
 		logger = logger.Output(output)
 	}
-	return logger, nil
+
+	result := Result{
+		Logger:   &logger,
+		LogLevel: lvl,
+	}
+	return result, nil
+}
+
+func NoGlobal() {
+	log.Logger = zerolog.Nop()
 }

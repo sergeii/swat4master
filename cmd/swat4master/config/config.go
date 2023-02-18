@@ -45,7 +45,7 @@ type Config struct {
 	CleanInterval  time.Duration
 }
 
-func Init() Config {
+func Provide() Config {
 	cfg := Config{
 		// set default value for port suggestions
 		DiscoveryRevivalPorts: []int{1, 2, 3, 4},

@@ -1,6 +1,7 @@
 package params
 
 import (
+	"fmt"
 	"reflect"
 	"strconv"
 )
@@ -13,7 +14,6 @@ func Unmarshal(params map[string]string, v any) error {
 	if err := unmarshal(params, rv.Elem()); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -42,42 +42,43 @@ func unmarshal(params map[string]string, sv reflect.Value) error {
 }
 
 func setStructValue(sv reflect.Value, field reflect.StructField, value string) error {
-	switch field.Type.Kind() { // nolint: exhaustive
+	kind := field.Type.Kind()
+	switch kind { // nolint: exhaustive
 	case reflect.Int:
-		intValue, err := parseIntValue(value)
-		if err != nil {
-			return err
+		intValue, parsed := parseIntValue(value)
+		if !parsed {
+			return fmt.Errorf("invalid value '%v' for integer field '%s'", value, field.Name)
 		}
 		sv.FieldByName(field.Name).SetInt(intValue)
 	case reflect.Bool:
-		boolValue, err := parseBoolValue(value)
-		if err != nil {
-			return err
+		boolValue, parsed := parseBoolValue(value)
+		if !parsed {
+			return fmt.Errorf("invalid value '%v' for boolean field '%s'", value, field.Name)
 		}
 		sv.FieldByName(field.Name).SetBool(boolValue)
 	case reflect.String:
 		sv.FieldByName(field.Name).SetString(value)
 	default:
-		return ErrUnknownType
+		return fmt.Errorf("unsupported type '%s' for field '%s'", kind, field.Name)
 	}
 	return nil
 }
 
-func parseIntValue(maybeInt string) (int64, error) {
+func parseIntValue(maybeInt string) (int64, bool) {
 	intValue, err := strconv.ParseInt(maybeInt, 10, 0)
 	if err != nil {
-		return 0, ErrInvalidValue
+		return 0, false
 	}
-	return intValue, nil
+	return intValue, true
 }
 
-func parseBoolValue(maybeBool string) (bool, error) {
+func parseBoolValue(maybeBool string) (bool, bool) {
 	switch maybeBool {
 	case "1", "true":
-		return true, nil
+		return true, true
 	case "0", "false":
-		return false, nil
+		return false, true
 	default:
-		return false, ErrInvalidValue
+		return false, false
 	}
 }

@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rs/zerolog/log"
-
 	"github.com/sergeii/swat4master/internal/core/servers"
 	"github.com/sergeii/swat4master/internal/entity/addr"
 	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
@@ -85,11 +83,6 @@ func (mr *Repository) Update(
 	// only allow writes when the updated server's version
 	// does not exceed the version of current saved version in the repository
 	if item.Server.GetVersion() > svr.GetVersion() {
-		log.Debug().
-			Stringer("server", svr).
-			Int("ours", svr.GetVersion()).
-			Int("theirs", item.Server.GetVersion()).
-			Msg("Got version conflict saving server")
 		resolved := item.Server
 		// let the caller resolve the conflict
 		if !onConflict(&resolved) {
@@ -123,16 +116,32 @@ func (mr *Repository) update(
 	return svr, nil
 }
 
-func (mr *Repository) Remove(_ context.Context, svr servers.Server) error {
+func (mr *Repository) Remove(
+	_ context.Context,
+	svr servers.Server,
+	onConflict func(*servers.Server) bool,
+) error {
 	mr.mutex.Lock()
 	defer mr.mutex.Unlock()
+
 	key := svr.GetAddr()
-	item, ok := mr.servers[key]
-	if !ok {
+	elem, exists := mr.servers[key]
+	if !exists {
 		return nil
 	}
+
+	item := elem.Value.(*server) // nolint: forcetypeassert
+	// don't allow to remove servers with version greater than provided
+	if item.Server.GetVersion() > svr.GetVersion() {
+		// let the caller resolve the conflict
+		if !onConflict(&item.Server) {
+			return nil
+		}
+	}
+
 	delete(mr.servers, key)
-	mr.history.Remove(item)
+	mr.history.Remove(elem)
+
 	return nil
 }
 
@@ -147,12 +156,17 @@ func (mr *Repository) Get(_ context.Context, addr addr.Addr) (servers.Server, er
 	return svr.Server, nil
 }
 
-func (mr *Repository) Filter(_ context.Context, fs servers.FilterSet) ([]servers.Server, error) {
+func (mr *Repository) Filter( // nolint: cyclop
+	_ context.Context,
+	fs servers.FilterSet,
+) ([]servers.Server, error) {
 	mr.mutex.RLock()
 	defer mr.mutex.RUnlock()
 
-	before, byBefore := fs.GetBefore()
-	after, byAfter := fs.GetAfter()
+	activeBefore, byActiveBefore := fs.GetActiveBefore()
+	activeAfter, byActiveAfter := fs.GetActiveAfter()
+	updatedBefore, byUpdatedBefore := fs.GetUpdatedBefore()
+	updatedAfter, byUpdatedAfter := fs.GetUpdatedAfter()
 	withStatus, byWithStatus := fs.GetWithStatus()
 	noStatus, byNoStatus := fs.GetNoStatus()
 
@@ -160,53 +174,29 @@ func (mr *Repository) Filter(_ context.Context, fs servers.FilterSet) ([]servers
 	recent := make([]servers.Server, 0, len(mr.servers))
 	for item := mr.history.Front(); item != nil; item = item.Next() {
 		rep := item.Value.(*server) // nolint: forcetypeassert
+		updatedAt := rep.UpdatedAt
 		refreshedAt := rep.Server.GetRefreshedAt()
-		// ignore servers whose info or details were updated before the specific date
-		if byAfter && refreshedAt.Before(after) {
+		if byUpdatedAfter && updatedAt.Before(updatedAfter) {
 			// because servers in the list are sorted by update date
 			// we can safely break here, as no more items would satisfy this condition
 			break
 		}
-		// ignore servers added or updated after the specific date
-		if byBefore && refreshedAt.After(before) {
+		switch {
+		case byUpdatedBefore && updatedAt.After(updatedBefore):
 			continue
-		}
-		// filter servers by discovery status
-		if byWithStatus && !rep.Server.HasDiscoveryStatus(withStatus) {
+		case byActiveAfter && (refreshedAt.IsZero() || refreshedAt.Before(activeAfter)):
 			continue
-		}
-		if byNoStatus && !rep.Server.HasNoDiscoveryStatus(noStatus) {
+		case byActiveBefore && (refreshedAt.IsZero() || refreshedAt.After(activeBefore)):
+			continue
+		case byWithStatus && !rep.Server.HasDiscoveryStatus(withStatus):
+			continue
+		case byNoStatus && !rep.Server.HasNoDiscoveryStatus(noStatus):
 			continue
 		}
 		recent = append(recent, rep.Server)
 	}
 
 	return recent, nil
-}
-
-func (mr *Repository) CleanNext(_ context.Context, before time.Time) (servers.Server, bool) {
-	mr.mutex.Lock()
-	defer mr.mutex.Unlock()
-
-	oldest := mr.history.Back()
-	if oldest == nil {
-		return servers.Blank, false
-	}
-
-	item := oldest.Value.(*server) // nolint: forcetypeassert
-	if item.UpdatedAt.After(before) {
-		return servers.Blank, false
-	}
-
-	mr.history.Remove(oldest)
-	delete(mr.servers, item.Server.GetAddr())
-
-	log.Debug().
-		Stringer("updated", item.UpdatedAt).
-		Stringer("addr", item.Server.GetAddr()).
-		Msg("Removed outdated server")
-
-	return item.Server, true
 }
 
 func (mr *Repository) Count(context.Context) (int, error) {

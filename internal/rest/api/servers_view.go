@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog/log"
 
 	"github.com/sergeii/swat4master/internal/core/servers"
 	"github.com/sergeii/swat4master/internal/entity/addr"
@@ -33,12 +32,12 @@ func (a *API) ViewServer(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, servers.ErrServerNotFound):
-			log.Debug().
+			a.logger.Debug().
 				Stringer("addr", address).
 				Msg("Requested server not found")
 			c.Status(http.StatusNotFound)
 		default:
-			log.Warn().
+			a.logger.Warn().
 				Err(err).Stringer("addr", address).
 				Msg("Unable to obtain server due to error")
 			c.Status(http.StatusInternalServerError)
@@ -47,7 +46,7 @@ func (a *API) ViewServer(c *gin.Context) {
 	}
 
 	if !svr.HasDiscoveryStatus(ds.Details) {
-		log.Debug().
+		a.logger.Debug().
 			Stringer("addr", address).Stringer("status", svr.GetDiscoveryStatus()).
 			Msg("Requested server has no details")
 		c.Status(http.StatusNoContent)

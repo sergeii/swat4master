@@ -5,18 +5,36 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+	"go.uber.org/fx/fxtest"
 
 	"github.com/sergeii/swat4master/internal/core/probes"
-	prbrepo "github.com/sergeii/swat4master/internal/core/probes/memory"
 	"github.com/sergeii/swat4master/internal/entity/addr"
+	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
 	"github.com/sergeii/swat4master/internal/services/probe"
 )
 
+func makeApp(tb fxtest.TB, extra ...fx.Option) {
+	fxopts := []fx.Option{
+		fx.Provide(memory.New),
+		fx.Provide(
+			monitoring.NewMetricService,
+			probe.NewService,
+		),
+		fx.NopLogger,
+	}
+	fxopts = append(fxopts, extra...)
+	app := fxtest.New(tb, fxopts...)
+	app.RequireStart().RequireStop()
+}
+
 func TestProbeService_PopMany(t *testing.T) {
 	ctx := context.TODO()
-	repo := prbrepo.New()
-	service := probe.NewService(repo, monitoring.NewMetricService())
+
+	var repo probes.Repository
+	var service *probe.Service
+	makeApp(t, fx.Populate(&repo, &service))
 
 	// empty
 	empty, err := service.PopMany(ctx, 5)

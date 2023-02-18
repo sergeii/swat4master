@@ -61,7 +61,7 @@ func TestParamsMarshal_UnknownFieldType(t *testing.T) {
 		HostPort: 10480,
 	}
 	_, err := params.Marshal(&schema)
-	assert.ErrorIs(t, err, params.ErrUnknownType)
+	assert.ErrorContains(t, err, "unable to marshal value '10480' for field 'HostPort' (unknown field type 'float64')")
 }
 
 func TestParamsMarshal_RequiresPointer(t *testing.T) {
