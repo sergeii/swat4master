@@ -424,7 +424,6 @@ func (s *Service) parseHeartbeatFields(payload []byte) (map[string]string, error
 		// there should be another c string in the slice after the field name, which is the field's value
 		// Throw an error if that's not the case
 		if len(unparsed) == 0 || unparsed[0] == 0x00 {
-			s.logger.Debug().Msg("Heartbeat fields were not fully parsed")
 			return nil, ErrInvalidRequestPayload
 		}
 		valueBin, unparsed = binutils.ConsumeCString(unparsed)
