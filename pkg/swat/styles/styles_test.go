@@ -49,20 +49,34 @@ func TestToHTML(t *testing.T) {
 		{`[c=FF00FF]`, ``},
 		{`[c=FF00FF][\c]`, ``},
 		{`[c=FF00FF][c=FFFFFF]`, ``},
-		{`[c=FF00FF]Swat4 Server`,
-			`<span style="color:#FF00FF;">Swat4 Server</span>`},
-		{`[c=FF00FF]Swat4 Server[\c]`,
-			`<span style="color:#FF00FF;">Swat4 Server</span>`},
-		{`[C=FF00FF]Swat4 Server[\c]`,
-			`<span style="color:#FF00FF;">Swat4 Server</span>`},
-		{`[C=FF00FF]Swat4 Server[\C]`,
-			`<span style="color:#FF00FF;">Swat4 Server</span>`},
-		{`[c=FF00FF]Swat4[\c] Server`,
-			`<span style="color:#FF00FF;">Swat4</span> Server`},
-		{`[c=FF00FF][b][u]Swat4[\u][C=0000FF]Server[\c]`,
-			`<span style="color:#FF00FF;">Swat4</span><span style="color:#0000FF;">Server</span>`},
-		{`[b][u][c=FF00FF]Swat4[C=0000FF]Server[\c][\u]`,
-			`<span style="color:#FF00FF;">Swat4</span><span style="color:#0000FF;">Server</span>`},
+		{
+			`[c=FF00FF]Swat4 Server`,
+			`<span style="color:#FF00FF;">Swat4 Server</span>`,
+		},
+		{
+			`[c=FF00FF]Swat4 Server[\c]`,
+			`<span style="color:#FF00FF;">Swat4 Server</span>`,
+		},
+		{
+			`[C=FF00FF]Swat4 Server[\c]`,
+			`<span style="color:#FF00FF;">Swat4 Server</span>`,
+		},
+		{
+			`[C=FF00FF]Swat4 Server[\C]`,
+			`<span style="color:#FF00FF;">Swat4 Server</span>`,
+		},
+		{
+			`[c=FF00FF]Swat4[\c] Server`,
+			`<span style="color:#FF00FF;">Swat4</span> Server`,
+		},
+		{
+			`[c=FF00FF][b][u]Swat4[\u][C=0000FF]Server[\c]`,
+			`<span style="color:#FF00FF;">Swat4</span><span style="color:#0000FF;">Server</span>`,
+		},
+		{
+			`[b][u][c=FF00FF]Swat4[C=0000FF]Server[\c][\u]`,
+			`<span style="color:#FF00FF;">Swat4</span><span style="color:#0000FF;">Server</span>`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.styled, func(t *testing.T) {

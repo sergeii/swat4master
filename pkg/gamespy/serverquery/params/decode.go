@@ -1,10 +1,9 @@
 package params
 
 import (
+	"fmt"
 	"reflect"
 	"strconv"
-
-	"github.com/rs/zerolog/log"
 )
 
 func Marshal(v any) (map[string]string, error) {
@@ -32,10 +31,7 @@ func marshal(sv reflect.Value) (map[string]string, error) {
 		fieldValue := sv.FieldByName(field.Name)
 		paramValue, err := getParamValue(field, fieldValue)
 		if err != nil {
-			log.Error().
-				Err(err).Str("field", field.Name).Stringer("value", fieldValue).
-				Msg("Unable to marshal field value")
-			return nil, err
+			return nil, fmt.Errorf("unable to marshal value '%v' for field '%s' (%w)", fieldValue, field.Name, err)
 		}
 		params[paramName] = paramValue
 	}
@@ -43,32 +39,32 @@ func marshal(sv reflect.Value) (map[string]string, error) {
 }
 
 func getParamValue(field reflect.StructField, value reflect.Value) (string, error) {
-	switch field.Type.Kind() { // nolint: exhaustive
+	kind := field.Type.Kind()
+	switch kind { // nolint: exhaustive
 	case reflect.Int:
-		return getIntValue(value)
+		return getIntValue(value), nil
 	case reflect.Bool:
-		return getBoolValue(value)
+		return getBoolValue(value), nil
 	case reflect.String:
-		return getStringValue(value)
+		return getStringValue(value), nil
 	default:
-		return "", ErrUnknownType
+		return "", fmt.Errorf("unknown field type '%s'", kind)
 	}
 }
 
-func getIntValue(value reflect.Value) (string, error) {
-	if !value.CanInt() {
-		return "", ErrInvalidValue
-	}
-	return strconv.FormatInt(value.Int(), 10), nil
+func getIntValue(value reflect.Value) string {
+	return strconv.FormatInt(value.Int(), 10)
 }
 
-func getBoolValue(value reflect.Value) (string, error) {
-	if value.Bool() {
-		return "1", nil
+func getBoolValue(value reflect.Value) string {
+	switch value.Bool() {
+	case true:
+		return "1"
+	default:
+		return "0"
 	}
-	return "0", nil
 }
 
-func getStringValue(value reflect.Value) (string, error) {
-	return value.String(), nil
+func getStringValue(value reflect.Value) string {
+	return value.String()
 }

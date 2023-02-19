@@ -14,23 +14,22 @@ import (
 
 func TestServerListen(t *testing.T) {
 	ready := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+
 	server, err := udp.New(
 		"localhost:0", // 0 - listen an any available port
-		udp.WithHandler(func(ctx context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {
+		udp.HandleFunc(func(ctx context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {
 			resp := slice.Reverse(req)
 			conn.WriteToUDP(resp, addr) // nolint: errcheck
 		}),
 		udp.WithReadySignal(func() {
-			ready <- struct{}{}
+			close(ready)
 		}),
 	)
 	defer server.Stop() // nolint: errcheck
 	require.NoError(t, err)
 
 	go func() {
-		server.Listen(ctx) // nolint: errcheck
+		server.Listen() // nolint: errcheck
 	}()
 	// wait for the server to start
 	<-ready

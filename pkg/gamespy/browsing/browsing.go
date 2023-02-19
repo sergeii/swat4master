@@ -8,8 +8,10 @@ import (
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query/filter"
 )
 
-const MinRequestPayloadLength = 26
-const MaxAllowedNumberOfFields = 20
+const (
+	MinRequestPayloadLength  = 26
+	MaxAllowedNumberOfFields = 20
+)
 
 type Request struct {
 	Filters   string
@@ -18,9 +20,11 @@ type Request struct {
 	unparsed  []byte
 }
 
-var ErrInvalidRequestFormat = errors.New("invalid payload format")
-var ErrNoFieldsRequested = errors.New("no fields are requested")
-var ErrTooManyFieldsRequested = errors.New("too many fields are requested")
+var (
+	ErrInvalidRequestFormat   = errors.New("invalid payload format")
+	ErrNoFieldsRequested      = errors.New("no fields are requested")
+	ErrTooManyFieldsRequested = errors.New("too many fields are requested")
+)
 
 func NewRequest(data []byte) (*Request, error) {
 	// nolint:lll

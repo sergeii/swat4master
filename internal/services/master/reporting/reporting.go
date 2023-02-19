@@ -10,7 +10,8 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/rs/zerolog/log"
+	"github.com/go-playground/validator/v10"
+	"github.com/rs/zerolog"
 
 	"github.com/sergeii/swat4master/internal/core/instances"
 	"github.com/sergeii/swat4master/internal/core/probes"
@@ -25,12 +26,16 @@ import (
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query/filter"
 )
 
-var MasterResponseChallenge = []byte{0x44, 0x3d, 0x73, 0x7e, 0x6a, 0x59}
-var MasterResponseIsAvailable = []byte{0xfe, 0xfd, 0x09, 0x00, 0x00, 0x00, 0x00}
+var (
+	MasterResponseChallenge   = []byte{0x44, 0x3d, 0x73, 0x7e, 0x6a, 0x59}
+	MasterResponseIsAvailable = []byte{0xfe, 0xfd, 0x09, 0x00, 0x00, 0x00, 0x00}
+)
 
-var ErrUnknownRequestType = errors.New("unknown request type")
-var ErrInvalidRequestPayload = errors.New("invalid request payload")
-var ErrUnknownInstanceID = errors.New("unknown instance id")
+var (
+	ErrUnknownRequestType    = errors.New("unknown request type")
+	ErrInvalidRequestPayload = errors.New("invalid request payload")
+	ErrUnknownInstanceID     = errors.New("unknown instance id")
+)
 
 type MasterMsg uint8
 
@@ -55,12 +60,14 @@ func (msg MasterMsg) String() string {
 	return fmt.Sprintf("0x%02x", uint8(msg))
 }
 
-type MasterReporterService struct {
+type Service struct {
 	servers        servers.Repository
 	instances      instances.Repository
-	FindingService *finding.Service
-	MetricService  *monitoring.MetricService
-	ServerService  *server.Service
+	findingService *finding.Service
+	serverService  *server.Service
+	metrics        *monitoring.MetricService
+	validate       *validator.Validate
+	logger         *zerolog.Logger
 }
 
 func NewService(
@@ -68,19 +75,22 @@ func NewService(
 	instances instances.Repository,
 	serverService *server.Service,
 	findingService *finding.Service,
-	metricService *monitoring.MetricService,
-) *MasterReporterService {
-	mrs := &MasterReporterService{
+	metrics *monitoring.MetricService,
+	validate *validator.Validate,
+	logger *zerolog.Logger,
+) *Service {
+	return &Service{
 		servers:        servers,
 		instances:      instances,
-		ServerService:  serverService,
-		FindingService: findingService,
-		MetricService:  metricService,
+		serverService:  serverService,
+		findingService: findingService,
+		metrics:        metrics,
+		validate:       validate,
+		logger:         logger,
 	}
-	return mrs
 }
 
-func (mrs *MasterReporterService) DispatchRequest(
+func (s *Service) DispatchRequest(
 	ctx context.Context, req []byte, addr *net.UDPAddr,
 ) ([]byte, MasterMsg, error) {
 	var resp []byte
@@ -88,24 +98,24 @@ func (mrs *MasterReporterService) DispatchRequest(
 	reqType := MasterMsg(req[0])
 	switch reqType {
 	case MasterMsgAvailable:
-		resp, err = mrs.handleAvailable()
+		resp, err = s.handleAvailable()
 	case MasterMsgChallenge:
-		resp, err = mrs.handleChallenge(req)
+		resp, err = s.handleChallenge(req)
 	case MasterMsgHeartbeat:
-		resp, err = mrs.handleHeartbeat(ctx, req, addr)
+		resp, err = s.handleHeartbeat(ctx, req, addr)
 	case MasterMsgKeepalive:
-		resp, err = mrs.handleKeepalive(ctx, req, addr)
+		resp, err = s.handleKeepalive(ctx, req, addr)
 	default:
 		return nil, reqType, ErrUnknownRequestType
 	}
 	return resp, reqType, err
 }
 
-func (mrs *MasterReporterService) handleAvailable() ([]byte, error) {
+func (s *Service) handleAvailable() ([]byte, error) {
 	return MasterResponseIsAvailable, nil
 }
 
-func (mrs *MasterReporterService) handleChallenge(req []byte) ([]byte, error) {
+func (s *Service) handleChallenge(req []byte) ([]byte, error) {
 	instanceID, ok := parseInstanceID(req)
 	if !ok {
 		return nil, ErrInvalidRequestPayload
@@ -116,7 +126,7 @@ func (mrs *MasterReporterService) handleChallenge(req []byte) ([]byte, error) {
 	return resp, nil
 }
 
-func (mrs *MasterReporterService) handleKeepalive(
+func (s *Service) handleKeepalive(
 	ctx context.Context,
 	req []byte,
 	addr *net.UDPAddr,
@@ -126,7 +136,7 @@ func (mrs *MasterReporterService) handleKeepalive(
 		return nil, ErrInvalidRequestPayload
 	}
 
-	instance, err := mrs.instances.GetByID(ctx, instanceID)
+	instance, err := s.instances.GetByID(ctx, instanceID)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +147,7 @@ func (mrs *MasterReporterService) handleKeepalive(
 	}
 
 	// make sure no other concurrent update is possible
-	svr, err := mrs.servers.Get(ctx, instance.GetAddr())
+	svr, err := s.servers.Get(ctx, instance.GetAddr())
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +159,7 @@ func (mrs *MasterReporterService) handleKeepalive(
 	// so it keeps appearing in the list
 	svr.Refresh()
 
-	if _, updateErr := mrs.servers.Update(ctx, svr, func(s *servers.Server) bool {
+	if _, updateErr := s.servers.Update(ctx, svr, func(s *servers.Server) bool {
 		s.Refresh()
 		return true
 	}); updateErr != nil {
@@ -159,7 +169,7 @@ func (mrs *MasterReporterService) handleKeepalive(
 	return nil, nil
 }
 
-func (mrs *MasterReporterService) handleHeartbeat(
+func (s *Service) handleHeartbeat(
 	ctx context.Context,
 	req []byte,
 	connAddr *net.UDPAddr,
@@ -169,7 +179,7 @@ func (mrs *MasterReporterService) handleHeartbeat(
 		return nil, ErrInvalidRequestPayload
 	}
 
-	fields, err := parseHeartbeatFields(req[5:])
+	fields, err := s.parseHeartbeatFields(req[5:])
 	if err != nil || len(fields) == 0 {
 		return nil, ErrInvalidRequestPayload
 	}
@@ -181,29 +191,29 @@ func (mrs *MasterReporterService) handleHeartbeat(
 
 	// remove the server from the list on statechanged=2
 	if statechanged, ok := fields["statechanged"]; ok && statechanged == "2" {
-		return mrs.removeServer(ctx, connAddr, svrAddr, instanceID)
+		return s.removeServer(ctx, connAddr, svrAddr, instanceID)
 	}
 
-	svr, err := mrs.obtainServerByAddr(ctx, svrAddr, queryPort)
+	svr, err := s.obtainServerByAddr(ctx, svrAddr, queryPort)
 	if err != nil {
 		return nil, err
 	}
 
 	// add the reported server to the list
-	return mrs.reportServer(ctx, connAddr, svr, instanceID, fields)
+	return s.reportServer(ctx, connAddr, svr, instanceID, fields)
 }
 
-func (mrs *MasterReporterService) removeServer(
+func (s *Service) removeServer(
 	ctx context.Context,
 	connAddr *net.UDPAddr,
 	svrAddr addr.Addr,
 	instanceID string,
 ) ([]byte, error) {
-	svr, err := mrs.servers.Get(ctx, svrAddr)
+	svr, err := s.servers.Get(ctx, svrAddr)
 	if err != nil {
 		switch {
 		case errors.Is(err, servers.ErrServerNotFound):
-			log.Info().
+			s.logger.Info().
 				Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
 				Msg("Removed server not found")
 			return nil, nil
@@ -212,12 +222,12 @@ func (mrs *MasterReporterService) removeServer(
 		}
 	}
 
-	instance, err := mrs.instances.GetByID(ctx, instanceID)
+	instance, err := s.instances.GetByID(ctx, instanceID)
 	if err != nil {
 		switch {
 		// this could be a race condition - ignore
 		case errors.Is(err, instances.ErrInstanceNotFound):
-			log.Info().
+			s.logger.Info().
 				Stringer("src", connAddr).
 				Stringer("server", svr).
 				Str("instance", fmt.Sprintf("% x", instanceID)).
@@ -232,24 +242,26 @@ func (mrs *MasterReporterService) removeServer(
 		return nil, ErrUnknownInstanceID
 	}
 
-	if err = mrs.servers.Remove(ctx, svr); err != nil {
+	if err = s.servers.Remove(ctx, svr, func(s *servers.Server) bool {
+		return true
+	}); err != nil {
 		return nil, err
 	}
-	if err = mrs.instances.RemoveByID(ctx, instanceID); err != nil {
+	if err = s.instances.RemoveByID(ctx, instanceID); err != nil {
 		return nil, err
 	}
 
-	log.Info().
+	s.logger.Info().
 		Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
 		Msg("Successfully removed server on request")
 
-	mrs.MetricService.ReporterRemovals.Inc()
+	s.metrics.ReporterRemovals.Inc()
 
 	// because the server is exiting, it does not expect a response from us
 	return nil, nil
 }
 
-func (mrs *MasterReporterService) reportServer(
+func (s *Service) reportServer(
 	ctx context.Context,
 	connAddr *net.UDPAddr,
 	svr servers.Server,
@@ -258,7 +270,7 @@ func (mrs *MasterReporterService) reportServer(
 ) ([]byte, error) {
 	instance, err := instances.New(instanceID, svr.GetIP(), svr.GetGamePort())
 	if err != nil {
-		log.Error().
+		s.logger.Error().
 			Err(err).
 			Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
 			Msg("Failed to create an instance")
@@ -267,29 +279,37 @@ func (mrs *MasterReporterService) reportServer(
 
 	info, err := details.NewInfoFromParams(fields)
 	if err != nil {
-		log.Error().
+		s.logger.Error().
 			Err(err).
 			Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
 			Msg("Failed to parse reported fields")
-		return nil, err
+		return nil, ErrInvalidRequestPayload
 	}
+	if validateErr := info.Validate(s.validate); validateErr != nil {
+		s.logger.Error().
+			Err(validateErr).
+			Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
+			Msg("Failed to validate reported fields")
+		return nil, ErrInvalidRequestPayload
+	}
+
 	svr.UpdateInfo(info)
 	svr.UpdateDiscoveryStatus(ds.Master | ds.Info)
 
-	if svr, err = mrs.ServerService.CreateOrUpdate(ctx, svr, func(conflict *servers.Server) {
+	if svr, err = s.serverService.CreateOrUpdate(ctx, svr, func(conflict *servers.Server) {
 		// in case of conflict, just do all the same
 		conflict.UpdateInfo(info)
 		conflict.UpdateDiscoveryStatus(ds.Master | ds.Info)
 	}); err != nil {
-		log.Error().
+		s.logger.Error().
 			Err(err).
 			Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
 			Msg("Failed to add server to repository")
 		return nil, err
 	}
 
-	if err := mrs.instances.Add(ctx, instance); err != nil {
-		log.Error().
+	if err := s.instances.Add(ctx, instance); err != nil {
+		s.logger.Error().
 			Err(err).
 			Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
 			Msg("Failed to add instance to repository")
@@ -297,16 +317,16 @@ func (mrs *MasterReporterService) reportServer(
 	}
 
 	// attempt to discover query port for newly reported servers
-	if err := mrs.maybeDiscoverPort(ctx, svr); err != nil {
+	if err := s.maybeDiscoverPort(ctx, svr); err != nil {
 		// it's not critical if we fail here, so don't return an error but log it
-		log.Error().
+		s.logger.Error().
 			Err(err).
 			Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
 			Stringer("server", svr).
 			Msg("Failed to add server for port discovery")
 	}
 
-	log.Info().
+	s.logger.Info().
 		Stringer("src", connAddr).
 		Str("instance", fmt.Sprintf("% x", instanceID)).
 		Stringer("server", svr).
@@ -326,7 +346,7 @@ func (mrs *MasterReporterService) reportServer(
 	return resp, nil
 }
 
-func (mrs *MasterReporterService) maybeDiscoverPort(ctx context.Context, pending servers.Server) error {
+func (s *Service) maybeDiscoverPort(ctx context.Context, pending servers.Server) error {
 	var err error
 	// the server has either already go its port discovered
 	// or it is currently in the queue
@@ -334,13 +354,13 @@ func (mrs *MasterReporterService) maybeDiscoverPort(ctx context.Context, pending
 		return nil
 	}
 
-	if err = mrs.FindingService.DiscoverPort(ctx, pending.GetAddr(), probes.NC, probes.NC); err != nil {
+	if err = s.findingService.DiscoverPort(ctx, pending.GetAddr(), probes.NC, probes.NC); err != nil {
 		return err
 	}
 
 	pending.UpdateDiscoveryStatus(ds.PortRetry)
 
-	if _, err := mrs.ServerService.Update(ctx, pending, func(conflict *servers.Server) bool {
+	if _, err := s.serverService.Update(ctx, pending, func(conflict *servers.Server) bool {
 		// while we were updating this server,
 		// it's got the port, or it was put in the queue.
 		// In such a case, resolve the conflict by not doing anything
@@ -356,12 +376,12 @@ func (mrs *MasterReporterService) maybeDiscoverPort(ctx context.Context, pending
 	return nil
 }
 
-func (mrs *MasterReporterService) obtainServerByAddr(
+func (s *Service) obtainServerByAddr(
 	ctx context.Context,
 	svrAddr addr.Addr,
 	queryPort int,
 ) (servers.Server, error) {
-	svr, err := mrs.servers.Get(ctx, svrAddr)
+	svr, err := s.servers.Get(ctx, svrAddr)
 	if err != nil {
 		switch {
 		case errors.Is(err, servers.ErrServerNotFound):
@@ -391,7 +411,7 @@ func parseInstanceID(req []byte) (string, bool) {
 	return string(instanceID), true
 }
 
-func parseHeartbeatFields(payload []byte) (map[string]string, error) {
+func (s *Service) parseHeartbeatFields(payload []byte) (map[string]string, error) {
 	var nameBin, valueBin []byte
 	fields := make(map[string]string)
 	unparsed := payload
@@ -403,7 +423,7 @@ func parseHeartbeatFields(payload []byte) (map[string]string, error) {
 		name := string(nameBin)
 		// only save those params that belong to the predefined list of reportable params
 		if !isReportableField(name) {
-			log.Debug().
+			s.logger.Debug().
 				Str("field", name).
 				Msg("Field is not accepted for reporting")
 			continue

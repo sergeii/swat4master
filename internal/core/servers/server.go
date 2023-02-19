@@ -11,9 +11,7 @@ import (
 	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
 )
 
-var (
-	ErrInvalidQueryPort = errors.New("invalid port number")
-)
+var ErrInvalidQueryPort = errors.New("invalid port number")
 
 type Server struct {
 	addr      addr.Addr

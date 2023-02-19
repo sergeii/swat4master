@@ -7,23 +7,35 @@ import (
 )
 
 type FilterSet struct {
-	withStatus ds.DiscoveryStatus
-	noStatus   ds.DiscoveryStatus
-	before     time.Time
-	after      time.Time
+	withStatus    ds.DiscoveryStatus
+	noStatus      ds.DiscoveryStatus
+	updatedBefore time.Time
+	updatedAfter  time.Time
+	activeBefore  time.Time
+	activeAfter   time.Time
 }
 
 func NewFilterSet() FilterSet {
 	return FilterSet{}
 }
 
-func (fs FilterSet) After(after time.Time) FilterSet {
-	fs.after = after
+func (fs FilterSet) UpdatedAfter(after time.Time) FilterSet {
+	fs.updatedAfter = after
 	return fs
 }
 
-func (fs FilterSet) Before(before time.Time) FilterSet {
-	fs.before = before
+func (fs FilterSet) UpdatedBefore(before time.Time) FilterSet {
+	fs.updatedBefore = before
+	return fs
+}
+
+func (fs FilterSet) ActiveAfter(after time.Time) FilterSet {
+	fs.activeAfter = after
+	return fs
+}
+
+func (fs FilterSet) ActiveBefore(before time.Time) FilterSet {
+	fs.activeBefore = before
 	return fs
 }
 
@@ -57,16 +69,30 @@ func (fs FilterSet) GetNoStatus() (ds.DiscoveryStatus, bool) {
 	return fs.noStatus, true
 }
 
-func (fs FilterSet) GetAfter() (time.Time, bool) {
-	if fs.after.IsZero() {
-		return fs.after, false
+func (fs FilterSet) GetUpdatedAfter() (time.Time, bool) {
+	if fs.updatedAfter.IsZero() {
+		return fs.updatedAfter, false
 	}
-	return fs.after, true
+	return fs.updatedAfter, true
 }
 
-func (fs FilterSet) GetBefore() (time.Time, bool) {
-	if fs.before.IsZero() {
-		return fs.before, false
+func (fs FilterSet) GetUpdatedBefore() (time.Time, bool) {
+	if fs.updatedBefore.IsZero() {
+		return fs.updatedBefore, false
 	}
-	return fs.before, true
+	return fs.updatedBefore, true
+}
+
+func (fs FilterSet) GetActiveAfter() (time.Time, bool) {
+	if fs.activeAfter.IsZero() {
+		return fs.activeAfter, false
+	}
+	return fs.activeAfter, true
+}
+
+func (fs FilterSet) GetActiveBefore() (time.Time, bool) {
+	if fs.activeBefore.IsZero() {
+		return fs.activeBefore, false
+	}
+	return fs.activeBefore, true
 }

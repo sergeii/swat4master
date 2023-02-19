@@ -12,21 +12,19 @@ func ServerFactory(
 	handler func(ctx context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte),
 ) (*udp.Server, func()) {
 	ready := make(chan struct{})
-	ctx, cancel := context.WithCancel(context.Background())
 	server, _ := udp.New(
 		"localhost:0", // 0 - listen an any available port
-		udp.WithHandler(handler),
+		udp.HandleFunc(handler),
 		udp.WithReadySignal(func() {
 			ready <- struct{}{}
 		}),
 	)
 	go func() {
-		server.Listen(ctx) // nolint: errcheck
+		server.Listen() // nolint: errcheck
 	}()
 	<-ready
 	return server, func() {
-		defer server.Stop() // nolint: errcheck
-		defer cancel()
+		server.Stop() // nolint: errcheck
 	}
 }
 

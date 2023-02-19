@@ -11,15 +11,7 @@ import (
 	"github.com/sergeii/swat4master/internal/entity/addr"
 	"github.com/sergeii/swat4master/internal/entity/details"
 	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
-	"github.com/sergeii/swat4master/internal/validation"
 )
-
-func TestMain(m *testing.M) {
-	if err := validation.Register(); err != nil {
-		panic(err)
-	}
-	m.Run()
-}
 
 func TestServer_New(t *testing.T) {
 	tests := []struct {

@@ -573,7 +573,7 @@ func TestQuery_ParentContextIsCancelled(t *testing.T) {
 	responses := make(chan []byte)
 	go func() {
 		responses <- b("\\statusresponse\\0\\hostname\\test\\queryid\\AMv1\\eof\\")
-		time.Sleep(time.Millisecond * 50)
+		<-time.After(time.Millisecond * 50)
 		responses <- b("\\statusresponse\\1\\hostport\\10480\\queryid\\AMv1\\final\\\\eof\\")
 	}()
 	server, cancel := gs1.PrepareGS1Server(responses)

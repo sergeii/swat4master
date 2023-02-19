@@ -8,67 +8,52 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+	"go.uber.org/fx/fxtest"
 
-	"github.com/sergeii/swat4master/internal/core/instances"
-	"github.com/sergeii/swat4master/internal/core/probes"
-	prbrepo "github.com/sergeii/swat4master/internal/core/probes/memory"
-	"github.com/sergeii/swat4master/internal/core/servers"
+	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/services/discovery/finding"
+	"github.com/sergeii/swat4master/internal/services/master/browsing"
+	"github.com/sergeii/swat4master/internal/services/master/reporting"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
 	"github.com/sergeii/swat4master/internal/services/probe"
 	"github.com/sergeii/swat4master/internal/services/server"
-	"github.com/sergeii/swat4master/internal/validation"
-
-	insrepo "github.com/sergeii/swat4master/internal/core/instances/memory"
-	svrrepo "github.com/sergeii/swat4master/internal/core/servers/memory"
-	"github.com/sergeii/swat4master/internal/services/master/browsing"
-	"github.com/sergeii/swat4master/internal/services/master/reporting"
 	"github.com/sergeii/swat4master/internal/testutils"
+	"github.com/sergeii/swat4master/internal/validation"
 	"github.com/sergeii/swat4master/pkg/binutils"
 	gsbrowsing "github.com/sergeii/swat4master/pkg/gamespy/browsing"
 	"github.com/sergeii/swat4master/pkg/random"
 )
 
-type Fixture struct {
-	Servers        servers.Repository
-	Instances      instances.Repository
-	Probes         probes.Repository
-	ServerService  *server.Service
-	MetricService  *monitoring.MetricService
-	ProbeService   *probe.Service
-	FindingService *finding.Service
-	Reporting      *reporting.MasterReporterService
-	Browsing       *browsing.MasterBrowserService
-}
-
-func makeServices(opts ...browsing.Option) Fixture {
-	fixture := Fixture{
-		Servers:   svrrepo.New(),
-		Instances: insrepo.New(),
-		Probes:    prbrepo.New(),
+func makeApp(tb fxtest.TB, extra ...fx.Option) {
+	fxopts := []fx.Option{
+		fx.Provide(memory.New),
+		fx.Provide(validation.New),
+		fx.Provide(func() *zerolog.Logger {
+			logger := zerolog.Nop()
+			return &logger
+		}),
+		fx.Provide(func() browsing.ServiceOpts {
+			return browsing.ServiceOpts{
+				Liveness: time.Millisecond * 10,
+			}
+		}),
+		fx.Provide(
+			monitoring.NewMetricService,
+			server.NewService,
+			probe.NewService,
+			finding.NewService,
+			reporting.NewService,
+			browsing.NewService,
+		),
+		fx.NopLogger,
 	}
-	fixture.MetricService = monitoring.NewMetricService()
-	fixture.ServerService = server.NewService(fixture.Servers)
-	fixture.ProbeService = probe.NewService(fixture.Probes, fixture.MetricService)
-	fixture.FindingService = finding.NewService(fixture.ProbeService)
-	fixture.Reporting = reporting.NewService(
-		fixture.Servers,
-		fixture.Instances,
-		fixture.ServerService,
-		fixture.FindingService,
-		fixture.MetricService,
-	)
-	fixture.Browsing = browsing.NewService(server.NewService(fixture.Servers), opts...)
-	return fixture
-}
-
-func TestMain(m *testing.M) {
-	if err := validation.Register(); err != nil {
-		panic(err)
-	}
-	m.Run()
+	fxopts = append(fxopts, extra...)
+	app := fxtest.New(tb, fxopts...)
+	app.RequireStart().RequireStop()
 }
 
 func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
@@ -240,39 +225,42 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 		},
 	}
 
-	f := makeServices(browsing.WithLivenessDuration(time.Hour))
-
-	// prepare the servers
-	testutils.SendHeartbeat( // nolint: errcheck
-		f.Reporting,
-		[]byte{0xf0, 0xf0, 0xf0, 0x0d},
-		testutils.WithExtraServerParams(map[string]string{
-			"hostname":   "Swat4 Server",
-			"gamever":    "1.1",
-			"gametype":   "VIP Escort",
-			"hostport":   "10480",
-			"localport":  "10481",
-			"numplayers": "16",
-			"maxplayers": "16",
-		}),
-		testutils.WithRandomAddr(),
-	)
-	testutils.SendHeartbeat( // nolint: errcheck
-		f.Reporting,
-		[]byte{0xbe, 0xef, 0xbe, 0xef},
-		testutils.WithServerParams(nil),
-		testutils.WithRandomAddr(),
-	)
-	testutils.SendHeartbeat( // nolint: errcheck
-		f.Reporting,
-		[]byte{0xca, 0xfe, 0xca, 0xfe},
-		testutils.WithServerParams(map[string]string{}),
-		testutils.WithRandomAddr(),
-	)
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := f.Browsing.HandleRequest(
+			var reporter *reporting.Service
+			var browser *browsing.Service
+
+			makeApp(t, fx.Populate(&reporter, &browser))
+
+			// prepare the servers
+			testutils.SendHeartbeat( // nolint: errcheck
+				reporter,
+				[]byte{0xf0, 0xf0, 0xf0, 0x0d},
+				testutils.WithExtraServerParams(map[string]string{
+					"hostname":   "Swat4 Server",
+					"gamever":    "1.1",
+					"gametype":   "VIP Escort",
+					"hostport":   "10480",
+					"localport":  "10481",
+					"numplayers": "16",
+					"maxplayers": "16",
+				}),
+				testutils.WithRandomAddr(),
+			)
+			testutils.SendHeartbeat( // nolint: errcheck
+				reporter,
+				[]byte{0xbe, 0xef, 0xbe, 0xef},
+				testutils.WithServerParams(nil),
+				testutils.WithRandomAddr(),
+			)
+			testutils.SendHeartbeat( // nolint: errcheck
+				reporter,
+				[]byte{0xca, 0xfe, 0xca, 0xfe},
+				testutils.WithServerParams(map[string]string{}),
+				testutils.WithRandomAddr(),
+			)
+
+			resp, err := browser.HandleRequest(
 				context.TODO(),
 				&net.TCPAddr{IP: net.ParseIP("1.1.1.1"), Port: 1337},
 				tt.payload,
@@ -288,10 +276,13 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 }
 
 func TestMasterBrowserService_HandleRequest_ParseResponse(t *testing.T) {
-	f := makeServices(browsing.WithLivenessDuration(time.Millisecond * 10))
+	var reporter *reporting.Service
+	var browser *browsing.Service
+
+	makeApp(t, fx.Populate(&reporter, &browser))
 
 	_, err := testutils.SendHeartbeat(
-		f.Reporting,
+		reporter,
 		[]byte{0xf0, 0xf0, 0xf0, 0x0d},
 		testutils.WithExtraServerParams(map[string]string{
 			"hostname":  "Swat4 Server",
@@ -303,7 +294,7 @@ func TestMasterBrowserService_HandleRequest_ParseResponse(t *testing.T) {
 	)
 	require.NoError(t, err)
 	_, err = testutils.SendHeartbeat(
-		f.Reporting,
+		reporter,
 		[]byte{0xbe, 0xef, 0xbe, 0xef},
 		testutils.WithExtraServerParams(map[string]string{
 			"hostname":  "Another Swat4 Server",
@@ -315,7 +306,7 @@ func TestMasterBrowserService_HandleRequest_ParseResponse(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	resp, err := testutils.SendBrowserRequest(f.Browsing, "", testutils.StandardAddr)
+	resp, err := testutils.SendBrowserRequest(browser, "", testutils.StandardAddr)
 	require.NoError(t, err)
 
 	reqIP := net.IPv4(resp[0], resp[1], resp[2], resp[3])
@@ -380,22 +371,25 @@ func TestMasterBrowserService_HandleRequest_ParseResponse(t *testing.T) {
 }
 
 func TestMasterBrowserService_HandleRequest_ServerList(t *testing.T) {
-	f := makeServices(browsing.WithLivenessDuration(time.Millisecond * 10))
+	var reporter *reporting.Service
+	var browser *browsing.Service
+
+	makeApp(t, fx.Populate(&reporter, &browser))
 
 	for _, filter := range []string{"", "gametype='VIP Escort'"} {
-		resp, err := testutils.SendBrowserRequest(f.Browsing, filter, testutils.WithRandomAddr())
+		resp, err := testutils.SendBrowserRequest(browser, filter, testutils.WithRandomAddr())
 		require.NoError(t, err)
 		assert.Len(t, testutils.UnpackServerList(resp), 0)
 	}
 
 	testutils.SendHeartbeat( // nolint: errcheck
-		f.Reporting,
+		reporter,
 		[]byte{0xf0, 0xf0, 0xf0, 0x0d},
 		testutils.WithExtraServerParams(map[string]string{"hostname": "Swat4 Server", "gametype": "VIP Escort"}),
 		testutils.WithRandomAddr(),
 	)
 	for _, filter := range []string{"", "gametype='VIP Escort'"} {
-		resp, err := testutils.SendBrowserRequest(f.Browsing, filter, testutils.WithRandomAddr())
+		resp, err := testutils.SendBrowserRequest(browser, filter, testutils.WithRandomAddr())
 		require.NoError(t, err)
 		list := testutils.UnpackServerList(resp)
 		assert.Len(t, list, 1)
@@ -404,19 +398,19 @@ func TestMasterBrowserService_HandleRequest_ServerList(t *testing.T) {
 
 	time.Sleep(time.Millisecond * 20)
 	testutils.SendHeartbeat( // nolint: errcheck
-		f.Reporting,
+		reporter,
 		[]byte{0xbe, 0xef, 0xbe, 0xef},
 		testutils.WithExtraServerParams(map[string]string{"hostname": "Another Swat4 Server", "gamever": "1.0"}),
 		testutils.WithRandomAddr(),
 	)
 	testutils.SendHeartbeat( // nolint: errcheck
-		f.Reporting,
+		reporter,
 		[]byte{0xca, 0xfe, 0xca, 0xfe},
 		testutils.WithExtraServerParams(map[string]string{"hostname": "New Swat4 Server", "gamever": "1.1"}),
 		testutils.WithRandomAddr(),
 	)
 	// only 2 recent servers are available
-	resp, err := testutils.SendBrowserRequest(f.Browsing, "", testutils.WithRandomAddr())
+	resp, err := testutils.SendBrowserRequest(browser, "", testutils.WithRandomAddr())
 	require.NoError(t, err)
 	list := testutils.UnpackServerList(resp)
 	assert.Len(t, list, 2)
@@ -426,14 +420,14 @@ func TestMasterBrowserService_HandleRequest_ServerList(t *testing.T) {
 	)
 
 	// just 1 server meets the criteria of gamever=1.1
-	resp, err = testutils.SendBrowserRequest(f.Browsing, "gamever='1.1'", testutils.WithRandomAddr())
+	resp, err = testutils.SendBrowserRequest(browser, "gamever='1.1'", testutils.WithRandomAddr())
 	require.NoError(t, err)
 	list = testutils.UnpackServerList(resp)
 	assert.Len(t, list, 1)
 	assert.Equal(t, "New Swat4 Server", list[0]["hostname"])
 
 	// just 1 server meets the criteria of gamever=1.2
-	resp, err = testutils.SendBrowserRequest(f.Browsing, "gamever='1.2'", testutils.WithRandomAddr())
+	resp, err = testutils.SendBrowserRequest(browser, "gamever='1.2'", testutils.WithRandomAddr())
 	require.NoError(t, err)
 	assert.Len(t, testutils.UnpackServerList(resp), 0)
 }
@@ -526,55 +520,58 @@ func TestMasterBrowserService_HandleRequest_Filters(t *testing.T) {
 		},
 	}
 
-	f := makeServices(browsing.WithLivenessDuration(time.Hour))
-
-	// prepare the servers
-	testutils.SendHeartbeat( // nolint: errcheck
-		f.Reporting,
-		[]byte{0xf0, 0xf0, 0xf0, 0x0d},
-		testutils.WithExtraServerParams(map[string]string{
-			"hostname":   "Swat4 Server",
-			"gamever":    "1.1",
-			"gametype":   "VIP Escort",
-			"hostport":   "10480",
-			"localport":  "10481",
-			"numplayers": "16",
-			"maxplayers": "16",
-		}),
-		testutils.WithCustomAddr("1.1.1.1", 10481),
-	)
-	testutils.SendHeartbeat( // nolint: errcheck
-		f.Reporting,
-		[]byte{0xbe, 0xef, 0xbe, 0xef},
-		testutils.WithExtraServerParams(map[string]string{
-			"hostname":   "Another Swat4 Server",
-			"gamever":    "1.0",
-			"gametype":   "VIP Escort",
-			"hostport":   "10480",
-			"localport":  "10481",
-			"numplayers": "0",
-			"maxplayers": "16",
-		}),
-		testutils.WithCustomAddr("2.2.2.2", 10481),
-	)
-	testutils.SendHeartbeat( // nolint: errcheck
-		f.Reporting,
-		[]byte{0xbe, 0xef, 0xbe, 0xef},
-		testutils.WithExtraServerParams(map[string]string{
-			"hostname":   "New Swat4 Server",
-			"gamever":    "1.0",
-			"gametype":   "Barricaded Suspects",
-			"hostport":   "10580",
-			"localport":  "10584",
-			"numplayers": "12",
-			"maxplayers": "12",
-		}),
-		testutils.WithCustomAddr("3.3.3.3", 17221),
-	)
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := testutils.SendBrowserRequest(f.Browsing, tt.filters, testutils.WithRandomAddr())
+			var reporter *reporting.Service
+			var browser *browsing.Service
+
+			makeApp(t, fx.Populate(&reporter, &browser))
+
+			// prepare the servers
+			testutils.SendHeartbeat( // nolint: errcheck
+				reporter,
+				[]byte{0xf0, 0xf0, 0xf0, 0x0d},
+				testutils.WithExtraServerParams(map[string]string{
+					"hostname":   "Swat4 Server",
+					"gamever":    "1.1",
+					"gametype":   "VIP Escort",
+					"hostport":   "10480",
+					"localport":  "10481",
+					"numplayers": "16",
+					"maxplayers": "16",
+				}),
+				testutils.WithCustomAddr("1.1.1.1", 10481),
+			)
+			testutils.SendHeartbeat( // nolint: errcheck
+				reporter,
+				[]byte{0xbe, 0xef, 0xbe, 0xef},
+				testutils.WithExtraServerParams(map[string]string{
+					"hostname":   "Another Swat4 Server",
+					"gamever":    "1.0",
+					"gametype":   "VIP Escort",
+					"hostport":   "10480",
+					"localport":  "10481",
+					"numplayers": "0",
+					"maxplayers": "16",
+				}),
+				testutils.WithCustomAddr("2.2.2.2", 10481),
+			)
+			testutils.SendHeartbeat( // nolint: errcheck
+				reporter,
+				[]byte{0xbe, 0xef, 0xbe, 0xef},
+				testutils.WithExtraServerParams(map[string]string{
+					"hostname":   "New Swat4 Server",
+					"gamever":    "1.0",
+					"gametype":   "Barricaded Suspects",
+					"hostport":   "10580",
+					"localport":  "10584",
+					"numplayers": "12",
+					"maxplayers": "12",
+				}),
+				testutils.WithCustomAddr("3.3.3.3", 17221),
+			)
+
+			resp, err := testutils.SendBrowserRequest(browser, tt.filters, testutils.WithRandomAddr())
 			require.NoError(t, err)
 			list := testutils.UnpackServerList(resp)
 			serverNames := make([]string, 0, len(list))

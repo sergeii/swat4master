@@ -7,16 +7,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+	"go.uber.org/fx/fxtest"
 
 	"github.com/sergeii/swat4master/internal/core/probes"
-	prbrepo "github.com/sergeii/swat4master/internal/core/probes/memory"
 	"github.com/sergeii/swat4master/internal/core/servers"
-	svrrepo "github.com/sergeii/swat4master/internal/core/servers/memory"
 	"github.com/sergeii/swat4master/internal/entity/addr"
 	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/services/discovery/probing"
+	"github.com/sergeii/swat4master/internal/services/discovery/probing/probers"
+	"github.com/sergeii/swat4master/internal/services/master/reporting"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
 	"github.com/sergeii/swat4master/internal/services/probe"
 	"github.com/sergeii/swat4master/internal/validation"
@@ -25,31 +29,42 @@ import (
 
 type ResponseFunc func(context.Context, *net.UDPConn, *net.UDPAddr, []byte)
 
-func makeService(opts ...probing.Option) (
-	probes.Repository,
-	servers.Repository,
-	*probing.Service,
-) {
-	svrRepo := svrrepo.New()
-	queue := prbrepo.New()
-	metrics := monitoring.NewMetricService()
-	probeSrv := probe.NewService(queue, metrics)
-	svc := probing.NewService(svrRepo, probeSrv, metrics, opts...)
-	return queue, svrRepo, svc
-}
-
-func TestMain(m *testing.M) {
-	if err := validation.Register(); err != nil {
-		panic(err)
+func makeApp(tb fxtest.TB, extra ...fx.Option) {
+	fxopts := []fx.Option{
+		fx.Provide(memory.New),
+		fx.Provide(validation.New),
+		fx.Provide(func() *zerolog.Logger {
+			logger := zerolog.Nop()
+			return &logger
+		}),
+		fx.Provide(
+			monitoring.NewMetricService,
+			probe.NewService,
+			reporting.NewService,
+		),
+		fx.NopLogger,
+		fx.Provide(func() probing.ServiceOpts {
+			return probing.ServiceOpts{}
+		}),
+		fx.Provide(probing.NewService),
+		fx.Provide(probers.NewDetailsProber),
+		fx.Provide(func() probers.PortProberOpts {
+			return probers.PortProberOpts{}
+		}),
+		fx.Provide(probers.NewPortProber),
+		fx.Invoke(func(*probers.DetailsProber, *probers.PortProber) {}),
 	}
-	m.Run()
+	fxopts = append(fxopts, extra...)
+	app := fxtest.New(tb, fxopts...)
+	app.RequireStart().RequireStop()
 }
 
 func TestProbingService_Probe_UnknownGoalType(t *testing.T) {
-	_, _, svc := makeService()
+	var service *probing.Service
+	makeApp(t, fx.Populate(&service))
 	target := probes.New(addr.MustNewFromString("1.1.1.1", 10480), 10481, probes.Goal(10))
-	err := svc.Probe(context.TODO(), target)
-	assert.ErrorIs(t, err, probing.ErrUnknownGoalType)
+	err := service.Probe(context.TODO(), target)
+	assert.ErrorContains(t, err, "no associated prober for goal '10'")
 }
 
 func TestProbingService_ProbeDetails_OK(t *testing.T) {
@@ -82,8 +97,20 @@ func TestProbingService_ProbeDetails_OK(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var serversRepo servers.Repository
+			var probesRepo probes.Repository
+			var service *probing.Service
+
+			makeApp(
+				t,
+				fx.Decorate(func() probing.ServiceOpts {
+					return probing.ServiceOpts{
+						ProbeTimeout: time.Millisecond * 10,
+					}
+				}),
+				fx.Populate(&service, &serversRepo, &probesRepo),
+			)
 			ctx := context.TODO()
-			queue, repo, service := makeService(probing.WithProbeTimeout(time.Millisecond * 10))
 
 			responses := make(chan []byte)
 			udp, cancel := gs1.PrepareGS1Server(responses)
@@ -111,17 +138,17 @@ func TestProbingService_ProbeDetails_OK(t *testing.T) {
 				svr.UpdateDiscoveryStatus(tt.initStatus)
 			}
 
-			repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+			serversRepo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 
 			target := probes.New(svr.GetAddr(), svrAddr.Port, probes.GoalDetails)
 
 			probeErr := service.Probe(ctx, target)
 			require.NoError(t, probeErr)
 
-			queueSize, _ := queue.Count(ctx)
+			queueSize, _ := probesRepo.Count(ctx)
 			assert.Equal(t, 0, queueSize)
 
-			updatedSvr, _ := repo.Get(ctx, svr.GetAddr())
+			updatedSvr, _ := serversRepo.Get(ctx, svr.GetAddr())
 			assert.Equal(t, tt.wantStatus, updatedSvr.GetDiscoveryStatus())
 
 			updatedInfo := updatedSvr.GetInfo()
@@ -193,7 +220,7 @@ func TestProbingService_ProbeDetails_RetryOnError(t *testing.T) {
 			servers.ErrServerNotFound,
 		},
 		{
-			"no valid response for existing server",
+			"no valid response for existing server - no queryid",
 			ds.Master | ds.Details | ds.Info,
 			true,
 			func(ctx context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, bytes []byte) {
@@ -206,6 +233,21 @@ func TestProbingService_ProbeDetails_RetryOnError(t *testing.T) {
 				conn.WriteToUDP(packet, udpAddr) // nolint: errcheck
 			},
 			ds.Master | ds.Details | ds.Info | ds.DetailsRetry,
+			probing.ErrProbeRetried,
+		},
+		{
+			"no valid response for existing server - validation",
+			ds.Details,
+			true,
+			func(ctx context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, bytes []byte) {
+				packet := []byte(
+					"\\hostname\\-==MYT Team Svr==-\\numplayers\\-1\\maxplayers\\16" +
+						"\\gametype\\VIP Escort\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store" +
+						"\\hostport\\10480\\password\\0\\gamever\\1.1\\final\\\\queryid\\1.1",
+				)
+				conn.WriteToUDP(packet, udpAddr) // nolint: errcheck
+			},
+			ds.Details | ds.DetailsRetry,
 			probing.ErrProbeRetried,
 		},
 		{
@@ -228,11 +270,22 @@ func TestProbingService_ProbeDetails_RetryOnError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
-			queue, repo, service := makeService(
-				probing.WithProbeTimeout(time.Millisecond*10),
-				probing.WithMaxRetries(3),
+			var serversRepo servers.Repository
+			var probesRepo probes.Repository
+			var service *probing.Service
+
+			makeApp(
+				t,
+				fx.Decorate(func() probing.ServiceOpts {
+					return probing.ServiceOpts{
+						ProbeTimeout: time.Millisecond * 10,
+						MaxRetries:   3,
+					}
+				}),
+				fx.Populate(&service, &serversRepo, &probesRepo),
 			)
+
+			ctx := context.TODO()
 
 			udp, cancel := gs1.ServerFactory(tt.respFactory)
 			defer cancel()
@@ -246,15 +299,15 @@ func TestProbingService_ProbeDetails_RetryOnError(t *testing.T) {
 			}
 
 			if tt.serverExists {
-				repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+				serversRepo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 			}
 
 			target := probes.New(svr.GetAddr(), svrAddr.Port, probes.GoalDetails)
 			probeErr := service.Probe(ctx, target)
 
-			queueSize, _ := queue.Count(ctx)
+			queueSize, _ := probesRepo.Count(ctx)
 
-			updatedSvr, getErr := repo.Get(ctx, svr.GetAddr())
+			updatedSvr, getErr := serversRepo.Get(ctx, svr.GetAddr())
 			updatedInfo := updatedSvr.GetInfo()
 
 			if tt.wantErr != nil {
@@ -270,7 +323,7 @@ func TestProbingService_ProbeDetails_RetryOnError(t *testing.T) {
 				assert.Equal(t, tt.wantStatus, updatedSvr.GetDiscoveryStatus())
 				require.Equal(t, 1, queueSize)
 				require.NoError(t, getErr)
-				retry, _ := queue.PopAny(ctx)
+				retry, _ := probesRepo.PopAny(ctx)
 				assert.Equal(t, 1, retry.GetRetries())
 				assert.Equal(t, target.GetAddr(), retry.GetAddr())
 				assert.Equal(t, target.GetPort(), retry.GetPort())
@@ -306,11 +359,22 @@ func TestProbingService_ProbeDetails_OutOfRetries(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
-			queue, repo, service := makeService(
-				probing.WithProbeTimeout(time.Millisecond*10),
-				probing.WithMaxRetries(1),
+			var serversRepo servers.Repository
+			var probesRepo probes.Repository
+			var service *probing.Service
+
+			makeApp(
+				t,
+				fx.Decorate(func() probing.ServiceOpts {
+					return probing.ServiceOpts{
+						ProbeTimeout: time.Millisecond * 10,
+						MaxRetries:   1,
+					}
+				}),
+				fx.Populate(&service, &serversRepo, &probesRepo),
 			)
+
+			ctx := context.TODO()
 
 			udp, cancel := gs1.ServerFactory(func(context.Context, *net.UDPConn, *net.UDPAddr, []byte) {})
 			defer cancel()
@@ -324,7 +388,7 @@ func TestProbingService_ProbeDetails_OutOfRetries(t *testing.T) {
 			}
 
 			if tt.serverExists {
-				repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+				serversRepo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 			}
 
 			target := probes.New(svr.GetAddr(), svrAddr.Port, probes.GoalDetails)
@@ -335,10 +399,10 @@ func TestProbingService_ProbeDetails_OutOfRetries(t *testing.T) {
 
 			probeErr := service.Probe(ctx, target)
 
-			queueSize, _ := queue.Count(ctx)
+			queueSize, _ := probesRepo.Count(ctx)
 			require.Equal(t, 0, queueSize)
 
-			maybeUpdatedServer, getErr := repo.Get(ctx, svr.GetAddr())
+			maybeUpdatedServer, getErr := serversRepo.Get(ctx, svr.GetAddr())
 
 			if tt.serverExists {
 				require.ErrorIs(t, probeErr, probing.ErrOutOfRetries)
@@ -382,11 +446,26 @@ func TestService_ProbePort_OK(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
-			queue, repo, service := makeService(
-				probing.WithProbeTimeout(time.Millisecond*10),
-				probing.WithPortSuggestions([]int{1, 4}),
+			var serversRepo servers.Repository
+			var probesRepo probes.Repository
+			var service *probing.Service
+
+			makeApp(
+				t,
+				fx.Decorate(func() probing.ServiceOpts {
+					return probing.ServiceOpts{
+						ProbeTimeout: time.Millisecond * 10,
+					}
+				}),
+				fx.Decorate(func() probers.PortProberOpts {
+					return probers.PortProberOpts{
+						Offsets: []int{1, 4},
+					}
+				}),
+				fx.Populate(&service, &serversRepo, &probesRepo),
 			)
+
+			ctx := context.TODO()
 
 			responses := make(chan []byte)
 			udp, cancel := gs1.PrepareGS1Server(responses)
@@ -414,17 +493,17 @@ func TestService_ProbePort_OK(t *testing.T) {
 				svr.UpdateDiscoveryStatus(tt.initStatus)
 			}
 
-			repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+			serversRepo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 
 			target := probes.New(svr.GetAddr(), svrAddr.Port, probes.GoalPort)
 
 			probeErr := service.Probe(ctx, target)
 			require.NoError(t, probeErr)
 
-			queueSize, _ := queue.Count(ctx)
+			queueSize, _ := probesRepo.Count(ctx)
 			assert.Equal(t, 0, queueSize)
 
-			updatedSvr, _ := repo.Get(ctx, svr.GetAddr())
+			updatedSvr, _ := serversRepo.Get(ctx, svr.GetAddr())
 			assert.Equal(t, tt.wantStatus, updatedSvr.GetDiscoveryStatus())
 
 			assert.Equal(t, svrAddr.Port, updatedSvr.GetQueryPort())
@@ -545,12 +624,27 @@ func TestService_ProbePort_RetryOnError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
-			queue, repo, service := makeService(
-				probing.WithProbeTimeout(time.Millisecond*10),
-				probing.WithMaxRetries(3),
-				probing.WithPortSuggestions([]int{1, 4}),
+			var serversRepo servers.Repository
+			var probesRepo probes.Repository
+			var service *probing.Service
+
+			makeApp(
+				t,
+				fx.Decorate(func() probing.ServiceOpts {
+					return probing.ServiceOpts{
+						ProbeTimeout: time.Millisecond * 10,
+						MaxRetries:   3,
+					}
+				}),
+				fx.Decorate(func() probers.PortProberOpts {
+					return probers.PortProberOpts{
+						Offsets: []int{1, 4},
+					}
+				}),
+				fx.Populate(&service, &serversRepo, &probesRepo),
 			)
+
+			ctx := context.TODO()
 
 			responses := make(chan []byte)
 			udp, cancel := gs1.PrepareGS1Server(responses)
@@ -570,15 +664,15 @@ func TestService_ProbePort_RetryOnError(t *testing.T) {
 			}
 
 			if tt.serverExists {
-				repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+				serversRepo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 			}
 
 			target := probes.New(svr.GetAddr(), svrAddr.Port-4, probes.GoalPort)
 			probeErr := service.Probe(ctx, target)
 
-			queueSize, _ := queue.Count(ctx)
+			queueSize, _ := probesRepo.Count(ctx)
 
-			updatedSvr, getErr := repo.Get(ctx, svr.GetAddr())
+			updatedSvr, getErr := serversRepo.Get(ctx, svr.GetAddr())
 			updatedInfo := updatedSvr.GetInfo()
 
 			if tt.wantErr != nil {
@@ -595,7 +689,7 @@ func TestService_ProbePort_RetryOnError(t *testing.T) {
 				assert.Equal(t, tt.wantStatus, updatedSvr.GetDiscoveryStatus())
 				require.Equal(t, 1, queueSize)
 				require.NoError(t, getErr)
-				retry, _ := queue.PopAny(ctx)
+				retry, _ := probesRepo.PopAny(ctx)
 				assert.Equal(t, 1, retry.GetRetries())
 				assert.Equal(t, target.GetAddr(), retry.GetAddr())
 				assert.Equal(t, target.GetPort(), retry.GetPort())
@@ -648,12 +742,27 @@ func TestService_ProbePort_SelectedPortsAreTried(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
-			queue, repo, service := makeService(
-				probing.WithProbeTimeout(time.Millisecond*10),
-				probing.WithMaxRetries(3),
-				probing.WithPortSuggestions([]int{1, 2, 3, 4}),
+			var serversRepo servers.Repository
+			var probesRepo probes.Repository
+			var service *probing.Service
+
+			makeApp(
+				t,
+				fx.Decorate(func() probing.ServiceOpts {
+					return probing.ServiceOpts{
+						ProbeTimeout: time.Millisecond * 10,
+						MaxRetries:   3,
+					}
+				}),
+				fx.Decorate(func() probers.PortProberOpts {
+					return probers.PortProberOpts{
+						Offsets: []int{1, 2, 3, 4},
+					}
+				}),
+				fx.Populate(&service, &serversRepo, &probesRepo),
 			)
+
+			ctx := context.TODO()
 
 			responses := make(chan []byte)
 			udp, cancel := gs1.PrepareGS1Server(responses)
@@ -662,7 +771,7 @@ func TestService_ProbePort_SelectedPortsAreTried(t *testing.T) {
 			svrAddr := udp.LocalAddr()
 			svr, err := servers.NewFromAddr(addr.NewForTesting(svrAddr.IP, svrAddr.Port-tt.offset), 12345)
 			require.NoError(t, err)
-			repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+			serversRepo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 
 			go func(ch chan []byte, port int) {
 				ch <- []byte(
@@ -681,7 +790,7 @@ func TestService_ProbePort_SelectedPortsAreTried(t *testing.T) {
 			target := probes.New(svr.GetAddr(), 12345, probes.GoalPort)
 			probeErr := service.Probe(ctx, target)
 
-			updatedSvr, getErr := repo.Get(ctx, svr.GetAddr())
+			updatedSvr, getErr := serversRepo.Get(ctx, svr.GetAddr())
 			require.NoError(t, getErr)
 
 			if tt.ok {
@@ -691,14 +800,14 @@ func TestService_ProbePort_SelectedPortsAreTried(t *testing.T) {
 				assert.Equal(t, "-==MYT Co-op Svr==-", updatedInfo.Hostname)
 				assert.Equal(t, ds.Info|ds.Details|ds.Port, updatedSvr.GetDiscoveryStatus())
 
-				_, popErr := queue.PopAny(ctx)
+				_, popErr := probesRepo.PopAny(ctx)
 				assert.ErrorIs(t, popErr, probes.ErrQueueIsEmpty)
 			} else {
 				require.ErrorIs(t, probeErr, probing.ErrProbeRetried)
 				assert.Equal(t, 12345, updatedSvr.GetQueryPort())
 				assert.Equal(t, ds.PortRetry, updatedSvr.GetDiscoveryStatus())
 
-				retry, _ := queue.PopAny(ctx)
+				retry, _ := probesRepo.PopAny(ctx)
 				assert.Equal(t, 1, retry.GetRetries())
 				assert.Equal(t, target.GetAddr(), retry.GetAddr())
 				assert.Equal(t, target.GetPort(), retry.GetPort())
@@ -708,6 +817,8 @@ func TestService_ProbePort_SelectedPortsAreTried(t *testing.T) {
 }
 
 func TestService_ProbePort_MultiplePortsAreProbed(t *testing.T) {
+	ctx := context.TODO()
+
 	responses1 := make(chan []byte)
 	responses2 := make(chan []byte)
 	responses3 := make(chan []byte)
@@ -724,19 +835,30 @@ func TestService_ProbePort_MultiplePortsAreProbed(t *testing.T) {
 	udpAddr3 := udp3.LocalAddr()
 	defer cancel3()
 
-	ctx := context.TODO()
-	queue, repo, service := makeService(
-		probing.WithProbeTimeout(time.Millisecond*10),
-		probing.WithMaxRetries(3),
-		probing.WithPortSuggestions(
-			[]int{0, 2, udpAddr2.Port - udpAddr1.Port, udpAddr3.Port - udpAddr1.Port},
-		),
+	var serversRepo servers.Repository
+	var probesRepo probes.Repository
+	var service *probing.Service
+
+	makeApp(
+		t,
+		fx.Decorate(func() probing.ServiceOpts {
+			return probing.ServiceOpts{
+				ProbeTimeout: time.Millisecond * 10,
+				MaxRetries:   3,
+			}
+		}),
+		fx.Decorate(func() probers.PortProberOpts {
+			return probers.PortProberOpts{
+				Offsets: []int{0, 2, udpAddr2.Port - udpAddr1.Port, udpAddr3.Port - udpAddr1.Port},
+			}
+		}),
+		fx.Populate(&service, &serversRepo, &probesRepo),
 	)
 
 	svr, err := servers.NewFromAddr(addr.NewForTesting(udpAddr1.IP, udpAddr1.Port), 12345)
 	gamePort := svr.GetGamePort()
 	require.NoError(t, err)
-	repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+	serversRepo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 
 	go func(ch chan []byte, port int) {
 		packet := []byte(
@@ -779,7 +901,7 @@ func TestService_ProbePort_MultiplePortsAreProbed(t *testing.T) {
 	target := probes.New(svr.GetAddr(), 12345, probes.GoalPort)
 	probeErr := service.Probe(ctx, target)
 
-	updatedSvr, getErr := repo.Get(ctx, svr.GetAddr())
+	updatedSvr, getErr := serversRepo.Get(ctx, svr.GetAddr())
 	require.NoError(t, getErr)
 
 	require.NoError(t, probeErr)
@@ -789,12 +911,8 @@ func TestService_ProbePort_MultiplePortsAreProbed(t *testing.T) {
 	assert.Equal(t, 1, updatedInfo.SwatWon)
 	assert.Equal(t, ds.Info|ds.Details|ds.Port, updatedSvr.GetDiscoveryStatus())
 
-	_, popErr := queue.PopAny(ctx)
+	_, popErr := probesRepo.PopAny(ctx)
 	assert.ErrorIs(t, popErr, probes.ErrQueueIsEmpty)
-}
-
-func TestService_ProbePort_HostPortIsValidated(t *testing.T) {
-	// assert.Equal(t, 0, 1)
 }
 
 func TestService_ProbePort_OutOfRetries(t *testing.T) {
@@ -821,10 +939,25 @@ func TestService_ProbePort_OutOfRetries(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.TODO()
-			queue, repo, service := makeService(
-				probing.WithProbeTimeout(time.Millisecond*10),
-				probing.WithMaxRetries(1),
-				probing.WithPortSuggestions([]int{1, 4}),
+
+			var serversRepo servers.Repository
+			var probesRepo probes.Repository
+			var service *probing.Service
+
+			makeApp(
+				t,
+				fx.Decorate(func() probing.ServiceOpts {
+					return probing.ServiceOpts{
+						ProbeTimeout: time.Millisecond * 10,
+						MaxRetries:   1,
+					}
+				}),
+				fx.Decorate(func() probers.PortProberOpts {
+					return probers.PortProberOpts{
+						Offsets: []int{1, 4},
+					}
+				}),
+				fx.Populate(&service, &serversRepo, &probesRepo),
 			)
 
 			udp, cancel := gs1.ServerFactory(func(context.Context, *net.UDPConn, *net.UDPAddr, []byte) {})
@@ -839,7 +972,7 @@ func TestService_ProbePort_OutOfRetries(t *testing.T) {
 			}
 
 			if tt.serverExists {
-				repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+				serversRepo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 			}
 
 			target := probes.New(svr.GetAddr(), svrAddr.Port, probes.GoalPort)
@@ -849,10 +982,10 @@ func TestService_ProbePort_OutOfRetries(t *testing.T) {
 
 			probeErr := service.Probe(ctx, target)
 
-			queueSize, _ := queue.Count(ctx)
+			queueSize, _ := probesRepo.Count(ctx)
 			require.Equal(t, 0, queueSize)
 
-			maybeUpdatedServer, getErr := repo.Get(ctx, svr.GetAddr())
+			maybeUpdatedServer, getErr := serversRepo.Get(ctx, svr.GetAddr())
 
 			if tt.serverExists {
 				require.ErrorIs(t, probeErr, probing.ErrOutOfRetries)

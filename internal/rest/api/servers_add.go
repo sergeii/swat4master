@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog/log"
 
 	"github.com/sergeii/swat4master/internal/core/probes"
 	repo "github.com/sergeii/swat4master/internal/core/servers"
@@ -42,7 +41,7 @@ func (a *API) AddServer(c *gin.Context) {
 		case errors.Is(err, repo.ErrServerNotFound):
 			newSvr, err := createServerFromAddress(c, address, a.app.ServerService)
 			if err != nil {
-				log.Error().
+				a.logger.Error().
 					Err(err).Stringer("addr", address).
 					Msg("Unable to create new server")
 				c.Status(http.StatusInternalServerError)
@@ -50,7 +49,7 @@ func (a *API) AddServer(c *gin.Context) {
 			}
 			a.addServer(c, newSvr)
 		default:
-			log.Warn().
+			a.logger.Warn().
 				Err(err).Stringer("addr", address).
 				Msg("Unable to obtain server due to error")
 			c.Status(http.StatusInternalServerError)
@@ -64,30 +63,33 @@ func (a *API) AddServer(c *gin.Context) {
 func (a *API) addServer(c *gin.Context, svr repo.Server) {
 	switch {
 	case svr.HasDiscoveryStatus(ds.Details):
-		log.Debug().
+		a.logger.Debug().
 			Stringer("server", svr).Stringer("status", svr.GetDiscoveryStatus()).
 			Msg("Server already has details")
 		c.JSON(http.StatusOK, model.NewServerFromRepo(svr))
 	// server discovery is still pending
 	case svr.HasAnyDiscoveryStatus(ds.PortRetry | ds.DetailsRetry):
-		log.Debug().
+		a.logger.Debug().
 			Stringer("server", svr).Stringer("status", svr.GetDiscoveryStatus()).
 			Msg("Server discovery is in progress")
 		c.Status(http.StatusAccepted)
 	case svr.HasDiscoveryStatus(ds.NoPort):
-		log.Debug().
+		a.logger.Debug().
 			Stringer("server", svr).Stringer("status", svr.GetDiscoveryStatus()).
 			Msg("No port has been discovered for server")
 		c.Status(http.StatusGone)
 	// other status - send the server for port discovery
 	default:
 		if discErr := discoverServer(c, a.app.ServerService, a.app.FindingService, svr); discErr != nil {
-			log.Warn().
+			a.logger.Warn().
 				Err(discErr).Stringer("server", svr).
 				Msg("Unable to submit discovery for server")
 			c.Status(http.StatusInternalServerError)
 			return
 		}
+		a.logger.Info().
+			Stringer("server", svr).
+			Msg("Added existing server for rediscovery")
 		c.Status(http.StatusAccepted)
 	}
 }
@@ -154,8 +156,6 @@ func discoverServer(
 	if err = finder.DiscoverPort(ctx, svr.GetAddr(), probes.NC, probes.NC); err != nil {
 		return err
 	}
-
-	log.Info().Stringer("server", svr).Msg("Added existing server for rediscovery")
 
 	return nil
 }

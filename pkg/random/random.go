@@ -6,13 +6,14 @@ import (
 	mrand "math/rand"
 )
 
-func Seed() error {
+func Seed() (int64, error) {
 	var buf [8]byte
 	if _, err := crand.Read(buf[:]); err != nil {
-		return err
+		return -1, err
 	}
-	mrand.Seed(int64(binary.LittleEndian.Uint64(buf[:])))
-	return nil
+	seed := int64(binary.LittleEndian.Uint64(buf[:]))
+	mrand.Seed(seed)
+	return seed, nil
 }
 
 func RandInt(min, max int) int {

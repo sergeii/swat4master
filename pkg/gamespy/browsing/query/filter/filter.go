@@ -24,15 +24,19 @@ const (
 	fieldParserStageValue
 )
 
-var ErrInvalidFilterFormat = errors.New("invalid filter format")
-var ErrUnknownFieldName = errors.New("unknown field name")
-var ErrUnsupportedOperatorType = errors.New("unknown operator name")
-var ErrInvalidValueFormat = errors.New("unknown field value format")
+var (
+	ErrInvalidFilterFormat     = errors.New("invalid filter format")
+	ErrUnknownFieldName        = errors.New("unknown field name")
+	ErrUnsupportedOperatorType = errors.New("unknown operator name")
+	ErrInvalidValueFormat      = errors.New("unknown field value format")
+)
 
-var ErrMustBePointer = errors.New("fields value must be a pointer")
-var ErrFieldNotFound = errors.New("field was not found")
-var ErrFieldInvalidValueType = errors.New("field value contains invalid type")
-var ErrFieldUnsupportedOperatorType = errors.New("field value does not support provided operator")
+var (
+	ErrMustBePointer                = errors.New("fields value must be a pointer")
+	ErrFieldNotFound                = errors.New("field was not found")
+	ErrFieldInvalidValueType        = errors.New("field value contains invalid type")
+	ErrFieldUnsupportedOperatorType = errors.New("field value does not support provided operator")
+)
 
 type FieldValue struct {
 	field string
@@ -55,18 +59,17 @@ func NewFieldValue(field string) FieldValue {
 type Filter struct {
 	field string
 	op    Operator
-	opStr string
+	rawop string
 	value interface{}
 }
 
 func (f Filter) String() string {
-	return fmt.Sprintf("%s%s%v", f.field, f.opStr, f.value)
+	return fmt.Sprintf("%s%s%v", f.field, f.rawop, f.value)
 }
 
 // Match checks whether this filter instance matches either of the provided field set
 func (f Filter) Match(fields any) (bool, error) {
 	fieldValue, err := getStructField(fields, f.field)
-
 	if err != nil {
 		// the field does not exist in the set, so no match
 		if errors.Is(err, ErrFieldNotFound) {

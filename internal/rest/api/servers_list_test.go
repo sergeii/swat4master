@@ -10,11 +10,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/internal/core/servers"
 	"github.com/sergeii/swat4master/internal/entity/details"
 	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/testutils"
 )
 
@@ -49,10 +51,18 @@ type serverListSchema struct {
 }
 
 func TestAPI_ListServers_OK(t *testing.T) {
+	repos := memory.New()
 	ctx := context.TODO()
-	ts, app, cancel := testutils.PrepareTestServer(func(cfg *config.Config) {
-		cfg.BrowserServerLiveness = time.Millisecond * 15
-	})
+	ts, cancel := testutils.PrepareTestServer(
+		t,
+		fx.Decorate(func() servers.Repository {
+			return repos.Servers
+		}),
+		fx.Decorate(func(cfg config.Config) config.Config {
+			cfg.BrowserServerLiveness = time.Second * 15
+			return cfg
+		}),
+	)
 	defer cancel()
 
 	outdated, _ := servers.New(net.ParseIP("3.3.3.3"), 10480, 10481)
@@ -70,7 +80,7 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"numrounds":   "5",
 	}))
 	outdated.UpdateDiscoveryStatus(ds.Master)
-	app.Servers.Add(ctx, outdated, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, outdated, servers.OnConflictIgnore) // nolint: errcheck
 	<-time.After(time.Millisecond * 15)
 
 	noStatus, _ := servers.New(net.ParseIP("4.4.4.4"), 10480, 10481)
@@ -82,7 +92,7 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gamevariant": "SWAT 4",
 		"gametype":    "Barricaded Suspects",
 	}))
-	app.Servers.Add(ctx, noStatus, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, noStatus, servers.OnConflictIgnore) // nolint: errcheck
 	<-time.After(time.Millisecond * 1)
 
 	delisted, _ := servers.New(net.ParseIP("5.5.5.5"), 10480, 10481)
@@ -95,7 +105,7 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gametype":    "CO-OP",
 	}))
 	delisted.UpdateDiscoveryStatus(ds.NoDetails)
-	app.Servers.Add(ctx, delisted, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, delisted, servers.OnConflictIgnore) // nolint: errcheck
 	<-time.After(time.Millisecond * 1)
 
 	noInfo, _ := servers.New(net.ParseIP("6.6.6.6"), 10480, 10481)
@@ -108,12 +118,12 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gametype":    "CO-OP",
 	}))
 	noInfo.UpdateDiscoveryStatus(ds.Master | ds.Details)
-	app.Servers.Add(ctx, noInfo, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, noInfo, servers.OnConflictIgnore) // nolint: errcheck
 	<-time.After(time.Millisecond * 1)
 
 	noRefresh, _ := servers.New(net.ParseIP("7.7.7.7"), 10580, 10581)
 	noRefresh.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-	app.Servers.Add(ctx, noRefresh, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, noRefresh, servers.OnConflictIgnore) // nolint: errcheck
 
 	gs1, _ := servers.New(net.ParseIP("1.1.1.1"), 10580, 10581)
 	gs1.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -135,7 +145,7 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"suspectswon":   "2",
 	}))
 	gs1.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-	app.Servers.Add(ctx, gs1, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, gs1, servers.OnConflictIgnore) // nolint: errcheck
 	<-time.After(time.Millisecond * 5)
 
 	gs2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
@@ -150,7 +160,7 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"maxplayers":  "5",
 	}))
 	gs2.UpdateDiscoveryStatus(ds.Master | ds.Info)
-	app.Servers.Add(ctx, gs2, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, gs2, servers.OnConflictIgnore) // nolint: errcheck
 
 	respJSON := make([]serverListSchema, 0)
 	resp := testutils.DoTestRequest(
@@ -210,117 +220,6 @@ func TestAPI_ListServers_OK(t *testing.T) {
 }
 
 func TestAPI_ListServers_Filters(t *testing.T) {
-	ctx := context.TODO()
-	ts, app, cancel := testutils.PrepareTestServer(func(cfg *config.Config) {
-		cfg.BrowserServerLiveness = time.Second * 10
-	})
-	defer cancel()
-
-	vip, _ := servers.New(net.ParseIP("1.1.1.1"), 10580, 10581)
-	vip.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "VIP Escort Swat4 Server",
-		"hostport":    "10480",
-		"gametype":    "VIP Escort",
-		"gamevariant": "SWAT 4",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.1",
-		"password":    "0",
-		"numplayers":  "16",
-		"maxplayers":  "16",
-	}))
-	vip.UpdateDiscoveryStatus(ds.Master | ds.Info)
-	app.Servers.Add(ctx, vip, servers.OnConflictIgnore) // nolint: errcheck
-
-	vip10, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
-	vip10.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "VIP 1.0 Swat4 Server",
-		"hostport":    "10480",
-		"gametype":    "VIP Escort",
-		"mapname":     "The Wolcott Projects",
-		"gamevariant": "SWAT 4",
-		"gamever":     "1.0",
-		"password":    "0",
-		"numplayers":  "16",
-		"maxplayers":  "18",
-	}))
-	vip10.UpdateDiscoveryStatus(ds.Master | ds.Info)
-	app.Servers.Add(ctx, vip10, servers.OnConflictIgnore) // nolint: errcheck
-
-	bs, _ := servers.New(net.ParseIP("3.3.3.3"), 10480, 10481)
-	bs.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "BS Swat4 Server",
-		"hostport":    "10480",
-		"gametype":    "Barricaded Suspects",
-		"mapname":     "Food Wall Restaurant",
-		"gamevariant": "SWAT 4",
-		"gamever":     "1.1",
-		"password":    "0",
-		"numplayers":  "0",
-		"maxplayers":  "16",
-	}))
-	bs.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-	app.Servers.Add(ctx, bs, servers.OnConflictIgnore) // nolint: errcheck
-
-	coop, _ := servers.New(net.ParseIP("4.4.4.4"), 10480, 10481)
-	coop.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "COOP Swat4 Server",
-		"hostport":    "10480",
-		"gametype":    "CO-OP",
-		"mapname":     "Food Wall Restaurant",
-		"gamevariant": "SWAT 4",
-		"gamever":     "1.1",
-		"password":    "0",
-		"numplayers":  "0",
-		"maxplayers":  "5",
-	}))
-	coop.UpdateDiscoveryStatus(ds.Details | ds.Info)
-	app.Servers.Add(ctx, coop, servers.OnConflictIgnore) // nolint: errcheck
-
-	sg, _ := servers.New(net.ParseIP("5.5.5.5"), 10480, 10481)
-	sg.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "S&G Swat4 Server",
-		"hostport":    "10480",
-		"gametype":    "Smash And Grab",
-		"gamevariant": "SWAT 4X",
-		"mapname":     "-EXP- FunTime Amusements",
-		"gamever":     "1.0",
-		"password":    "0",
-		"numplayers":  "0",
-		"maxplayers":  "16",
-	}))
-	sg.UpdateDiscoveryStatus(ds.Master | ds.Info | ds.NoDetails)
-	app.Servers.Add(ctx, sg, servers.OnConflictIgnore) // nolint: errcheck
-
-	coopx, _ := servers.New(net.ParseIP("6.6.6.6"), 10480, 10481)
-	coopx.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "TSS COOP Swat4 Server",
-		"hostport":    "10480",
-		"gametype":    "CO-OP",
-		"gamevariant": "SWAT 4X",
-		"mapname":     "-EXP- FunTime Amusements",
-		"gamever":     "1.0",
-		"password":    "0",
-		"numplayers":  "1",
-		"maxplayers":  "10",
-	}))
-	coopx.UpdateDiscoveryStatus(ds.Master | ds.Info)
-	app.Servers.Add(ctx, coopx, servers.OnConflictIgnore) // nolint: errcheck
-
-	passworded, _ := servers.New(net.ParseIP("7.7.7.7"), 10480, 10481)
-	passworded.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Private Swat4 Server",
-		"hostport":    "10480",
-		"gametype":    "VIP Escort",
-		"gamevariant": "SWAT 4",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.1",
-		"password":    "1",
-		"numplayers":  "0",
-		"maxplayers":  "16",
-	}))
-	passworded.UpdateDiscoveryStatus(ds.Details | ds.Info)
-	app.Servers.Add(ctx, passworded, servers.OnConflictIgnore) // nolint: errcheck
-
 	tests := []struct {
 		name    string
 		qs      url.Values
@@ -486,6 +385,125 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			repos := memory.New()
+			ctx := context.TODO()
+			ts, cancel := testutils.PrepareTestServer(
+				t,
+				fx.Decorate(func() servers.Repository {
+					return repos.Servers
+				}),
+				fx.Decorate(func(cfg config.Config) config.Config {
+					cfg.BrowserServerLiveness = time.Second * 10
+					return cfg
+				}),
+			)
+			defer cancel()
+
+			vip, _ := servers.New(net.ParseIP("1.1.1.1"), 10580, 10581)
+			vip.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
+				"hostname":    "VIP Escort Swat4 Server",
+				"hostport":    "10480",
+				"gametype":    "VIP Escort",
+				"gamevariant": "SWAT 4",
+				"mapname":     "A-Bomb Nightclub",
+				"gamever":     "1.1",
+				"password":    "0",
+				"numplayers":  "16",
+				"maxplayers":  "16",
+			}))
+			vip.UpdateDiscoveryStatus(ds.Master | ds.Info)
+			repos.Servers.Add(ctx, vip, servers.OnConflictIgnore) // nolint: errcheck
+
+			vip10, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
+			vip10.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
+				"hostname":    "VIP 1.0 Swat4 Server",
+				"hostport":    "10480",
+				"gametype":    "VIP Escort",
+				"mapname":     "The Wolcott Projects",
+				"gamevariant": "SWAT 4",
+				"gamever":     "1.0",
+				"password":    "0",
+				"numplayers":  "16",
+				"maxplayers":  "18",
+			}))
+			vip10.UpdateDiscoveryStatus(ds.Master | ds.Info)
+			repos.Servers.Add(ctx, vip10, servers.OnConflictIgnore) // nolint: errcheck
+
+			bs, _ := servers.New(net.ParseIP("3.3.3.3"), 10480, 10481)
+			bs.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
+				"hostname":    "BS Swat4 Server",
+				"hostport":    "10480",
+				"gametype":    "Barricaded Suspects",
+				"mapname":     "Food Wall Restaurant",
+				"gamevariant": "SWAT 4",
+				"gamever":     "1.1",
+				"password":    "0",
+				"numplayers":  "0",
+				"maxplayers":  "16",
+			}))
+			bs.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
+			repos.Servers.Add(ctx, bs, servers.OnConflictIgnore) // nolint: errcheck
+
+			coop, _ := servers.New(net.ParseIP("4.4.4.4"), 10480, 10481)
+			coop.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
+				"hostname":    "COOP Swat4 Server",
+				"hostport":    "10480",
+				"gametype":    "CO-OP",
+				"mapname":     "Food Wall Restaurant",
+				"gamevariant": "SWAT 4",
+				"gamever":     "1.1",
+				"password":    "0",
+				"numplayers":  "0",
+				"maxplayers":  "5",
+			}))
+			coop.UpdateDiscoveryStatus(ds.Details | ds.Info)
+			repos.Servers.Add(ctx, coop, servers.OnConflictIgnore) // nolint: errcheck
+
+			sg, _ := servers.New(net.ParseIP("5.5.5.5"), 10480, 10481)
+			sg.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
+				"hostname":    "S&G Swat4 Server",
+				"hostport":    "10480",
+				"gametype":    "Smash And Grab",
+				"gamevariant": "SWAT 4X",
+				"mapname":     "-EXP- FunTime Amusements",
+				"gamever":     "1.0",
+				"password":    "0",
+				"numplayers":  "0",
+				"maxplayers":  "16",
+			}))
+			sg.UpdateDiscoveryStatus(ds.Master | ds.Info | ds.NoDetails)
+			repos.Servers.Add(ctx, sg, servers.OnConflictIgnore) // nolint: errcheck
+
+			coopx, _ := servers.New(net.ParseIP("6.6.6.6"), 10480, 10481)
+			coopx.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
+				"hostname":    "TSS COOP Swat4 Server",
+				"hostport":    "10480",
+				"gametype":    "CO-OP",
+				"gamevariant": "SWAT 4X",
+				"mapname":     "-EXP- FunTime Amusements",
+				"gamever":     "1.0",
+				"password":    "0",
+				"numplayers":  "1",
+				"maxplayers":  "10",
+			}))
+			coopx.UpdateDiscoveryStatus(ds.Master | ds.Info)
+			repos.Servers.Add(ctx, coopx, servers.OnConflictIgnore) // nolint: errcheck
+
+			passworded, _ := servers.New(net.ParseIP("7.7.7.7"), 10480, 10481)
+			passworded.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
+				"hostname":    "Private Swat4 Server",
+				"hostport":    "10480",
+				"gametype":    "VIP Escort",
+				"gamevariant": "SWAT 4",
+				"mapname":     "A-Bomb Nightclub",
+				"gamever":     "1.1",
+				"password":    "1",
+				"numplayers":  "0",
+				"maxplayers":  "16",
+			}))
+			passworded.UpdateDiscoveryStatus(ds.Details | ds.Info)
+			repos.Servers.Add(ctx, passworded, servers.OnConflictIgnore) // nolint: errcheck
+
 			respJSON := make([]serverListSchema, 0)
 			uri := "/api/servers"
 			if len(tt.qs) > 0 {
@@ -509,7 +527,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 }
 
 func TestAPI_ListServers_Empty(t *testing.T) {
-	ts, _, cancel := testutils.PrepareTestServer()
+	ts, cancel := testutils.PrepareTestServer(t)
 	defer cancel()
 
 	respJSON := make([]serverListSchema, 0)
