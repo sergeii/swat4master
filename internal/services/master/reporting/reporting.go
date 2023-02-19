@@ -401,14 +401,7 @@ func parseInstanceID(req []byte) (string, bool) {
 	if len(req) < 5 {
 		return "", false
 	}
-	instanceID := req[1:5]
-	// there cannot be nulls in the instance id
-	for _, b := range instanceID {
-		if b == 0x00 {
-			return "", false
-		}
-	}
-	return string(instanceID), true
+	return string(req[1:5]), true
 }
 
 func (s *Service) parseHeartbeatFields(payload []byte) (map[string]string, error) {
@@ -431,6 +424,7 @@ func (s *Service) parseHeartbeatFields(payload []byte) (map[string]string, error
 		// there should be another c string in the slice after the field name, which is the field's value
 		// Throw an error if that's not the case
 		if len(unparsed) == 0 || unparsed[0] == 0x00 {
+			s.logger.Debug().Msg("Heartbeat fields were not fully parsed")
 			return nil, ErrInvalidRequestPayload
 		}
 		valueBin, unparsed = binutils.ConsumeCString(unparsed)
