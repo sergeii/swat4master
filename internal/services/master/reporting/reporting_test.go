@@ -83,6 +83,11 @@ func TestReporter_DispatchChallengeRequest_InvalidInstanceID(t *testing.T) {
 			wantResp: []byte{0xfe, 0xfd, 0x0a, 0xfe, 0xed, 0xf0, 0x0d},
 		},
 		{
+			name:     "positive edge case - all nulls",
+			payload:  []byte{0x01, 0x00, 0x00, 0x00, 0x00},
+			wantResp: []byte{0xfe, 0xfd, 0x0a, 0x00, 0x00, 0x00, 0x00},
+		},
+		{
 			name:    "insufficient payload length #1",
 			payload: []byte{0x01},
 			wantErr: reporting.ErrInvalidRequestPayload,
@@ -90,11 +95,6 @@ func TestReporter_DispatchChallengeRequest_InvalidInstanceID(t *testing.T) {
 		{
 			name:    "insufficient payload length #2",
 			payload: []byte{0x01, 0xfe, 0xed},
-			wantErr: reporting.ErrInvalidRequestPayload,
-		},
-		{
-			name:    "invalid instance id",
-			payload: []byte{0x01, 0x00, 0x00, 0x00, 0x00},
 			wantErr: reporting.ErrInvalidRequestPayload,
 		},
 	}
@@ -485,6 +485,11 @@ func TestReporter_DispatchHeartbeatRequest_InvalidPayload(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "positive edge case - null instance id",
+			payload: testutils.PackHeartbeatRequest([]byte{0xfe, 0x00, 0x00, 0x0d}, testutils.GenServerParams()),
+			wantErr: false,
+		},
+		{
 			name:    "insufficient payload length #1",
 			payload: []byte{0x03},
 			wantErr: true,
@@ -497,11 +502,6 @@ func TestReporter_DispatchHeartbeatRequest_InvalidPayload(t *testing.T) {
 		{
 			name:    "no fields are present",
 			payload: testutils.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, nil),
-			wantErr: true,
-		},
-		{
-			name:    "invalid instance id",
-			payload: testutils.PackHeartbeatRequest([]byte{0xfe, 0x00, 0x00, 0x0d}, testutils.GenServerParams()),
 			wantErr: true,
 		},
 		{
@@ -784,42 +784,48 @@ func TestReporter_DispatchKeepaliveRequest_RefreshesServerLiveness(t *testing.T)
 
 func TestReporter_DispatchKeepaliveRequest_Errors(t *testing.T) {
 	tests := []struct {
-		name    string
-		payload []byte
-		ipaddr  string
-		wantErr error
+		name       string
+		instanceID []byte
+		payload    []byte
+		ipaddr     string
+		wantErr    error
 	}{
 		{
-			name:    "positive case",
-			payload: []byte{0x08, 0xfe, 0xed, 0xf0, 0x0d},
-			ipaddr:  "1.1.1.1",
+			name:       "positive case",
+			instanceID: []byte{0xfe, 0xed, 0xf0, 0x0d},
+			payload:    []byte{0x08, 0xfe, 0xed, 0xf0, 0x0d},
+			ipaddr:     "1.1.1.1",
+			wantErr:    nil,
 		},
 		{
-			name:    "unmatched ip address",
-			payload: []byte{0x08, 0xfe, 0xed, 0xf0, 0x0d},
-			ipaddr:  "2.2.2.2",
-			wantErr: reporting.ErrUnknownInstanceID,
+			name:       "positive edge case - some nulls in instance id",
+			instanceID: []byte{0xfe, 0x00, 0xf0, 0x0d},
+			payload:    []byte{0x08, 0xfe, 0x00, 0xf0, 0x0d},
+			ipaddr:     "1.1.1.1",
+			wantErr:    nil,
 		},
 		{
-			name:    "unknown instance key",
-			payload: []byte{0x08, 0xde, 0xad, 0xbe, 0xef},
-			ipaddr:  "1.1.1.1",
-			wantErr: instances.ErrInstanceNotFound,
+			name:       "unmatched ip address",
+			instanceID: []byte{0xfe, 0xed, 0xf0, 0x0d},
+			payload:    []byte{0x08, 0xfe, 0xed, 0xf0, 0x0d},
+			ipaddr:     "2.2.2.2",
+			wantErr:    reporting.ErrUnknownInstanceID,
 		},
 		{
-			name:    "unacceptable payload - length",
-			payload: []byte{0x08, 0xfe, 0xed},
-			ipaddr:  "1.1.1.1",
-			wantErr: reporting.ErrInvalidRequestPayload,
+			name:       "unknown instance key",
+			instanceID: []byte{0xfe, 0xed, 0xf0, 0x0d},
+			payload:    []byte{0x08, 0xde, 0xad, 0xbe, 0xef},
+			ipaddr:     "1.1.1.1",
+			wantErr:    instances.ErrInstanceNotFound,
 		},
 		{
-			name:    "unacceptable payload - nulls",
-			payload: []byte{0x08, 0xfe, 0x00, 0xf0, 0x0d},
-			ipaddr:  "1.1.1.1",
-			wantErr: reporting.ErrInvalidRequestPayload,
+			name:       "unacceptable payload - length",
+			instanceID: []byte{0xfe, 0xed, 0xf0, 0x0d},
+			payload:    []byte{0x08, 0xfe, 0xed},
+			ipaddr:     "1.1.1.1",
+			wantErr:    reporting.ErrInvalidRequestPayload,
 		},
 	}
-	reportedInstanceID := []byte{0xfe, 0xed, 0xf0, 0x0d}
 	reportedServerIP := "1.1.1.1"
 
 	for _, tt := range tests {
@@ -833,7 +839,7 @@ func TestReporter_DispatchKeepaliveRequest_Errors(t *testing.T) {
 			// initial heartbeat report
 			service.DispatchRequest( // nolint: errcheck
 				context.TODO(),
-				testutils.PackHeartbeatRequest(reportedInstanceID, testutils.GenServerParams()),
+				testutils.PackHeartbeatRequest(tt.instanceID, testutils.GenServerParams()),
 				&net.UDPAddr{IP: net.ParseIP(reportedServerIP), Port: 10481},
 			)
 			// keepalive request in a while

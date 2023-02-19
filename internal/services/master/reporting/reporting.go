@@ -401,14 +401,7 @@ func parseInstanceID(req []byte) (string, bool) {
 	if len(req) < 5 {
 		return "", false
 	}
-	instanceID := req[1:5]
-	// there cannot be nulls in the instance id
-	for _, b := range instanceID {
-		if b == 0x00 {
-			return "", false
-		}
-	}
-	return string(instanceID), true
+	return string(req[1:5]), true
 }
 
 func (s *Service) parseHeartbeatFields(payload []byte) (map[string]string, error) {
