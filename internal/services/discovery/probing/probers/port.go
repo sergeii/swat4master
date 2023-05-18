@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/go-playground/validator/v10"
 	"github.com/rs/zerolog"
 
@@ -45,6 +46,7 @@ type PortProberOpts struct {
 type PortProber struct {
 	metrics  *monitoring.MetricService
 	validate *validator.Validate
+	clock    clock.Clock
 	logger   *zerolog.Logger
 	opts     PortProberOpts
 }
@@ -53,12 +55,14 @@ func NewPortProber(
 	service *probing.Service,
 	metrics *monitoring.MetricService,
 	validate *validator.Validate,
+	clock clock.Clock,
 	logger *zerolog.Logger,
 	opts PortProberOpts,
 ) (*PortProber, error) {
 	pp := &PortProber{
 		metrics:  metrics,
 		validate: validate,
+		clock:    clock,
 		logger:   logger,
 		opts:     opts,
 	}
@@ -144,7 +148,7 @@ func (s *PortProber) probePort(
 	timeout time.Duration,
 ) {
 	defer wg.Done()
-	queryStarted := time.Now()
+	queryStarted := s.clock.Now()
 
 	resp, err := gs1.Query(ctx, netip.AddrPortFrom(ip, uint16(queryPort)), timeout)
 	if err != nil {
@@ -171,7 +175,7 @@ func (s *PortProber) probePort(
 		return
 	}
 
-	queryDur := time.Since(queryStarted).Seconds()
+	queryDur := s.clock.Since(queryStarted).Seconds()
 	s.metrics.DiscoveryQueryDurations.Observe(queryDur)
 	s.logger.Debug().
 		Stringer("ip", ip).Int("port", queryPort).
@@ -190,7 +194,7 @@ func (s *PortProber) collectResponses(
 	// this timeout should never trigger
 	// because we expect query goroutines to stop within configured probe timeout
 	// but in case of unexpected goroutine hangup, add this emergency timeout
-	exitTimeout := time.After(timeout * 2)
+	exitTimeout := s.clock.After(timeout * 2)
 	ok := false
 	for {
 		select {
@@ -218,7 +222,7 @@ func (s *PortProber) HandleSuccess(res any, svr servers.Server) servers.Server {
 		panic(fmt.Errorf("unexpected result type %T, %v", result, result))
 	}
 	svr.UpdateQueryPort(result.port)
-	svr.UpdateDetails(result.details)
+	svr.UpdateDetails(result.details, s.clock.Now())
 	svr.UpdateDiscoveryStatus(ds.Info | ds.Details | ds.Port)
 	svr.ClearDiscoveryStatus(ds.NoDetails | ds.DetailsRetry | ds.PortRetry | ds.NoPort)
 	return svr

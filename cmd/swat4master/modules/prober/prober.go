@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
@@ -21,12 +22,14 @@ func provideWorkerGroup(
 	cfg config.Config,
 	service *probing.Service,
 	metrics *monitoring.MetricService,
+	clock clock.Clock,
 	logger *zerolog.Logger,
 ) *WorkerGroup {
 	return NewWorkerGroup(
 		cfg.ProbeConcurrency,
 		service,
 		metrics,
+		clock,
 		logger,
 	)
 }

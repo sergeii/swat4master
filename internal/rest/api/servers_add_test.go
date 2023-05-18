@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -60,10 +61,12 @@ type serverAddErrorSchema struct {
 }
 
 func TestAPI_AddServer_SubmitNew(t *testing.T) {
-	repos := memory.New()
 	ctx := context.TODO()
+	clockMock := clock.NewMock()
+	repos := memory.New(clockMock)
 	ts, cancel := testutils.PrepareTestServer(
 		t,
+		fx.Decorate(func() clock.Clock { return clockMock }),
 		fx.Decorate(func() (servers.Repository, probes.Repository) {
 			return repos.Servers, repos.Probes
 		}),
@@ -167,10 +170,12 @@ func TestAPI_AddServer_SubmitExisting(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repos := memory.New()
 			ctx := context.TODO()
+			clockMock := clock.NewMock()
+			repos := memory.New(clockMock)
 			ts, cancel := testutils.PrepareTestServer(
 				t,
+				fx.Decorate(func() clock.Clock { return clockMock }),
 				fx.Decorate(func() (servers.Repository, probes.Repository) {
 					return repos.Servers, repos.Probes
 				}),
@@ -216,10 +221,12 @@ func TestAPI_AddServer_SubmitExisting(t *testing.T) {
 }
 
 func TestAPI_AddServer_AlreadyDiscovered(t *testing.T) {
-	repos := memory.New()
 	ctx := context.TODO()
+	clockMock := clock.NewMock()
+	repos := memory.New(clockMock)
 	ts, cancel := testutils.PrepareTestServer(
 		t,
+		fx.Decorate(func() clock.Clock { return clockMock }),
 		fx.Decorate(func() (servers.Repository, probes.Repository) {
 			return repos.Servers, repos.Probes
 		}),
@@ -249,7 +256,7 @@ func TestAPI_AddServer_AlreadyDiscovered(t *testing.T) {
 	svr, err := servers.NewFromAddr(addr.MustNewFromString("1.1.1.1", 10480), 10484)
 	require.NoError(t, err)
 	svr.UpdateDiscoveryStatus(ds.Details)
-	svr.UpdateDetails(det)
+	svr.UpdateDetails(det, clockMock.Now())
 	repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 
 	payload, _ := json.Marshal(serverAddReqSchema{ // nolint: errchkjson
@@ -346,10 +353,12 @@ func TestAPI_AddServer_ValidateAddress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repos := memory.New()
 			ctx := context.TODO()
+			clockMock := clock.NewMock()
+			repos := memory.New(clockMock)
 			ts, cancel := testutils.PrepareTestServer(
 				t,
+				fx.Decorate(func() clock.Clock { return clockMock }),
 				fx.Decorate(func() (servers.Repository, probes.Repository) {
 					return repos.Servers, repos.Probes
 				}),

@@ -11,10 +11,7 @@ func Unmarshal(params map[string]string, v any) error {
 	if err := validatePointer(rv); err != nil {
 		return err
 	}
-	if err := unmarshal(params, rv.Elem()); err != nil {
-		return err
-	}
-	return nil
+	return unmarshal(params, rv.Elem())
 }
 
 func unmarshal(params map[string]string, sv reflect.Value) error {

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,6 +31,7 @@ import (
 
 func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts := []fx.Option{
+		fx.Provide(clock.New),
 		fx.Provide(memory.New),
 		fx.Provide(validation.New),
 		fx.Provide(func() *zerolog.Logger {
@@ -54,6 +56,14 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts = append(fxopts, extra...)
 	app := fxtest.New(tb, fxopts...)
 	app.RequireStart().RequireStop()
+}
+
+func overrideClock(c clock.Clock) fx.Option {
+	return fx.Decorate(
+		func() clock.Clock {
+			return c
+		},
+	)
 }
 
 func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
@@ -374,7 +384,8 @@ func TestMasterBrowserService_HandleRequest_ServerList(t *testing.T) {
 	var reporter *reporting.Service
 	var browser *browsing.Service
 
-	makeApp(t, fx.Populate(&reporter, &browser))
+	clockMock := clock.NewMock()
+	makeApp(t, fx.Populate(&reporter, &browser), overrideClock(clockMock))
 
 	for _, filter := range []string{"", "gametype='VIP Escort'"} {
 		resp, err := testutils.SendBrowserRequest(browser, filter, testutils.WithRandomAddr())
@@ -396,7 +407,8 @@ func TestMasterBrowserService_HandleRequest_ServerList(t *testing.T) {
 		assert.Equal(t, "Swat4 Server", list[0]["hostname"])
 	}
 
-	time.Sleep(time.Millisecond * 20)
+	clockMock.Add(time.Millisecond * 20)
+
 	testutils.SendHeartbeat( // nolint: errcheck
 		reporter,
 		[]byte{0xbe, 0xef, 0xbe, 0xef},

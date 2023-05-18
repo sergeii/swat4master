@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	"github.com/sergeii/swat4master/internal/core/servers"
 	"github.com/sergeii/swat4master/internal/entity/addr"
 	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
@@ -19,13 +21,15 @@ type server struct {
 type Repository struct {
 	servers map[addr.Addr]*list.Element // ip:port -> instance item mapping (wrapped in a linked list element)
 	history *list.List                  // history of reported servers with the most recent servers being in the front
+	clock   clock.Clock
 	mutex   sync.RWMutex
 }
 
-func New() *Repository {
+func New(c clock.Clock) *Repository {
 	repo := &Repository{
 		servers: make(map[addr.Addr]*list.Element),
 		history: list.New(),
+		clock:   c,
 	}
 	return repo
 }
@@ -45,7 +49,7 @@ func (mr *Repository) Add(
 	if !exists {
 		item = &server{
 			Server:    svr,
-			UpdatedAt: time.Now(),
+			UpdatedAt: mr.clock.Now(),
 		}
 		elem = mr.history.PushFront(item)
 		mr.servers[key] = elem
@@ -109,7 +113,7 @@ func (mr *Repository) update(
 	svr.IncVersion()
 
 	item.Server = svr
-	item.UpdatedAt = time.Now()
+	item.UpdatedAt = mr.clock.Now()
 
 	mr.history.MoveToFront(elem)
 
@@ -182,11 +186,11 @@ func (mr *Repository) Filter( // nolint: cyclop
 			break
 		}
 		switch {
-		case byUpdatedBefore && updatedAt.After(updatedBefore):
+		case byUpdatedBefore && !updatedAt.Before(updatedBefore):
 			continue
 		case byActiveAfter && (refreshedAt.IsZero() || refreshedAt.Before(activeAfter)):
 			continue
-		case byActiveBefore && (refreshedAt.IsZero() || refreshedAt.After(activeBefore)):
+		case byActiveBefore && (refreshedAt.IsZero() || !refreshedAt.Before(activeBefore)):
 			continue
 		case byWithStatus && !rep.Server.HasDiscoveryStatus(withStatus):
 			continue

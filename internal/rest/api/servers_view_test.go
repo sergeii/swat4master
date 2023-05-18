@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
@@ -85,10 +86,12 @@ type serverDetailSchema struct {
 }
 
 func TestAPI_ViewServer_OK(t *testing.T) {
-	repos := memory.New()
 	ctx := context.TODO()
+	clockMock := clock.NewMock()
+	repos := memory.New(clockMock)
 	ts, cancel := testutils.PrepareTestServer(
 		t,
+		fx.Decorate(func() clock.Clock { return clockMock }),
 		fx.Decorate(func() servers.Repository {
 			return repos.Servers
 		}),
@@ -139,10 +142,10 @@ func TestAPI_ViewServer_OK(t *testing.T) {
 	}
 
 	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10580, 10581)
-	svr.UpdateDetails(details.MustNewDetailsFromParams(fields, players, nil))
+	svr.UpdateDetails(details.MustNewDetailsFromParams(fields, players, nil), clockMock.Now())
 	svr.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
 	repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
-	<-time.After(time.Millisecond * 5)
+	clockMock.Add(time.Millisecond * 5)
 
 	obj := serverDetailSchema{}
 	resp := testutils.DoTestRequest(
@@ -194,10 +197,12 @@ func TestAPI_ViewServer_OK(t *testing.T) {
 }
 
 func TestAPI_ViewServer_Coop_OK(t *testing.T) {
-	repos := memory.New()
 	ctx := context.TODO()
+	clockMock := clock.NewMock()
+	repos := memory.New(clockMock)
 	ts, cancel := testutils.PrepareTestServer(
 		t,
+		fx.Decorate(func() clock.Clock { return clockMock }),
 		fx.Decorate(func() servers.Repository {
 			return repos.Servers
 		}),
@@ -263,10 +268,10 @@ func TestAPI_ViewServer_Coop_OK(t *testing.T) {
 	}
 
 	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10880, 10881)
-	svr.UpdateDetails(details.MustNewDetailsFromParams(fields, players, objectives))
+	svr.UpdateDetails(details.MustNewDetailsFromParams(fields, players, objectives), clockMock.Now())
 	svr.UpdateDiscoveryStatus(ds.Details | ds.Info)
 	repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
-	<-time.After(time.Millisecond * 5)
+	clockMock.Add(time.Millisecond * 5)
 
 	obj := serverDetailSchema{}
 	resp := testutils.DoTestRequest(
@@ -321,10 +326,12 @@ func TestAPI_ViewServer_Coop_OK(t *testing.T) {
 }
 
 func TestAPI_ViewServer_MinimalInfo_OK(t *testing.T) {
-	repos := memory.New()
 	ctx := context.TODO()
+	clockMock := clock.NewMock()
+	repos := memory.New(clockMock)
 	ts, cancel := testutils.PrepareTestServer(
 		t,
+		fx.Decorate(func() clock.Clock { return clockMock }),
 		fx.Decorate(func() servers.Repository {
 			return repos.Servers
 		}),
@@ -341,10 +348,10 @@ func TestAPI_ViewServer_MinimalInfo_OK(t *testing.T) {
 	}
 
 	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil))
+	svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil), clockMock.Now())
 	svr.UpdateDiscoveryStatus(ds.Details | ds.Info)
 	repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
-	<-time.After(time.Millisecond * 5)
+	clockMock.Add(time.Millisecond * 5)
 
 	obj := serverDetailSchema{}
 	resp := testutils.DoTestRequest(
@@ -372,10 +379,12 @@ func TestAPI_ViewServer_MinimalInfo_OK(t *testing.T) {
 }
 
 func TestAPI_ViewServer_NoInfo_OK(t *testing.T) {
-	repos := memory.New()
 	ctx := context.TODO()
+	clockMock := clock.NewMock()
+	repos := memory.New(clockMock)
 	ts, cancel := testutils.PrepareTestServer(
 		t,
+		fx.Decorate(func() clock.Clock { return clockMock }),
 		fx.Decorate(func() servers.Repository {
 			return repos.Servers
 		}),
@@ -385,7 +394,7 @@ func TestAPI_ViewServer_NoInfo_OK(t *testing.T) {
 	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	svr.UpdateDiscoveryStatus(ds.Details | ds.Info)
 	repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
-	<-time.After(time.Millisecond * 5)
+	clockMock.Add(time.Millisecond * 5)
 
 	obj := serverDetailSchema{}
 	resp := testutils.DoTestRequest(
@@ -431,10 +440,12 @@ func TestAPI_ViewServer_NotFound(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repos := memory.New()
 			ctx := context.TODO()
+			clockMock := clock.NewMock()
+			repos := memory.New(clockMock)
 			ts, cancel := testutils.PrepareTestServer(
 				t,
+				fx.Decorate(func() clock.Clock { return clockMock }),
 				fx.Decorate(func() servers.Repository {
 					return repos.Servers
 				}),
@@ -451,10 +462,10 @@ func TestAPI_ViewServer_NotFound(t *testing.T) {
 			}
 
 			svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-			svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil))
+			svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil), clockMock.Now())
 			svr.UpdateDiscoveryStatus(ds.Details)
 			repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
-			<-time.After(time.Millisecond * 5)
+			clockMock.Add(time.Millisecond * 5)
 
 			path := "/api/servers/" + tt.address
 
@@ -557,10 +568,12 @@ func TestAPI_ViewServer_AddressValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repos := memory.New()
 			ctx := context.TODO()
+			clockMock := clock.NewMock()
+			repos := memory.New(clockMock)
 			ts, cancel := testutils.PrepareTestServer(
 				t,
+				fx.Decorate(func() clock.Clock { return clockMock }),
 				fx.Decorate(func() servers.Repository {
 					return repos.Servers
 				}),
@@ -577,10 +590,10 @@ func TestAPI_ViewServer_AddressValidation(t *testing.T) {
 			}
 
 			svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-			svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil))
+			svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil), clockMock.Now())
 			svr.UpdateDiscoveryStatus(ds.Details)
 			repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
-			<-time.After(time.Millisecond * 5)
+			clockMock.Add(time.Millisecond * 5)
 
 			obj := serverDetailSchema{}
 			resp := testutils.DoTestRequest(
@@ -632,10 +645,12 @@ func TestAPI_ViewServer_StatusValidation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repos := memory.New()
 			ctx := context.TODO()
+			clockMock := clock.NewMock()
+			repos := memory.New(clockMock)
 			ts, cancel := testutils.PrepareTestServer(
 				t,
+				fx.Decorate(func() clock.Clock { return clockMock }),
 				fx.Decorate(func() servers.Repository {
 					return repos.Servers
 				}),
@@ -652,10 +667,10 @@ func TestAPI_ViewServer_StatusValidation(t *testing.T) {
 			}
 
 			svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-			svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil))
+			svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil), clockMock.Now())
 			svr.UpdateDiscoveryStatus(tt.status)
 			repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
-			<-time.After(time.Millisecond * 5)
+			clockMock.Add(time.Millisecond * 5)
 
 			if tt.want {
 				obj := serverDetailSchema{}

@@ -237,17 +237,17 @@ func expandPayload(payload []byte, version QueryVersion) (Response, error) {
 		}
 		// \player_2\James_Bond_007\
 		if i := bytes.IndexByte(param.Name, '_'); i != -1 {
-			if len(param.Name) > i+1 {
-				id, err := strconv.Atoi(string(param.Name[i+1:]))
-				if err != nil {
-					return Blank, ErrResponseMalformed
-				}
-				if _, ok := playersByID[id]; !ok {
-					playersByID[id] = make(map[string]string)
-				}
-				playersByID[id][string(param.Name[:i])] = latin1(param.Value)
+			if len(param.Name) <= i+1 {
+				continue
 			}
-			continue
+			id, err := strconv.Atoi(string(param.Name[i+1:]))
+			if err != nil {
+				return Blank, ErrResponseMalformed
+			}
+			if _, ok := playersByID[id]; !ok {
+				playersByID[id] = make(map[string]string)
+			}
+			playersByID[id][string(param.Name[:i])] = latin1(param.Value)
 		}
 		fields[string(param.Name)] = latin1(param.Value)
 	}

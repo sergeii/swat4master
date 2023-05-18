@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"sync/atomic"
-	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/rs/zerolog"
 
 	"github.com/sergeii/swat4master/internal/core/probes"
@@ -18,6 +18,7 @@ type WorkerGroup struct {
 	busy        int64
 	prober      *probing.Service
 	metrics     *monitoring.MetricService
+	clock       clock.Clock
 	logger      *zerolog.Logger
 }
 
@@ -25,95 +26,97 @@ func NewWorkerGroup(
 	concurrency int,
 	prober *probing.Service,
 	metrics *monitoring.MetricService,
+	clock clock.Clock,
 	logger *zerolog.Logger,
 ) *WorkerGroup {
 	return &WorkerGroup{
 		concurrency: concurrency,
 		prober:      prober,
 		metrics:     metrics,
+		clock:       clock,
 		logger:      logger,
 	}
 }
 
-func (wp *WorkerGroup) Run(ctx context.Context) chan probes.Target {
-	wp.metrics.DiscoveryWorkersAvailable.Add(float64(wp.concurrency))
-	queue := make(chan probes.Target, wp.concurrency)
-	for i := 0; i < wp.concurrency; i++ {
-		go wp.work(ctx, queue)
+func (wg *WorkerGroup) Run(ctx context.Context) chan probes.Target {
+	wg.metrics.DiscoveryWorkersAvailable.Add(float64(wg.concurrency))
+	queue := make(chan probes.Target, wg.concurrency)
+	for i := 0; i < wg.concurrency; i++ {
+		go wg.work(ctx, queue)
 	}
 	return queue
 }
 
-func (wp *WorkerGroup) work(
+func (wg *WorkerGroup) work(
 	ctx context.Context,
 	queue chan probes.Target,
 ) {
 	for {
 		select {
 		case <-ctx.Done():
-			wp.logger.Debug().Msg("Stopping worker")
+			wg.logger.Debug().Msg("Stopping worker")
 			return
 		case target := <-queue:
-			wp.probe(ctx, target)
+			wg.probe(ctx, target)
 		}
 	}
 }
 
-func (wp *WorkerGroup) probe(ctx context.Context, target probes.Target) {
-	atomic.AddInt64(&wp.busy, 1)
-	wp.metrics.DiscoveryWorkersBusy.Inc()
-	wp.metrics.DiscoveryWorkersAvailable.Dec()
+func (wg *WorkerGroup) probe(ctx context.Context, target probes.Target) {
+	atomic.AddInt64(&wg.busy, 1)
+	wg.metrics.DiscoveryWorkersBusy.Inc()
+	wg.metrics.DiscoveryWorkersAvailable.Dec()
 	defer func() {
-		atomic.AddInt64(&wp.busy, -1)
-		wp.metrics.DiscoveryWorkersBusy.Dec()
-		wp.metrics.DiscoveryWorkersAvailable.Inc()
+		atomic.AddInt64(&wg.busy, -1)
+		wg.metrics.DiscoveryWorkersBusy.Dec()
+		wg.metrics.DiscoveryWorkersAvailable.Inc()
 	}()
 	goal := target.GetGoal()
 	goalLabel := goal.String()
 
-	wp.logger.Debug().
+	wg.logger.Debug().
 		Stringer("addr", target.GetAddr()).Stringer("goal", goal).
-		Int64("busyness", atomic.LoadInt64(&wp.busy)).Int("retries", target.GetRetries()).
+		Int64("busyness", atomic.LoadInt64(&wg.busy)).Int("retries", target.GetRetries()).
 		Msg("About to start probing")
 
-	before := time.Now()
+	before := wg.clock.Now()
 
-	if err := wp.prober.Probe(ctx, target); err != nil {
+	if err := wg.prober.Probe(ctx, target); err != nil {
 		if errors.Is(err, probing.ErrProbeRetried) { // nolint: gocritic
-			wp.metrics.DiscoveryProbeRetries.WithLabelValues(goalLabel).Inc()
-			wp.logger.Debug().
+			wg.metrics.DiscoveryProbeRetries.WithLabelValues(goalLabel).Inc()
+			wg.logger.Debug().
 				Stringer("addr", target.GetAddr()).Stringer("goal", goal).
 				Msg("Probe is retried")
 		} else if errors.Is(err, probing.ErrOutOfRetries) {
-			wp.metrics.DiscoveryProbeFailures.WithLabelValues(goalLabel).Inc()
-			wp.logger.Debug().
+			wg.metrics.DiscoveryProbeFailures.WithLabelValues(goalLabel).Inc()
+			wg.logger.Debug().
 				Stringer("addr", target.GetAddr()).Stringer("goal", goal).
 				Msg("Probe failed after retries")
 		} else {
-			wp.metrics.DiscoveryProbeErrors.WithLabelValues(goalLabel).Inc()
-			wp.logger.Error().
+			wg.metrics.DiscoveryProbeErrors.WithLabelValues(goalLabel).Inc()
+			wg.logger.Error().
 				Err(err).
 				Stringer("addr", target.GetAddr()).Stringer("goal", goal).
 				Msg("Probe failed due to error")
 		}
 	} else {
-		wp.metrics.DiscoveryProbeSuccess.WithLabelValues(goalLabel).Inc()
+		wg.metrics.DiscoveryProbeSuccess.WithLabelValues(goalLabel).Inc()
 	}
 
-	wp.logger.Debug().
+	wg.logger.Debug().
 		Stringer("addr", target.GetAddr()).Stringer("goal", goal).
-		Int64("busyness", atomic.LoadInt64(&wp.busy)).
-		Dur("elapsed", time.Since(before)).
+		Int64("busyness", atomic.LoadInt64(&wg.busy)).
+		Dur("elapsed", wg.clock.Since(before)).
 		Msg("Finished probing")
 
-	wp.metrics.DiscoveryProbes.WithLabelValues(goalLabel).Inc()
-	wp.metrics.DiscoveryProbeDurations.WithLabelValues(goalLabel).Observe(time.Since(before).Seconds())
+	wg.metrics.DiscoveryProbes.WithLabelValues(goalLabel).Inc()
+	wg.metrics.DiscoveryProbeDurations.WithLabelValues(goalLabel).Observe(wg.clock.Since(before).Seconds())
 }
 
-func (wp *WorkerGroup) Busy() int {
-	return int(atomic.LoadInt64(&wp.busy))
+func (wg *WorkerGroup) Busy() int {
+	return int(atomic.LoadInt64(&wg.busy))
 }
 
-func (wp *WorkerGroup) Available() int {
-	return wp.concurrency - int(atomic.LoadInt64(&wp.busy))
+func (wg *WorkerGroup) Available() int {
+	return wg.concurrency - int(atomic.LoadInt64(&wg.busy))
 }

@@ -3,9 +3,11 @@ package finder_test
 import (
 	"context"
 	"net"
+	"runtime"
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -21,10 +23,18 @@ import (
 )
 
 func TestFinder_Run_OK(t *testing.T) {
-	repos := memory.New()
+	clockMock := clock.NewMock()
+	repos := memory.New(clockMock)
 
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
+
+	tickTimes := func(times int) {
+		for i := 0; i < times; i++ {
+			clockMock.Add(time.Millisecond * 10)
+			runtime.Gosched()
+		}
+	}
 
 	assertTargets := func(wantCount, wantExpired int, wantDetails, wantPorts []string) {
 		count, err := repos.Probes.Count(ctx)
@@ -58,50 +68,45 @@ func TestFinder_Run_OK(t *testing.T) {
 	})
 
 	gs1, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	gs1.UpdateInfo(info)
+	gs1.UpdateInfo(info, clockMock.Now())
 	gs1.UpdateDiscoveryStatus(ds.Master)
 
 	gs2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
-	gs2.UpdateInfo(info)
+	gs2.UpdateInfo(info, clockMock.Now())
 	gs2.UpdateDiscoveryStatus(ds.Port)
 
 	gs3, _ := servers.New(net.ParseIP("3.3.3.3"), 10480, 10481)
-	gs3.UpdateInfo(info)
+	gs3.UpdateInfo(info, clockMock.Now())
 	gs3.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Port)
 
 	gs4, _ := servers.New(net.ParseIP("4.4.4.4"), 10480, 10481)
-	gs4.UpdateInfo(info)
+	gs4.UpdateInfo(info, clockMock.Now())
 	gs4.UpdateDiscoveryStatus(ds.NoDetails)
 
 	gs5, _ := servers.New(net.ParseIP("5.5.5.5"), 10480, 10481)
-	gs5.UpdateInfo(info)
+	gs5.UpdateInfo(info, clockMock.Now())
 	gs5.UpdateDiscoveryStatus(ds.DetailsRetry)
 
 	gs6, _ := servers.New(net.ParseIP("6.6.6.6"), 10480, 10481)
-	gs6.UpdateInfo(info)
+	gs6.UpdateInfo(info, clockMock.Now())
 	gs6.UpdateDiscoveryStatus(ds.Port | ds.Details | ds.DetailsRetry)
 
 	gs7, _ := servers.New(net.ParseIP("7.7.7.7"), 10480, 10481)
-	gs7.UpdateInfo(info)
+	gs7.UpdateInfo(info, clockMock.Now())
 	gs7.UpdateDiscoveryStatus(ds.Master | ds.Info | ds.Details)
 
 	gs8, _ := servers.New(net.ParseIP("8.8.8.8"), 10480, 10481)
-	gs8.UpdateInfo(info)
+	gs8.UpdateInfo(info, clockMock.Now())
 	gs8.UpdateDiscoveryStatus(ds.Master | ds.PortRetry)
 
 	gs9, _ := servers.New(net.ParseIP("9.9.9.9"), 10480, 10481)
-	gs9.UpdateInfo(info)
+	gs9.UpdateInfo(info, clockMock.Now())
 	gs9.UpdateDiscoveryStatus(ds.Port | ds.PortRetry)
 
-	gs1, _ = repos.Servers.Add(ctx, gs1, servers.OnConflictIgnore)
-	gs2, _ = repos.Servers.Add(ctx, gs2, servers.OnConflictIgnore)
-	gs3, _ = repos.Servers.Add(ctx, gs3, servers.OnConflictIgnore)
-	gs4, _ = repos.Servers.Add(ctx, gs4, servers.OnConflictIgnore)
-	gs5, _ = repos.Servers.Add(ctx, gs5, servers.OnConflictIgnore)
-	gs6, _ = repos.Servers.Add(ctx, gs6, servers.OnConflictIgnore)
-	gs7, _ = repos.Servers.Add(ctx, gs7, servers.OnConflictIgnore)
-	gs8, _ = repos.Servers.Add(ctx, gs8, servers.OnConflictIgnore)
-	gs9, _ = repos.Servers.Add(ctx, gs9, servers.OnConflictIgnore)
+	for _, gs := range []*servers.Server{&gs1, &gs2, &gs3, &gs4, &gs5, &gs6, &gs7, &gs8, &gs9} {
+		*gs, _ = repos.Servers.Add(ctx, *gs, servers.OnConflictIgnore)
+		clockMock.Add(time.Millisecond)
+	}
 
 	app := fx.New(
 		application.Module,
@@ -114,6 +119,7 @@ func TestFinder_Run_OK(t *testing.T) {
 				DiscoveryRevivalPorts:     []int{0},
 			}
 		}),
+		fx.Decorate(func() clock.Clock { return clockMock }),
 		fx.Decorate(func() (servers.Repository, probes.Repository) {
 			return repos.Servers, repos.Probes
 		}),
@@ -125,14 +131,15 @@ func TestFinder_Run_OK(t *testing.T) {
 	defer func() {
 		app.Stop(context.TODO()) // nolint: errcheck
 	}()
+	runtime.Gosched()
 
-	<-time.After(time.Millisecond * 150) // 150ms
+	tickTimes(15) // 150ms
 	// only details timer triggered
 	assertTargets(3, 0,
 		[]string{"9.9.9.9:10480", "3.3.3.3:10480", "2.2.2.2:10480"}, []string{},
 	)
 
-	<-time.After(time.Millisecond * 100) // 250ms
+	tickTimes(10) // 250ms
 	// details and port timer triggered
 	assertTargets(7, 0,
 		[]string{"9.9.9.9:10480", "3.3.3.3:10480", "2.2.2.2:10480"},
@@ -144,7 +151,7 @@ func TestFinder_Run_OK(t *testing.T) {
 	gs3, _ = repos.Servers.Update(ctx, gs3, servers.OnConflictIgnore)
 	gs6, _ = repos.Servers.Update(ctx, gs6, servers.OnConflictIgnore)
 
-	<-time.After(time.Millisecond * 200) // 450ms
+	tickTimes(20) // 450ms
 	// port timer triggered, details triggered twice
 	assertTargets(11,
 		3,
@@ -161,7 +168,7 @@ func TestFinder_Run_OK(t *testing.T) {
 	gs6, _ = repos.Servers.Update(ctx, gs6, servers.OnConflictIgnore)
 	gs9, _ = repos.Servers.Update(ctx, gs9, servers.OnConflictIgnore)
 
-	<-time.After(time.Millisecond * 200) // 650ms
+	tickTimes(20) // 650ms
 	// port timer triggered, details never triggered
 	assertTargets(7,
 		0,
@@ -173,16 +180,17 @@ func TestFinder_Run_OK(t *testing.T) {
 	)
 
 	// bump server
-	gs6.UpdateInfo(info)
+	gs6.UpdateInfo(info, clockMock.Now())
 	gs6, _ = repos.Servers.Update(ctx, gs6, servers.OnConflictIgnore)
-	<-time.After(time.Millisecond * 400) // 700ms
+	tickTimes(40) // 700ms
 
 	// all other servers are out of scope
 	assertTargets(1, 0, []string{}, []string{"6.6.6.6:10480"})
 }
 
 func TestFinder_Run_Expiry(t *testing.T) {
-	repos := memory.New()
+	clockMock := clock.NewMock()
+	repos := memory.New(clockMock)
 
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
@@ -196,6 +204,8 @@ func TestFinder_Run_Expiry(t *testing.T) {
 	gs1, _ = repos.Servers.Add(ctx, gs1, servers.OnConflictIgnore)
 	gs2, _ = repos.Servers.Add(ctx, gs2, servers.OnConflictIgnore)
 
+	clockMock.Add(time.Millisecond)
+
 	app := fx.New(
 		application.Module,
 		fx.Provide(func() config.Config {
@@ -207,6 +217,7 @@ func TestFinder_Run_Expiry(t *testing.T) {
 				DiscoveryRevivalPorts:     []int{0},
 			}
 		}),
+		fx.Decorate(func() clock.Clock { return clockMock }),
 		fx.Decorate(func() (servers.Repository, probes.Repository) {
 			return repos.Servers, repos.Probes
 		}),
@@ -218,8 +229,11 @@ func TestFinder_Run_Expiry(t *testing.T) {
 	defer func() {
 		app.Stop(context.TODO()) // nolint: errcheck
 	}()
+	runtime.Gosched()
 
-	<-time.After(time.Millisecond * 90)
+	for i := 0; i < 9; i++ {
+		clockMock.Add(time.Millisecond * 10)
+	}
 
 	countAfterManyTicks, _ := repos.Probes.Count(ctx)
 	assert.Equal(t, 6, countAfterManyTicks)

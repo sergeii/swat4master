@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -32,6 +33,7 @@ import (
 
 func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts := []fx.Option{
+		fx.Provide(clock.New),
 		fx.Provide(memory.New),
 		fx.Provide(validation.New),
 		fx.Provide(func() *zerolog.Logger {
@@ -50,6 +52,14 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts = append(fxopts, extra...)
 	app := fxtest.New(tb, fxopts...)
 	app.RequireStart().RequireStop()
+}
+
+func overrideClock(c clock.Clock) fx.Option {
+	return fx.Decorate(
+		func() clock.Clock {
+			return c
+		},
+	)
 }
 
 func TestReporter_DispatchAvailableRequest_OK(t *testing.T) {
@@ -361,9 +371,11 @@ func TestReporter_DispatchHeartbeatRequest_HandleServerBehindNAT(t *testing.T) {
 	var repo servers.Repository
 
 	ctx := context.TODO()
-	makeApp(t, fx.Populate(&service, &repo))
+	clockMock := clock.NewMock()
 
-	before := time.Now()
+	makeApp(t, fx.Populate(&service, &repo), overrideClock(clockMock))
+
+	before := clockMock.Now()
 	instanceID := []byte{0xfe, 0xed, 0xf0, 0x0d}
 	paramsBefore := testutils.GenExtraServerParams(map[string]string{
 		"gametype":   "VIP Escort",
@@ -588,7 +600,9 @@ func TestReporter_DispatchHeartbeatRequest_ServerLivenessIsRefreshed(t *testing.
 	var repo servers.Repository
 
 	ctx := context.TODO()
-	makeApp(t, fx.Populate(&service, &repo))
+	clockMock := clock.NewMock()
+
+	makeApp(t, fx.Populate(&service, &repo), overrideClock(clockMock))
 
 	// initial report
 	resp, err := testutils.SendHeartbeat(
@@ -598,8 +612,9 @@ func TestReporter_DispatchHeartbeatRequest_ServerLivenessIsRefreshed(t *testing.
 	assert.NoError(t, err)
 	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
 
-	time.Sleep(time.Millisecond)
-	before := time.Now()
+	clockMock.Add(time.Millisecond)
+
+	before := clockMock.Now()
 	reportedSinceBefore, _ := repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceBefore, 0)
 
@@ -619,9 +634,11 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsRemoved(t *testing.T) {
 	var repo servers.Repository
 
 	ctx := context.TODO()
-	makeApp(t, fx.Populate(&service, &repo))
+	clockMock := clock.NewMock()
 
-	before := time.Now()
+	makeApp(t, fx.Populate(&service, &repo), overrideClock(clockMock))
+
+	before := clockMock.Now()
 	resp, err := testutils.SendHeartbeat(
 		service, []byte{0xfe, 0xed, 0xf0, 0x0d},
 		testutils.GenServerParams, testutils.StandardAddr,
@@ -715,9 +732,11 @@ func TestReporter_DispatchHeartbeatRequest_ServerRemovalIsValidated(t *testing.T
 			var repo servers.Repository
 
 			ctx := context.TODO()
-			makeApp(t, fx.Populate(&service, &metrics, &repo))
+			clockMock := clock.NewMock()
 
-			before := time.Now()
+			makeApp(t, fx.Populate(&service, &metrics, &repo), overrideClock(clockMock))
+
+			before := clockMock.Now()
 
 			// initial report
 			_, _, err := service.DispatchRequest(
@@ -753,9 +772,10 @@ func TestReporter_DispatchKeepaliveRequest_RefreshesServerLiveness(t *testing.T)
 	var repo servers.Repository
 
 	ctx := context.TODO()
-	makeApp(t, fx.Populate(&service, &repo))
+	clockMock := clock.NewMock()
+	makeApp(t, fx.Populate(&service, &repo), overrideClock(clockMock))
 
-	before := time.Now()
+	before := clockMock.Now()
 	// initial report
 	_, _, err := service.DispatchRequest(
 		context.TODO(),
@@ -766,8 +786,9 @@ func TestReporter_DispatchKeepaliveRequest_RefreshesServerLiveness(t *testing.T)
 	reportedSinceBefore, _ := repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceBefore, 1)
 
-	time.Sleep(time.Millisecond)
-	after := time.Now()
+	clockMock.Add(time.Millisecond)
+
+	after := clockMock.Now()
 	reportedSinceAfter, _ := repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(after).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceAfter, 0)
 
@@ -834,7 +855,9 @@ func TestReporter_DispatchKeepaliveRequest_Errors(t *testing.T) {
 			var repo servers.Repository
 
 			ctx := context.TODO()
-			makeApp(t, fx.Populate(&service, &repo))
+			clockMock := clock.NewMock()
+
+			makeApp(t, fx.Populate(&service, &repo), overrideClock(clockMock))
 
 			// initial heartbeat report
 			service.DispatchRequest( // nolint: errcheck
@@ -842,9 +865,11 @@ func TestReporter_DispatchKeepaliveRequest_Errors(t *testing.T) {
 				testutils.PackHeartbeatRequest(tt.instanceID, testutils.GenServerParams()),
 				&net.UDPAddr{IP: net.ParseIP(reportedServerIP), Port: 10481},
 			)
+
+			clockMock.Add(time.Millisecond)
+
 			// keepalive request in a while
-			time.Sleep(time.Millisecond)
-			since := time.Now()
+			since := clockMock.Now()
 			_, _, err := service.DispatchRequest(
 				context.TODO(),
 				tt.payload,

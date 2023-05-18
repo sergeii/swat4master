@@ -1,7 +1,7 @@
 # SWAT4 Master Server
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![GitHub go.mod Go version of a Go module](https://img.shields.io/github/go-mod/go-version/sergeii/swat4master.svg)](https://tip.golang.org/doc/go1.19)
+[![GitHub go.mod Go version of a Go module](https://img.shields.io/github/go-mod/go-version/sergeii/swat4master.svg)](https://tip.golang.org/doc/go1.20)
 [![ci](https://github.com/sergeii/swat4master/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sergeii/swat4master/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/sergeii/swat4master/branch/main/graph/badge.svg?token=ZYQ1x62kR3)](https://codecov.io/gh/sergeii/swat4master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/sergeii/swat4master)](https://goreportcard.com/report/github.com/sergeii/swat4master)
@@ -51,7 +51,7 @@ For other tags see [container registry](https://github.com/sergeii/swat4master/p
 Alternatively you can download and run a server binary suitable for your platform from one of the [releases](https://github.com/sergeii/swat4master/releases).
 
 ## Building from source
-To build the project from source you need Go 1.19+
+To build the project from source you need Go 1.20+
 ```
 go build -o swat4master cmd/swat4master/main.go
 ```

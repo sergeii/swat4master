@@ -3,10 +3,10 @@ package memory_test
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -15,8 +15,13 @@ import (
 	"github.com/sergeii/swat4master/internal/entity/addr"
 )
 
+func makeRepo() (*memory.Repository, *clock.Mock) {
+	clockMock := clock.NewMock()
+	return memory.New(clockMock), clockMock
+}
+
 func TestProbesMemoryRepo_Add(t *testing.T) {
-	repo := memory.New()
+	repo, _ := makeRepo()
 	ctx := context.Background()
 
 	err := repo.Add(ctx, probes.New(addr.MustNewFromString("1.1.1.1", 10480), 10480, probes.GoalDetails))
@@ -42,9 +47,9 @@ func TestProbesMemoryRepo_Add(t *testing.T) {
 }
 
 func TestProbesMemoryRepo_AddBetween(t *testing.T) {
-	repo := memory.New()
+	repo, clockMock := makeRepo()
 	ctx := context.Background()
-	now := time.Now()
+	now := clockMock.Now()
 
 	err := repo.AddBetween(
 		ctx,
@@ -80,13 +85,13 @@ func TestProbesMemoryRepo_AddBetween(t *testing.T) {
 	_, err = repo.Pop(ctx)
 	assert.ErrorIs(t, err, probes.ErrTargetIsNotReady)
 
-	time.Sleep(time.Millisecond * 5)
+	clockMock.Add(time.Millisecond * 5)
 
 	// not ready yet
 	_, err = repo.Pop(ctx)
 	assert.ErrorIs(t, err, probes.ErrTargetIsNotReady)
 
-	time.Sleep(time.Millisecond * 15)
+	clockMock.Add(time.Millisecond * 15)
 
 	// 1st item is ready
 	t1, err := repo.Pop(ctx)
@@ -101,7 +106,7 @@ func TestProbesMemoryRepo_AddBetween(t *testing.T) {
 	_, err = repo.Pop(ctx)
 	assert.ErrorIs(t, err, probes.ErrTargetIsNotReady)
 
-	time.Sleep(time.Millisecond * 5)
+	clockMock.Add(time.Millisecond * 5)
 
 	// 3rd item is now ready
 	t3, err := repo.Pop(ctx)
@@ -116,9 +121,9 @@ func TestProbesMemoryRepo_AddBetween(t *testing.T) {
 }
 
 func TestProbesMemoryRepo_AddBetween_After(t *testing.T) {
-	repo := memory.New()
+	repo, clockMock := makeRepo()
 	ctx := context.Background()
-	now := time.Now()
+	now := clockMock.Now()
 
 	err := repo.AddBetween(
 		ctx,
@@ -146,13 +151,13 @@ func TestProbesMemoryRepo_AddBetween_After(t *testing.T) {
 	_, err = repo.Pop(ctx)
 	assert.ErrorIs(t, err, probes.ErrTargetIsNotReady)
 
-	time.Sleep(time.Millisecond * 5)
+	clockMock.Add(time.Millisecond * 5)
 	// not ready yet
 	_, err = repo.Pop(ctx)
 	assert.ErrorIs(t, err, probes.ErrTargetIsNotReady)
 
 	// 1st item is ready
-	time.Sleep(time.Millisecond * 50)
+	clockMock.Add(time.Millisecond * 50)
 	t1, err := repo.Pop(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, "1.1.1.1", t1.GetDottedIP())
@@ -162,7 +167,7 @@ func TestProbesMemoryRepo_AddBetween_After(t *testing.T) {
 	assert.ErrorIs(t, err, probes.ErrTargetIsNotReady)
 
 	// 2nd item is now ready
-	time.Sleep(time.Millisecond * 50)
+	clockMock.Add(time.Millisecond * 50)
 	t1, err = repo.Pop(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, "2.2.2.2", t1.GetDottedIP())
@@ -173,9 +178,9 @@ func TestProbesMemoryRepo_AddBetween_After(t *testing.T) {
 }
 
 func TestProbesMemoryRepo_AddBetween_AddBefore(t *testing.T) {
-	repo := memory.New()
+	repo, clockMock := makeRepo()
 	ctx := context.Background()
-	now := time.Now()
+	now := clockMock.Now()
 
 	err := repo.AddBetween(
 		ctx,
@@ -196,7 +201,7 @@ func TestProbesMemoryRepo_AddBetween_AddBefore(t *testing.T) {
 	cntBeforeSleep, _ := repo.Count(ctx)
 	assert.Equal(t, 2, cntBeforeSleep)
 
-	time.Sleep(time.Millisecond * 10)
+	clockMock.Add(time.Millisecond * 10)
 
 	cntAfterSleep, _ := repo.Count(ctx)
 	assert.Equal(t, 2, cntAfterSleep)
@@ -208,7 +213,7 @@ func TestProbesMemoryRepo_AddBetween_AddBefore(t *testing.T) {
 	cntAfterPop, _ := repo.Count(ctx)
 	assert.Equal(t, 1, cntAfterPop)
 
-	time.Sleep(time.Millisecond * 41)
+	clockMock.Add(time.Millisecond * 41)
 
 	cntAfterPopSleep, _ := repo.Count(ctx)
 	assert.Equal(t, 1, cntAfterPopSleep)
@@ -222,9 +227,9 @@ func TestProbesMemoryRepo_AddBetween_AddBefore(t *testing.T) {
 }
 
 func TestProbesMemoryRepo_PopExpired(t *testing.T) {
-	repo := memory.New()
+	repo, clockMock := makeRepo()
 	ctx := context.Background()
-	now := time.Now()
+	now := clockMock.Now()
 
 	repo.AddBetween( // nolint:errcheck
 		ctx,
@@ -248,9 +253,9 @@ func TestProbesMemoryRepo_PopExpired(t *testing.T) {
 }
 
 func TestProbesMemoryRepo_Pop(t *testing.T) {
-	repo := memory.New()
+	repo, clockMock := makeRepo()
 	ctx := context.Background()
-	now := time.Now()
+	now := clockMock.Now()
 
 	repo.AddBetween( // nolint:errcheck
 		ctx,
@@ -274,32 +279,31 @@ func TestProbesMemoryRepo_Pop(t *testing.T) {
 	)
 
 	popped := make([]string, 0)
-	ticker := time.NewTicker(time.Millisecond * 5)
+	started := make(chan struct{})
 	ready := make(chan struct{})
-	wg := sync.WaitGroup{}
-	wg.Add(5)
 
 	go func() {
+		ticker := clockMock.Ticker(time.Millisecond * 5)
+		close(started)
 		for range ticker.C {
 			tgt, err := repo.Pop(ctx)
 			if errors.Is(err, probes.ErrTargetIsNotReady) {
 				continue
+			} else if errors.Is(err, probes.ErrQueueIsEmpty) {
+				return
 			}
 			popped = append(popped, tgt.GetDottedIP())
-			wg.Done()
 		}
 	}()
 
 	go func() {
-		wg.Wait()
+		<-clockMock.After(time.Millisecond * 50)
 		close(ready)
 	}()
 
-	select {
-	case <-time.After(time.Millisecond * 200):
-	case <-ready:
-	}
-	ticker.Stop()
+	<-started
+	clockMock.Add(time.Second)
+	<-ready
 
 	assert.Equal(t, []string{"3.3.3.3", "4.4.4.4", "2.2.2.2", "1.1.1.1", "5.5.5.5"}, popped)
 
@@ -309,9 +313,9 @@ func TestProbesMemoryRepo_Pop(t *testing.T) {
 }
 
 func TestProbesMemoryRepo_PopAny(t *testing.T) {
-	repo := memory.New()
+	repo, clockMock := makeRepo()
 	ctx := context.Background()
-	now := time.Now()
+	now := clockMock.Now()
 
 	repo.AddBetween( // nolint:errcheck
 		ctx,
@@ -406,9 +410,9 @@ func TestProbesMemoryRepo_PopMany(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := memory.New()
+			repo, clockMock := makeRepo()
 			ctx := context.Background()
-			now := time.Now()
+			now := clockMock.Now()
 
 			repo.AddBetween( // nolint:errcheck
 				ctx,
@@ -463,7 +467,7 @@ func TestProbesMemoryRepo_PopMany(t *testing.T) {
 			assert.Equal(t, tt.popped, getTargetsIPs(popped))
 			assert.Equal(t, tt.expired1, expired)
 
-			time.Sleep(time.Millisecond * 100)
+			clockMock.Add(time.Millisecond * 100)
 			remaining, expired, err := repo.PopMany(ctx, 5)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.remaining, getTargetsIPs(remaining))
@@ -482,13 +486,13 @@ func TestProbesMemoryRepo_PopMany(t *testing.T) {
 }
 
 func TestProbesMemoryRepo_PopEmpty(t *testing.T) {
-	repo := memory.New()
+	repo, _ := makeRepo()
 	_, err := repo.Pop(context.Background())
 	assert.ErrorIs(t, err, probes.ErrQueueIsEmpty)
 }
 
 func TestProbesMemoryRepo_PopManyEmpty(t *testing.T) {
-	repo := memory.New()
+	repo, _ := makeRepo()
 	popped, expired, err := repo.PopMany(context.Background(), 5)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(popped))
@@ -496,7 +500,7 @@ func TestProbesMemoryRepo_PopManyEmpty(t *testing.T) {
 }
 
 func TestProbesMemoryRepo_Count(t *testing.T) {
-	repo := memory.New()
+	repo, _ := makeRepo()
 	ctx := context.Background()
 
 	assertCount := func(expected int) {

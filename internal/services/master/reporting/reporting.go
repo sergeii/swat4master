@@ -10,6 +10,7 @@ import (
 	"net"
 	"strconv"
 
+	"github.com/benbjohnson/clock"
 	"github.com/go-playground/validator/v10"
 	"github.com/rs/zerolog"
 
@@ -67,6 +68,7 @@ type Service struct {
 	serverService  *server.Service
 	metrics        *monitoring.MetricService
 	validate       *validator.Validate
+	clock          clock.Clock
 	logger         *zerolog.Logger
 }
 
@@ -77,6 +79,7 @@ func NewService(
 	findingService *finding.Service,
 	metrics *monitoring.MetricService,
 	validate *validator.Validate,
+	clock clock.Clock,
 	logger *zerolog.Logger,
 ) *Service {
 	return &Service{
@@ -86,6 +89,7 @@ func NewService(
 		findingService: findingService,
 		metrics:        metrics,
 		validate:       validate,
+		clock:          clock,
 		logger:         logger,
 	}
 }
@@ -157,10 +161,11 @@ func (s *Service) handleKeepalive(
 	// as player count or the scores
 	// we still want to bump the server,
 	// so it keeps appearing in the list
-	svr.Refresh()
+	now := s.clock.Now()
+	svr.Refresh(now)
 
 	if _, updateErr := s.servers.Update(ctx, svr, func(s *servers.Server) bool {
-		s.Refresh()
+		s.Refresh(now)
 		return true
 	}); updateErr != nil {
 		return nil, updateErr
@@ -293,12 +298,13 @@ func (s *Service) reportServer(
 		return nil, ErrInvalidRequestPayload
 	}
 
-	svr.UpdateInfo(info)
+	now := s.clock.Now()
+	svr.UpdateInfo(info, now)
 	svr.UpdateDiscoveryStatus(ds.Master | ds.Info)
 
 	if svr, err = s.serverService.CreateOrUpdate(ctx, svr, func(conflict *servers.Server) {
 		// in case of conflict, just do all the same
-		conflict.UpdateInfo(info)
+		conflict.UpdateInfo(info, now)
 		conflict.UpdateDiscoveryStatus(ds.Master | ds.Info)
 	}); err != nil {
 		s.logger.Error().

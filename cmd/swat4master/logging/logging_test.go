@@ -36,9 +36,9 @@ func TestProvide(t *testing.T) {
 			nil,
 		},
 		{
-			"logging level should be lowercase",
+			"positive case - case insensitive",
 			config.Config{LogOutput: "stdout", LogLevel: "INFO"},
-			logging.ErrInvalidLogLevel,
+			nil,
 		},
 		{
 			"invalid logging level",
@@ -52,7 +52,7 @@ func TestProvide(t *testing.T) {
 		},
 		{
 			"invalid logging output and level",
-			config.Config{LogOutput: "out", LogLevel: "DEBUG"},
+			config.Config{LogOutput: "out", LogLevel: "debug2"},
 			logging.ErrInvalidLogLevel,
 		},
 	}

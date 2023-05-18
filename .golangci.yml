@@ -1,7 +1,6 @@
 linters:
   enable-all: true
   disable:
-    - gofumpt
     - godot
     - gci
     - funlen
@@ -20,7 +19,6 @@ linters:
     - nlreturn
     - exhaustivestruct
     - wsl
-    - nestif
     - goerr113
     - gochecknoglobals
     - exhaustruct
