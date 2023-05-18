@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/benbjohnson/clock"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
@@ -17,6 +19,11 @@ import (
 
 func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts := []fx.Option{
+		fx.Provide(func() clock.Clock { return clock.NewMock() }),
+		fx.Provide(func() *zerolog.Logger {
+			logger := zerolog.Nop()
+			return &logger
+		}),
 		fx.Provide(memory.New),
 		fx.Provide(
 			monitoring.NewMetricService,

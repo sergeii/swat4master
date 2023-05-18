@@ -18,7 +18,7 @@ func Hexdump(payload []byte) error {
 	return nil
 }
 
-func ShortCallerFormatter(file string, line int) string {
+func ShortCallerFormatter(_ uintptr, file string, line int) string {
 	short := file
 	for i := len(file) - 1; i > 0; i-- {
 		if file[i] == '/' {

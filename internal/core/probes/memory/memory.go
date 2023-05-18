@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	"github.com/sergeii/swat4master/internal/core/probes"
 )
 
@@ -19,12 +21,14 @@ type enqueued struct {
 type Repository struct {
 	queue  *list.List
 	length int
+	clock  clock.Clock
 	mutex  sync.RWMutex
 }
 
-func New() *Repository {
+func New(c clock.Clock) *Repository {
 	repo := &Repository{
 		queue: list.New(),
+		clock: c,
 	}
 	return repo
 }
@@ -90,16 +94,18 @@ func (r *Repository) PopMany(_ context.Context, count int) ([]probes.Target, int
 	futureItems := make([]*list.Element, 0)
 	expiredCount := 0
 
+	now := r.clock.Now()
+
 	for next := r.queue.Front(); next != nil && len(targets) < count; next = next.Next() {
 		item := next.Value.(enqueued) // nolint: forcetypeassert
 		// target's time hasn't come yet
-		if !item.after.IsZero() && item.after.After(time.Now()) {
+		if !item.after.IsZero() && item.after.After(now) {
 			futureItems = append(futureItems, next)
 			continue
 		}
 		seenItems = append(seenItems, next)
 		// target's time has not expired, or the expiration time hasn't been set
-		if item.before.IsZero() || item.before.After(time.Now()) {
+		if item.before.IsZero() || item.before.After(now) {
 			targets = append(targets, item.target)
 		} else {
 			expiredCount++
@@ -137,6 +143,7 @@ func (r *Repository) enqueue(
 }
 
 func (r *Repository) next() (*list.Element, error) {
+	now := r.clock.Now()
 	next := r.queue.Front()
 	// queue is empty
 	if next == nil {
@@ -144,13 +151,13 @@ func (r *Repository) next() (*list.Element, error) {
 	}
 	item := next.Value.(enqueued) // nolint: forcetypeassert
 	// the target's time has expired
-	if !item.before.IsZero() && item.before.Before(time.Now()) {
+	if !item.before.IsZero() && item.before.Before(now) {
 		r.queue.Remove(next)
 		r.length--
 		return nil, probes.ErrTargetHasExpired
 	}
 	// the target's time hasn't come yet
-	if !item.after.IsZero() && item.after.After(time.Now()) {
+	if !item.after.IsZero() && item.after.After(now) {
 		r.queue.MoveToBack(next)
 		return nil, probes.ErrTargetIsNotReady
 	}

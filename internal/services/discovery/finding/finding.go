@@ -99,10 +99,7 @@ func (s *Service) DiscoverDetails(
 	deadline time.Time,
 ) error {
 	target := probes.New(addr, queryPort, probes.GoalDetails)
-	if err := s.queue.AddBefore(ctx, target, deadline); err != nil {
-		return err
-	}
-	return nil
+	return s.queue.AddBefore(ctx, target, deadline)
 }
 
 func (s *Service) DiscoverPort(
@@ -112,10 +109,7 @@ func (s *Service) DiscoverPort(
 	deadline time.Time,
 ) error {
 	target := probes.New(addr, addr.Port, probes.GoalPort)
-	if err := s.queue.AddBetween(ctx, target, countdown, deadline); err != nil {
-		return err
-	}
-	return nil
+	return s.queue.AddBetween(ctx, target, countdown, deadline)
 }
 
 func selectCountdown(min, max time.Time) time.Time {

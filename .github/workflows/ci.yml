@@ -46,9 +46,9 @@ jobs:
           go-version-file: go.mod
 
       - name: Run golangci
-        uses: golangci/golangci-lint-action@v2
+        uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.51.1
+          version: v1.51.2
 
   smoke-binary:
     runs-on: ubuntu-latest

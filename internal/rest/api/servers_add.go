@@ -153,9 +153,5 @@ func discoverServer(
 		return err
 	}
 
-	if err = finder.DiscoverPort(ctx, svr.GetAddr(), probes.NC, probes.NC); err != nil {
-		return err
-	}
-
-	return nil
+	return finder.DiscoverPort(ctx, svr.GetAddr(), probes.NC, probes.NC)
 }

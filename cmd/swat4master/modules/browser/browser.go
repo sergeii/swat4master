@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 
+	"github.com/benbjohnson/clock"
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
@@ -18,15 +19,17 @@ type Browser struct{}
 type Handler struct {
 	service *browsing.Service
 	metrics *monitoring.MetricService
+	clock   clock.Clock
 	logger  *zerolog.Logger
 }
 
 func newHandler(
 	service *browsing.Service,
 	metrics *monitoring.MetricService,
+	clock clock.Clock,
 	logger *zerolog.Logger,
 ) *Handler {
-	return &Handler{service, metrics, logger}
+	return &Handler{service, metrics, clock, logger}
 }
 
 func NewBrowser(

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,6 +34,7 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts := []fx.Option{
 		fx.Provide(memory.New),
 		fx.Provide(validation.New),
+		fx.Provide(clock.New),
 		fx.Provide(func() *zerolog.Logger {
 			logger := zerolog.Nop()
 			return &logger

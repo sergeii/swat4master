@@ -69,7 +69,6 @@ func StandardAddr() (net.IP, int) {
 }
 
 func WithRandomAddr() func() (net.IP, int) {
-	random.Seed() // nolint: errcheck
 	return func() (net.IP, int) {
 		randPort := random.RandInt(1, 65535)
 		return GenRandomIP(), randPort

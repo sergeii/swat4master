@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/rs/zerolog"
 
 	"github.com/sergeii/swat4master/internal/core/probes"
@@ -30,6 +31,7 @@ type Service struct {
 	queue   *probe.Service
 	opts    ServiceOpts
 	probers map[probes.Goal]Prober
+	clock   clock.Clock
 	logger  *zerolog.Logger
 	mutex   sync.Mutex
 }
@@ -37,6 +39,7 @@ type Service struct {
 func NewService(
 	servers servers.Repository,
 	queue *probe.Service,
+	clock clock.Clock,
 	logger *zerolog.Logger,
 	opts ServiceOpts,
 ) *Service {
@@ -44,14 +47,9 @@ func NewService(
 		servers: servers,
 		queue:   queue,
 		probers: make(map[probes.Goal]Prober),
-		// probers: Probers{
-		// 	Details: probers.NewDetailsProber(metrics, validate, logger),
-		// 	Port: probers.NewPortProber(metrics, logger, probers.PortProberOpts{
-		// 		Offsets: opts.ProbePortOffsets,
-		// 	}),
-		// },
-		logger: logger,
-		opts:   opts,
+		clock:   clock,
+		logger:  logger,
+		opts:    opts,
 	}
 	return service
 }
@@ -145,7 +143,7 @@ func (s *Service) retry(
 	}
 
 	retryDelay := time.Second * time.Duration(math.Exp(float64(retries)))
-	retryAfter := time.Now().Add(retryDelay)
+	retryAfter := s.clock.Now().Add(retryDelay)
 	if err := s.queue.AddAfter(ctx, tgt, retryAfter); err != nil {
 		s.logger.Error().
 			Err(err).

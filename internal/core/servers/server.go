@@ -106,23 +106,23 @@ func (gs *Server) GetInfo() details.Info {
 	return gs.info
 }
 
-func (gs *Server) UpdateInfo(info details.Info) {
+func (gs *Server) UpdateInfo(info details.Info, updatedAt time.Time) {
 	gs.info = info
-	gs.refreshedAt = time.Now()
+	gs.refreshedAt = updatedAt
 }
 
 func (gs *Server) GetDetails() details.Details {
 	return gs.details
 }
 
-func (gs *Server) UpdateDetails(det details.Details) {
+func (gs *Server) UpdateDetails(det details.Details, updatedAt time.Time) {
 	gs.details = det
 	gs.info = det.Info
-	gs.refreshedAt = time.Now()
+	gs.refreshedAt = updatedAt
 }
 
-func (gs *Server) Refresh() {
-	gs.refreshedAt = time.Now()
+func (gs *Server) Refresh(updatedAt time.Time) {
+	gs.refreshedAt = updatedAt
 }
 
 func (gs *Server) GetRefreshedAt() time.Time {

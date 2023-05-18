@@ -2,8 +2,8 @@ package cleaner
 
 import (
 	"context"
-	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
@@ -16,11 +16,12 @@ type Cleaner struct{}
 func Run(
 	stop chan struct{},
 	stopped chan struct{},
+	clock clock.Clock,
 	logger *zerolog.Logger,
 	service *cleaning.Service,
 	cfg config.Config,
 ) {
-	ticker := time.NewTicker(cfg.CleanInterval)
+	ticker := clock.Ticker(cfg.CleanInterval)
 	defer ticker.Stop()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -37,7 +38,7 @@ func Run(
 			close(stopped)
 			return
 		case <-ticker.C:
-			if err := service.Clean(ctx, time.Now().Add(-cfg.CleanRetention)); err != nil {
+			if err := service.Clean(ctx, clock.Now().Add(-cfg.CleanRetention)); err != nil {
 				logger.Error().
 					Err(err).
 					Msg("Failed to clean outdated servers")
@@ -49,6 +50,7 @@ func Run(
 func NewCleaner(
 	lc fx.Lifecycle,
 	cfg config.Config,
+	clock clock.Clock,
 	service *cleaning.Service,
 	logger *zerolog.Logger,
 ) *Cleaner {
@@ -57,7 +59,7 @@ func NewCleaner(
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			go Run(stop, stopped, logger, service, cfg) // nolint: contextcheck
+			go Run(stop, stopped, clock, logger, service, cfg) // nolint: contextcheck
 			return nil
 		},
 		OnStop: func(context.Context) error {

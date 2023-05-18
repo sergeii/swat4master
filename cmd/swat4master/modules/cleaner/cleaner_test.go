@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
@@ -21,6 +22,8 @@ func TestCleaner_Run(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
+	clockMock := clock.NewMock()
+
 	app := fx.New(
 		application.Module,
 		fx.Provide(func() config.Config {
@@ -29,6 +32,7 @@ func TestCleaner_Run(t *testing.T) {
 				CleanInterval:  time.Millisecond * 100,
 			}
 		}),
+		fx.Decorate(func() clock.Clock { return clockMock }),
 		cleaner.Module,
 		fx.NopLogger,
 		fx.Invoke(func(*cleaner.Cleaner) {}),
@@ -40,22 +44,22 @@ func TestCleaner_Run(t *testing.T) {
 	}()
 
 	gs1, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	gs1.Refresh()
+	gs1.Refresh(clockMock.Now())
 	repo.Add(ctx, gs1, nil) // nolint: errcheck
 	gs2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
-	gs2.Refresh()
+	gs2.Refresh(clockMock.Now())
 	repo.Add(ctx, gs2, servers.OnConflictIgnore) // nolint: errcheck
 
 	cnt, _ := repo.Count(ctx)
 	assert.Equal(t, 2, cnt)
 
-	<-time.After(time.Millisecond * 75)
+	clockMock.Add(time.Millisecond * 75)
 
 	gs3, _ := servers.New(net.ParseIP("3.3.3.3"), 10480, 10481)
-	gs3.Refresh()
+	gs3.Refresh(clockMock.Now())
 	repo.Add(ctx, gs3, servers.OnConflictIgnore) // nolint: errcheck
 
-	<-time.After(time.Millisecond * 30)
+	clockMock.Add(time.Millisecond * 30)
 
 	cnt, err := repo.Count(ctx)
 	assert.NoError(t, err)

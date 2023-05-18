@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -26,6 +27,8 @@ func TestBrowser_Run(t *testing.T) {
 
 	var repo servers.Repository
 
+	clockMock := clock.NewMock()
+
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
@@ -38,6 +41,7 @@ func TestBrowser_Run(t *testing.T) {
 				BrowserClientTimeout:  time.Millisecond * 100,
 			}
 		}),
+		fx.Decorate(func() clock.Clock { return clockMock }),
 		browser.Module,
 		fx.NopLogger,
 		fx.Invoke(func(*browser.Browser) {}),
@@ -56,7 +60,7 @@ func TestBrowser_Run(t *testing.T) {
 		"gamever":     "1.1",
 		"gamevariant": "SWAT 4",
 		"gametype":    "VIP Escort",
-	}))
+	}), clockMock.Now())
 	gs1.UpdateDiscoveryStatus(ds.Master)
 	repo.Add(ctx, gs1, servers.OnConflictIgnore) // nolint: errcheck
 
@@ -68,7 +72,7 @@ func TestBrowser_Run(t *testing.T) {
 		"gamever":     "1.0",
 		"gamevariant": "SWAT 4",
 		"gametype":    "Barricaded Suspects",
-	}))
+	}), clockMock.Now())
 	gs2.UpdateDiscoveryStatus(ds.Details)
 	repo.Add(ctx, gs2, servers.OnConflictIgnore) // nolint: errcheck
 

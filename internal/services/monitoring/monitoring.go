@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -21,6 +22,7 @@ type ObserverConfig struct {
 
 type MetricService struct {
 	registry *prometheus.Registry
+	clock    clock.Clock
 	logger   *zerolog.Logger
 
 	servers   servers.Repository
@@ -69,6 +71,8 @@ func NewMetricService(
 	servers servers.Repository,
 	instances instances.Repository,
 	probes probes.Repository,
+	clock clock.Clock,
+	logger *zerolog.Logger,
 ) *MetricService {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
@@ -76,6 +80,8 @@ func NewMetricService(
 
 	ms := &MetricService{
 		registry: registry,
+		clock:    clock,
+		logger:   logger,
 
 		servers:   servers,
 		instances: instances,
@@ -263,7 +269,7 @@ func (ms *MetricService) observeActiveServers(
 	allServers := make(map[string]int)
 	playedServers := make(map[string]int)
 
-	activeSince := time.Now().Add(-cfg.ServerLiveness)
+	activeSince := ms.clock.Now().Add(-cfg.ServerLiveness)
 	fs := servers.NewFilterSet().ActiveAfter(activeSince).WithStatus(ds.Info)
 	activeServers, err := ms.servers.Filter(ctx, fs)
 	if err != nil {

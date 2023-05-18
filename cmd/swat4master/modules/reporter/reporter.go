@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
@@ -22,15 +22,17 @@ type Reporter struct{}
 type Handler struct {
 	service *reporting.Service
 	metrics *monitoring.MetricService
+	clock   clock.Clock
 	logger  *zerolog.Logger
 }
 
 func newHandler(
 	mrs *reporting.Service,
 	metrics *monitoring.MetricService,
+	clock clock.Clock,
 	logger *zerolog.Logger,
 ) *Handler {
-	return &Handler{mrs, metrics, logger}
+	return &Handler{mrs, metrics, clock, logger}
 }
 
 func (h *Handler) Handle(
@@ -39,7 +41,7 @@ func (h *Handler) Handle(
 	addr *net.UDPAddr,
 	req []byte,
 ) {
-	reqStarted := time.Now()
+	reqStarted := h.clock.Now()
 
 	h.logger.Debug().
 		Str("type", fmt.Sprintf("0x%02x", req[0])).Stringer("src", addr).Int("len", len(req)).
@@ -79,7 +81,7 @@ func (h *Handler) Handle(
 	h.metrics.ReporterRequests.WithLabelValues(reqType.String()).Inc()
 	h.metrics.ReporterDurations.
 		WithLabelValues(reqType.String()).
-		Observe(time.Since(reqStarted).Seconds())
+		Observe(h.clock.Since(reqStarted).Seconds())
 }
 
 func NewReporter(

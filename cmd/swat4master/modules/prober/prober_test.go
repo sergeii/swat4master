@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -25,7 +27,8 @@ import (
 )
 
 func TestProber_Run(t *testing.T) {
-	repos := memory.New()
+	clockMock := clock.NewMock()
+	repos := memory.New(clockMock)
 
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
@@ -75,7 +78,7 @@ func TestProber_Run(t *testing.T) {
 
 	svr1, err := servers.NewFromAddr(addr.NewForTesting(addr1.IP, addr1.Port-1), addr1.Port)
 	require.NoError(t, err)
-	svr1.UpdateInfo(info)
+	svr1.UpdateInfo(info, clockMock.Now())
 	svr1.UpdateDiscoveryStatus(ds.Details | ds.Master | ds.Port)
 	go func(ctx context.Context, ch chan []byte, gamePort int) {
 		packet := []byte(
@@ -97,12 +100,12 @@ func TestProber_Run(t *testing.T) {
 
 	svr2, err := servers.NewFromAddr(addr.NewForTesting(addr2.IP, addr2.Port-1), addr2.Port)
 	require.NoError(t, err)
-	svr2.UpdateInfo(info)
+	svr2.UpdateInfo(info, clockMock.Now())
 	svr2.UpdateDiscoveryStatus(ds.PortRetry | ds.DetailsRetry) // has both PortRetry and DetailsRetry status
 
 	svr3, err := servers.NewFromAddr(addr.NewForTesting(addr3.IP, addr3.Port-1), addr3.Port)
 	require.NoError(t, err)
-	svr3.UpdateInfo(info)
+	svr3.UpdateInfo(info, clockMock.Now())
 	svr3.UpdateDiscoveryStatus(ds.Master)
 	go func(ctx context.Context, ch chan []byte, gamePort int) {
 		packet := []byte(
@@ -128,8 +131,13 @@ func TestProber_Run(t *testing.T) {
 	}(ctx, responses3, svr3.GetGamePort())
 
 	repos.Servers.Add(ctx, svr1, servers.OnConflictIgnore) // nolint: errcheck
+	clockMock.Add(time.Millisecond)
+
 	repos.Servers.Add(ctx, svr2, servers.OnConflictIgnore) // nolint: errcheck
+	clockMock.Add(time.Millisecond)
+
 	repos.Servers.Add(ctx, svr3, servers.OnConflictIgnore) // nolint: errcheck
+	clockMock.Add(time.Millisecond)
 
 	app := fx.New(
 		application.Module,
@@ -145,6 +153,7 @@ func TestProber_Run(t *testing.T) {
 				ProbeTimeout:             time.Millisecond * 100,
 			}
 		}),
+		fx.Decorate(func() clock.Clock { return clockMock }),
 		fx.Decorate(func() servers.Repository {
 			return repos.Servers
 		}),
@@ -157,8 +166,11 @@ func TestProber_Run(t *testing.T) {
 	defer func() {
 		app.Stop(context.TODO()) // nolint: errcheck
 	}()
+	runtime.Gosched()
 
-	<-time.After(time.Second)
+	for i := 0; i < 10; i++ {
+		clockMock.Add(time.Millisecond * 100)
+	}
 
 	updatedSvr1, _ := repos.Servers.Get(ctx, svr1.GetAddr())
 	assert.Equal(t, ds.Master|ds.Details|ds.Info|ds.Port, updatedSvr1.GetDiscoveryStatus())

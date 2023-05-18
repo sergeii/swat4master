@@ -5,6 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	"github.com/sergeii/swat4master/internal/core/servers"
 	"github.com/sergeii/swat4master/internal/entity/addr"
 	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
@@ -13,11 +15,16 @@ import (
 
 type Service struct {
 	servers servers.Repository
+	clock   clock.Clock
 }
 
-func NewService(repo servers.Repository) *Service {
+func NewService(
+	repo servers.Repository,
+	clock clock.Clock,
+) *Service {
 	return &Service{
 		servers: repo,
+		clock:   clock,
 	}
 }
 
@@ -68,7 +75,7 @@ func (s *Service) FilterRecent(
 	q query.Query,
 	withStatus ds.DiscoveryStatus,
 ) ([]servers.Server, error) {
-	fs := servers.NewFilterSet().ActiveAfter(time.Now().Add(-recentness)).WithStatus(withStatus)
+	fs := servers.NewFilterSet().ActiveAfter(s.clock.Now().Add(-recentness)).WithStatus(withStatus)
 
 	recent, err := s.servers.Filter(ctx, fs)
 	if err != nil {

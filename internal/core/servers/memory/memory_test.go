@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -18,9 +19,14 @@ import (
 	"github.com/sergeii/swat4master/internal/testutils"
 )
 
+func makeRepo() (*memory.Repository, *clock.Mock) {
+	clockMock := clock.NewMock()
+	return memory.New(clockMock), clockMock
+}
+
 func TestServerMemoryRepo_Add_New(t *testing.T) {
 	ctx := context.TODO()
-	repo := memory.New()
+	repo, clockMock := makeRepo()
 
 	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	svr.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -30,7 +36,7 @@ func TestServerMemoryRepo_Add_New(t *testing.T) {
 		"gamever":     "1.1",
 		"gamevariant": "SWAT 4",
 		"gametype":    "Barricaded Suspects",
-	}))
+	}), clockMock.Now())
 	svr, err := repo.Add(ctx, svr, servers.OnConflictIgnore)
 	require.NoError(t, err)
 	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
@@ -46,7 +52,7 @@ func TestServerMemoryRepo_Add_New(t *testing.T) {
 		"gamever":     "1.0",
 		"gamevariant": "SWAT 4X",
 		"gametype":    "VIP Escort",
-	}))
+	}), clockMock.Now())
 	other, otherErr := repo.Add(ctx, other, servers.OnConflictIgnore)
 	assert.Equal(t, "2.2.2.2", other.GetDottedIP())
 	assert.Equal(t, 10480, other.GetGamePort())
@@ -83,8 +89,8 @@ func TestServerMemoryRepo_Add_UpdateOnConflict(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := memory.New()
 			ctx := context.TODO()
+			repo, clockMock := makeRepo()
 
 			svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 
@@ -97,7 +103,7 @@ func TestServerMemoryRepo_Add_UpdateOnConflict(t *testing.T) {
 				"gametype":    "VIP Escort",
 				"numplayers":  "16",
 			})
-			svr.UpdateInfo(initialParams)
+			svr.UpdateInfo(initialParams, clockMock.Now())
 			svr, err := repo.Add(ctx, svr, servers.OnConflictIgnore)
 			require.NoError(t, err)
 
@@ -116,9 +122,9 @@ func TestServerMemoryRepo_Add_UpdateOnConflict(t *testing.T) {
 				"gametype":    "VIP Escort",
 				"numplayers":  "15",
 			})
-			svr.UpdateInfo(newParams)
+			svr.UpdateInfo(newParams, clockMock.Now())
 			svr, addError := repo.Add(ctx, svr, func(s *servers.Server) bool {
-				s.UpdateInfo(newParams)
+				s.UpdateInfo(newParams, clockMock.Now())
 				return tt.updated
 			})
 
@@ -141,8 +147,8 @@ func TestServerMemoryRepo_Add_UpdateOnConflict(t *testing.T) {
 }
 
 func TestServerMemoryRepo_Add_MultipleConflicts(t *testing.T) {
-	repo := memory.New()
 	ctx := context.TODO()
+	repo, _ := makeRepo()
 
 	wg := &sync.WaitGroup{}
 
@@ -188,8 +194,8 @@ func TestServerMemoryRepo_Update_ResolveConflict(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := memory.New()
 			ctx := context.TODO()
+			repo, clockMock := makeRepo()
 
 			svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 			svr.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -200,7 +206,7 @@ func TestServerMemoryRepo_Update_ResolveConflict(t *testing.T) {
 				"gamevariant": "SWAT 4",
 				"gametype":    "VIP Escort",
 				"numplayers":  "16",
-			}))
+			}), clockMock.Now())
 			_, err := repo.Add(ctx, svr, servers.OnConflictIgnore)
 			require.NoError(t, err)
 
@@ -247,8 +253,8 @@ func TestServerMemoryRepo_Update_ResolveConflict(t *testing.T) {
 }
 
 func TestServerMemoryRepo_Update_MultipleConflicts(t *testing.T) {
-	repo := memory.New()
 	ctx := context.TODO()
+	repo, clockMock := makeRepo()
 
 	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	svr.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -259,7 +265,7 @@ func TestServerMemoryRepo_Update_MultipleConflicts(t *testing.T) {
 		"gamevariant": "SWAT 4",
 		"gametype":    "VIP Escort",
 		"numplayers":  "16",
-	}))
+	}), clockMock.Now())
 	_, err := repo.Add(ctx, svr, servers.OnConflictIgnore)
 	require.NoError(t, err)
 
@@ -310,7 +316,8 @@ func TestServerMemoryRepo_Remove_NoConflict(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.TODO()
-			repo := memory.New()
+			repo, _ := makeRepo()
+
 			svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 			repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 
@@ -349,7 +356,7 @@ func TestServerMemoryRepo_Remove_ResolveConflict(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.TODO()
-			repo := memory.New()
+			repo, clockMock := makeRepo()
 			svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 			repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
 
@@ -372,7 +379,7 @@ func TestServerMemoryRepo_Remove_ResolveConflict(t *testing.T) {
 			}(svr.GetAddr(), tt.resolved)
 
 			<-obtained
-			svr.Refresh()
+			svr.Refresh(clockMock.Now())
 			svr, err := repo.Update(ctx, svr, func(_ *servers.Server) bool {
 				panic("should not be called")
 			})
@@ -394,7 +401,7 @@ func TestServerMemoryRepo_Remove_ResolveConflict(t *testing.T) {
 }
 
 func TestServerMemoryRepo_Count(t *testing.T) {
-	repo := memory.New()
+	repo, _ := makeRepo()
 	ctx := context.TODO()
 
 	assertCount := func(expected int) {
@@ -425,7 +432,7 @@ func TestServerMemoryRepo_Count(t *testing.T) {
 }
 
 func TestServerMemoryRepo_CountByStatus(t *testing.T) {
-	repo := memory.New()
+	repo, _ := makeRepo()
 	ctx := context.TODO()
 
 	// empty repo
@@ -476,12 +483,12 @@ func TestServerMemoryRepo_CountByStatus(t *testing.T) {
 func TestServerMemoryRepo_Filter(t *testing.T) {
 	tests := []struct {
 		name        string
-		fsfactory   func(time.Time, time.Time, time.Time, time.Time, time.Time) servers.FilterSet
+		fsfactory   func(clock.Clock, time.Time, time.Time, time.Time, time.Time, time.Time) servers.FilterSet
 		wantServers []string
 	}{
 		{
 			"no filter",
-			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+			func(_ clock.Clock, t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
 				return servers.NewFilterSet()
 			},
 			[]string{
@@ -494,7 +501,7 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"exclude status",
-			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+			func(_ clock.Clock, t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
 				return servers.NewFilterSet().NoStatus(ds.Master)
 			},
 			[]string{
@@ -505,7 +512,7 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"exclude multiple status",
-			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+			func(_ clock.Clock, t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
 				return servers.NewFilterSet().NoStatus(ds.PortRetry | ds.NoDetails)
 			},
 			[]string{
@@ -516,7 +523,7 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"include status",
-			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+			func(_ clock.Clock, t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
 				return servers.NewFilterSet().WithStatus(ds.Master)
 			},
 			[]string{
@@ -526,7 +533,7 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"include multiple status",
-			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+			func(_ clock.Clock, t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
 				return servers.NewFilterSet().WithStatus(ds.Master | ds.Details)
 			},
 			[]string{
@@ -535,7 +542,7 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by multiple status",
-			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+			func(_ clock.Clock, t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
 				return servers.NewFilterSet().WithStatus(ds.Master | ds.Details)
 			},
 			[]string{
@@ -544,7 +551,7 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by update date - after",
-			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+			func(_ clock.Clock, t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
 				return servers.NewFilterSet().UpdatedAfter(t4)
 			},
 			[]string{
@@ -554,7 +561,7 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by update date - before",
-			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+			func(_ clock.Clock, t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
 				return servers.NewFilterSet().UpdatedBefore(t4)
 			},
 			[]string{
@@ -565,7 +572,7 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by update date - after and before",
-			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+			func(_ clock.Clock, t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
 				return servers.NewFilterSet().
 					UpdatedAfter(t4).
 					UpdatedBefore(t5)
@@ -576,14 +583,14 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by update date - no match",
-			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
-				return servers.NewFilterSet().UpdatedAfter(time.Now())
+			func(c clock.Clock, t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+				return servers.NewFilterSet().UpdatedAfter(c.Now())
 			},
 			[]string{},
 		},
 		{
 			"filter by refresh date - after",
-			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+			func(_ clock.Clock, t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
 				return servers.NewFilterSet().ActiveAfter(t2)
 			},
 			[]string{
@@ -593,7 +600,7 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by refresh date - before",
-			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+			func(_ clock.Clock, t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
 				return servers.NewFilterSet().ActiveBefore(t3)
 			},
 			[]string{
@@ -603,7 +610,7 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by refresh date - after and before",
-			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+			func(_ clock.Clock, t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
 				return servers.NewFilterSet().
 					ActiveAfter(t2).
 					ActiveBefore(t3)
@@ -614,14 +621,14 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by refresh date - no match",
-			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
-				return servers.NewFilterSet().ActiveAfter(time.Now())
+			func(c clock.Clock, t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+				return servers.NewFilterSet().ActiveAfter(c.Now())
 			},
 			[]string{},
 		},
 		{
 			"filter by multiple fields",
-			func(t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
+			func(_ clock.Clock, t1, t2, t3, t4, t5 time.Time) servers.FilterSet {
 				return servers.NewFilterSet().
 					UpdatedBefore(t5).
 					ActiveAfter(t2).
@@ -636,42 +643,49 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.TODO()
-			repo := memory.New()
+			repo, clockMock := makeRepo()
 
-			t1 := time.Now()
+			t1 := clockMock.Now()
+			clockMock.Add(time.Millisecond)
 
 			svr1, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 			svr1.UpdateDiscoveryStatus(ds.Master | ds.Info)
-			svr1.Refresh()
+			svr1.Refresh(clockMock.Now())
 			repo.Add(ctx, svr1, servers.OnConflictIgnore) // nolint: errcheck
 
-			t2 := time.Now()
+			clockMock.Add(time.Millisecond)
+			t2 := clockMock.Now()
 
 			svr2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
 			svr2.UpdateDiscoveryStatus(ds.Details | ds.Info)
-			svr2.Refresh()
+			svr2.Refresh(clockMock.Now())
 			repo.Add(ctx, svr2, servers.OnConflictIgnore) // nolint: errcheck
 
-			t3 := time.Now()
+			clockMock.Add(time.Millisecond)
+			t3 := clockMock.Now()
 
 			svr3, _ := servers.New(net.ParseIP("3.3.3.3"), 10480, 10481)
 			svr3.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-			svr3.Refresh()
+			svr3.Refresh(clockMock.Now())
 			repo.Add(ctx, svr3, servers.OnConflictIgnore) // nolint: errcheck
 
-			t4 := time.Now()
+			clockMock.Add(time.Millisecond)
+			t4 := clockMock.Now()
 
 			svr4, _ := servers.New(net.ParseIP("4.4.4.4"), 10480, 10481)
 			svr4.UpdateDiscoveryStatus(ds.NoDetails | ds.NoPort)
 			repo.Add(ctx, svr4, servers.OnConflictIgnore) // nolint: errcheck
 
-			t5 := time.Now()
+			clockMock.Add(time.Millisecond)
+			t5 := clockMock.Now()
 
 			svr5, _ := servers.New(net.ParseIP("5.5.5.5"), 10480, 10481)
 			svr5.UpdateDiscoveryStatus(ds.NoPort | ds.PortRetry)
 			repo.Add(ctx, svr5, servers.OnConflictIgnore) // nolint: errcheck
 
-			gotServers, err := repo.Filter(ctx, tt.fsfactory(t1, t2, t3, t4, t5))
+			clockMock.Add(time.Millisecond)
+
+			gotServers, err := repo.Filter(ctx, tt.fsfactory(clockMock, t1, t2, t3, t4, t5))
 			require.NoError(t, err)
 			testutils.AssertServers(t, tt.wantServers, gotServers)
 		})
@@ -680,33 +694,35 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 
 func TestServerMemoryRepo_Filter_Empty(t *testing.T) {
 	tests := []struct {
-		name string
-		fs   servers.FilterSet
+		name      string
+		fsfactory func(clock.Clock) servers.FilterSet
 	}{
 		{
 			"default filterset",
-			servers.NewFilterSet(),
+			func(clock.Clock) servers.FilterSet { return servers.NewFilterSet() },
 		},
 		{
 			"filter by no status",
-			servers.NewFilterSet().NoStatus(ds.Master),
+			func(clock.Clock) servers.FilterSet { return servers.NewFilterSet().NoStatus(ds.Master) },
 		},
 		{
 			"filter by status",
-			servers.NewFilterSet().WithStatus(ds.Master),
+			func(clock.Clock) servers.FilterSet { return servers.NewFilterSet().WithStatus(ds.Master) },
 		},
 		{
 			"filter by status and update date",
-			servers.NewFilterSet().WithStatus(ds.Master).UpdatedBefore(time.Now()),
+			func(c clock.Clock) servers.FilterSet {
+				return servers.NewFilterSet().WithStatus(ds.Master).UpdatedBefore(c.Now())
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := memory.New()
+			repo, clockMock := makeRepo()
 			ctx := context.TODO()
 
-			items, err := repo.Filter(ctx, tt.fs)
+			items, err := repo.Filter(ctx, tt.fsfactory(clockMock))
 			require.NoError(t, err)
 			assert.Equal(t, []servers.Server{}, items)
 		})

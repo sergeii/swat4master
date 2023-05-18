@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -24,6 +25,7 @@ import (
 
 func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts := []fx.Option{
+		fx.Provide(clock.New),
 		fx.Provide(memory.New),
 		fx.Provide(
 			server.NewService,
@@ -33,6 +35,14 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts = append(fxopts, extra...)
 	app := fxtest.New(tb, fxopts...)
 	app.RequireStart().RequireStop()
+}
+
+func overrideClock(c clock.Clock) fx.Option {
+	return fx.Decorate(
+		func() clock.Clock {
+			return c
+		},
+	)
 }
 
 func TestServerService_Create_OK(t *testing.T) {
@@ -395,9 +405,11 @@ func TestServerService_FilterRecent(t *testing.T) {
 		t.Run(testname, func(t *testing.T) {
 			var repo servers.Repository
 			var service *server.Service
-			makeApp(t, fx.Populate(&repo, &service))
 
 			ctx := context.TODO()
+			clockMock := clock.NewMock()
+
+			makeApp(t, fx.Populate(&repo, &service), overrideClock(clockMock))
 
 			svr1, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 			svr1.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -407,11 +419,11 @@ func TestServerService_FilterRecent(t *testing.T) {
 				"gamever":     "1.1",
 				"gamevariant": "SWAT 4",
 				"gametype":    "VIP Escort",
-			}))
+			}), clockMock.Now())
 			svr1.UpdateDiscoveryStatus(ds.Master | ds.Info)
 			svr1, _ = repo.Add(ctx, svr1, servers.OnConflictIgnore)
 
-			<-time.After(time.Millisecond * 10)
+			clockMock.Add(time.Millisecond * 10)
 
 			svr2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
 			svr2.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -423,11 +435,11 @@ func TestServerService_FilterRecent(t *testing.T) {
 				"gametype":    "Barricaded Suspects",
 				"numplayers":  "12",
 				"maxplayers":  "16",
-			}))
+			}), clockMock.Now())
 			svr2.UpdateDiscoveryStatus(ds.Details | ds.Info)
 			svr2, _ = repo.Add(ctx, svr2, servers.OnConflictIgnore)
 
-			<-time.After(time.Millisecond * 10)
+			clockMock.Add(time.Millisecond * 10)
 
 			svr3, _ := servers.New(net.ParseIP("3.3.3.3"), 10480, 10481)
 			svr3.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -439,7 +451,7 @@ func TestServerService_FilterRecent(t *testing.T) {
 				"gametype":    "Smash And Grab",
 				"numplayers":  "1",
 				"maxplayers":  "10",
-			}))
+			}), clockMock.Now())
 			svr3.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
 			svr3, _ = repo.Add(ctx, svr3, servers.OnConflictIgnore)
 
@@ -453,11 +465,11 @@ func TestServerService_FilterRecent(t *testing.T) {
 				"gametype":    "VIP Escort",
 				"numplayers":  "14",
 				"maxplayers":  "16",
-			}))
+			}), clockMock.Now())
 			svr4.UpdateDiscoveryStatus(ds.Master)
 			svr4, _ = repo.Add(ctx, svr4, servers.OnConflictIgnore)
 
-			<-time.After(time.Millisecond * 10)
+			clockMock.Add(time.Millisecond * 10)
 
 			filtered, err := service.FilterRecent(ctx, tt.recentness, tt.q, tt.status)
 			require.NoError(t, err)

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
@@ -51,10 +52,12 @@ type serverListSchema struct {
 }
 
 func TestAPI_ListServers_OK(t *testing.T) {
-	repos := memory.New()
 	ctx := context.TODO()
+	clockMock := clock.NewMock()
+	repos := memory.New(clockMock)
 	ts, cancel := testutils.PrepareTestServer(
 		t,
+		fx.Decorate(func() clock.Clock { return clockMock }),
 		fx.Decorate(func() servers.Repository {
 			return repos.Servers
 		}),
@@ -78,10 +81,11 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"maxplayers":  "16",
 		"round":       "1",
 		"numrounds":   "5",
-	}))
+	}), clockMock.Now())
 	outdated.UpdateDiscoveryStatus(ds.Master)
 	repos.Servers.Add(ctx, outdated, servers.OnConflictIgnore) // nolint: errcheck
-	<-time.After(time.Millisecond * 15)
+
+	clockMock.Add(time.Millisecond * 15)
 
 	noStatus, _ := servers.New(net.ParseIP("4.4.4.4"), 10480, 10481)
 	noStatus.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -91,9 +95,10 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gamever":     "1.0",
 		"gamevariant": "SWAT 4",
 		"gametype":    "Barricaded Suspects",
-	}))
+	}), clockMock.Now())
 	repos.Servers.Add(ctx, noStatus, servers.OnConflictIgnore) // nolint: errcheck
-	<-time.After(time.Millisecond * 1)
+
+	clockMock.Add(time.Millisecond)
 
 	delisted, _ := servers.New(net.ParseIP("5.5.5.5"), 10480, 10481)
 	delisted.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -103,10 +108,11 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gamever":     "1.1",
 		"gamevariant": "SWAT 4",
 		"gametype":    "CO-OP",
-	}))
+	}), clockMock.Now())
 	delisted.UpdateDiscoveryStatus(ds.NoDetails)
 	repos.Servers.Add(ctx, delisted, servers.OnConflictIgnore) // nolint: errcheck
-	<-time.After(time.Millisecond * 1)
+
+	clockMock.Add(time.Millisecond)
 
 	noInfo, _ := servers.New(net.ParseIP("6.6.6.6"), 10480, 10481)
 	noInfo.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -116,10 +122,11 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gamever":     "1.1",
 		"gamevariant": "SWAT 4",
 		"gametype":    "CO-OP",
-	}))
+	}), clockMock.Now())
 	noInfo.UpdateDiscoveryStatus(ds.Master | ds.Details)
 	repos.Servers.Add(ctx, noInfo, servers.OnConflictIgnore) // nolint: errcheck
-	<-time.After(time.Millisecond * 1)
+
+	clockMock.Add(time.Millisecond)
 
 	noRefresh, _ := servers.New(net.ParseIP("7.7.7.7"), 10580, 10581)
 	noRefresh.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
@@ -143,10 +150,11 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"suspectsscore": "76",
 		"swatwon":       "1",
 		"suspectswon":   "2",
-	}))
+	}), clockMock.Now())
 	gs1.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
 	repos.Servers.Add(ctx, gs1, servers.OnConflictIgnore) // nolint: errcheck
-	<-time.After(time.Millisecond * 5)
+
+	clockMock.Add(time.Millisecond * 5)
 
 	gs2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
 	gs2.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -158,7 +166,7 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gametype":    "CO-OP",
 		"numplayers":  "4",
 		"maxplayers":  "5",
-	}))
+	}), clockMock.Now())
 	gs2.UpdateDiscoveryStatus(ds.Master | ds.Info)
 	repos.Servers.Add(ctx, gs2, servers.OnConflictIgnore) // nolint: errcheck
 
@@ -385,10 +393,12 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repos := memory.New()
+			clockMock := clock.NewMock()
+			repos := memory.New(clockMock)
 			ctx := context.TODO()
 			ts, cancel := testutils.PrepareTestServer(
 				t,
+				fx.Decorate(func() clock.Clock { return clockMock }),
 				fx.Decorate(func() servers.Repository {
 					return repos.Servers
 				}),
@@ -410,7 +420,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"password":    "0",
 				"numplayers":  "16",
 				"maxplayers":  "16",
-			}))
+			}), clockMock.Now())
 			vip.UpdateDiscoveryStatus(ds.Master | ds.Info)
 			repos.Servers.Add(ctx, vip, servers.OnConflictIgnore) // nolint: errcheck
 
@@ -425,7 +435,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"password":    "0",
 				"numplayers":  "16",
 				"maxplayers":  "18",
-			}))
+			}), clockMock.Now())
 			vip10.UpdateDiscoveryStatus(ds.Master | ds.Info)
 			repos.Servers.Add(ctx, vip10, servers.OnConflictIgnore) // nolint: errcheck
 
@@ -440,7 +450,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"password":    "0",
 				"numplayers":  "0",
 				"maxplayers":  "16",
-			}))
+			}), clockMock.Now())
 			bs.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
 			repos.Servers.Add(ctx, bs, servers.OnConflictIgnore) // nolint: errcheck
 
@@ -455,7 +465,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"password":    "0",
 				"numplayers":  "0",
 				"maxplayers":  "5",
-			}))
+			}), clockMock.Now())
 			coop.UpdateDiscoveryStatus(ds.Details | ds.Info)
 			repos.Servers.Add(ctx, coop, servers.OnConflictIgnore) // nolint: errcheck
 
@@ -470,7 +480,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"password":    "0",
 				"numplayers":  "0",
 				"maxplayers":  "16",
-			}))
+			}), clockMock.Now())
 			sg.UpdateDiscoveryStatus(ds.Master | ds.Info | ds.NoDetails)
 			repos.Servers.Add(ctx, sg, servers.OnConflictIgnore) // nolint: errcheck
 
@@ -485,7 +495,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"password":    "0",
 				"numplayers":  "1",
 				"maxplayers":  "10",
-			}))
+			}), clockMock.Now())
 			coopx.UpdateDiscoveryStatus(ds.Master | ds.Info)
 			repos.Servers.Add(ctx, coopx, servers.OnConflictIgnore) // nolint: errcheck
 
@@ -500,7 +510,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"password":    "1",
 				"numplayers":  "0",
 				"maxplayers":  "16",
-			}))
+			}), clockMock.Now())
 			passworded.UpdateDiscoveryStatus(ds.Details | ds.Info)
 			repos.Servers.Add(ctx, passworded, servers.OnConflictIgnore) // nolint: errcheck
 

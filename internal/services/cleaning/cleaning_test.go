@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
@@ -37,34 +38,54 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	app.RequireStart().RequireStop()
 }
 
+func provideClock(c clock.Clock) fx.Option {
+	return fx.Provide(
+		func() clock.Clock {
+			return c
+		},
+	)
+}
+
 func TestCleaningService_Clean(t *testing.T) {
 	var service *cleaning.Service
 	var serversRepo servers.Repository
 	var instancesRepo instances.Repository
 
 	ctx := context.TODO()
-	makeApp(t, fx.Populate(&service, &serversRepo, &instancesRepo))
+	clockMock := clock.NewMock()
 
-	beforeAll := time.Now()
+	makeApp(t, fx.Populate(&service, &serversRepo, &instancesRepo), provideClock(clockMock))
+
 	instance1 := instances.MustNew("foo", net.ParseIP("1.1.1.1"), 10480)
-	instancesRepo.Add(ctx, instance1) // nolint: errcheck
-	server1 := servers.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	serversRepo.Add(ctx, server1, servers.OnConflictIgnore) // nolint: errcheck
-
-	before2 := time.Now()
-	server2 := servers.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
-	serversRepo.Add(ctx, server2, servers.OnConflictIgnore) // nolint: errcheck
-
 	instance3 := instances.MustNew("bar", net.ParseIP("3.3.3.3"), 10480)
-	instancesRepo.Add(ctx, instance3) // nolint: errcheck
-	server3 := servers.MustNew(net.ParseIP("3.3.3.3"), 10480, 10481)
-	serversRepo.Add(ctx, server3, servers.OnConflictIgnore) // nolint: errcheck
-
 	instance4 := instances.MustNew("baz", net.ParseIP("4.4.4.4"), 10480)
+
+	instancesRepo.Add(ctx, instance1) // nolint: errcheck
+	instancesRepo.Add(ctx, instance3) // nolint: errcheck
 	instancesRepo.Add(ctx, instance4) // nolint: errcheck
+
+	server1 := servers.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
+	server2 := servers.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
+	server3 := servers.MustNew(net.ParseIP("3.3.3.3"), 10480, 10481)
 	server4 := servers.MustNew(net.ParseIP("4.4.4.4"), 10480, 10481)
+
+	beforeAll := clockMock.Now()
+
+	serversRepo.Add(ctx, server1, servers.OnConflictIgnore) // nolint: errcheck
+	clockMock.Add(time.Microsecond)
+
+	before2 := clockMock.Now()
+
+	serversRepo.Add(ctx, server2, servers.OnConflictIgnore) // nolint: errcheck
+	clockMock.Add(time.Microsecond)
+
+	serversRepo.Add(ctx, server3, servers.OnConflictIgnore) // nolint: errcheck
+	clockMock.Add(time.Microsecond)
+
 	serversRepo.Add(ctx, server4, servers.OnConflictIgnore) // nolint: errcheck
-	afterAll := time.Now()
+	clockMock.Add(time.Microsecond)
+
+	afterAll := clockMock.Now()
 
 	svrCount, _ := serversRepo.Count(ctx)
 	insCount, _ := instancesRepo.Count(ctx)
@@ -90,7 +111,9 @@ func TestCleaningService_Clean(t *testing.T) {
 	_, getInsErr := instancesRepo.GetByID(ctx, "foo")
 	assert.ErrorIs(t, getInsErr, instances.ErrInstanceNotFound)
 
+	clockMock.Add(time.Microsecond)
 	serversRepo.Update(ctx, server3, servers.OnConflictIgnore) // nolint: errcheck
+
 	err = service.Clean(context.TODO(), afterAll)
 	assert.NoError(t, err)
 	svrCount, _ = serversRepo.Count(ctx)
@@ -102,7 +125,9 @@ func TestCleaningService_Clean(t *testing.T) {
 	_, getInsErr = instancesRepo.GetByID(ctx, "bar")
 	assert.NoError(t, getInsErr)
 
-	err = service.Clean(context.TODO(), time.Now())
+	clockMock.Add(time.Microsecond)
+
+	err = service.Clean(context.TODO(), clockMock.Now())
 	assert.NoError(t, err)
 	svrCount, _ = serversRepo.Count(ctx)
 	assert.Equal(t, 0, svrCount)
@@ -112,7 +137,8 @@ func TestCleaningService_Clean(t *testing.T) {
 
 func TestCleaningService_Clean_EmptyNoError(t *testing.T) {
 	var service *cleaning.Service
-	makeApp(t, fx.Populate(&service))
-	err := service.Clean(context.TODO(), time.Now())
+	clockMock := clock.NewMock()
+	makeApp(t, fx.Populate(&service), provideClock(clockMock))
+	err := service.Clean(context.TODO(), clockMock.Now())
 	assert.NoError(t, err)
 }

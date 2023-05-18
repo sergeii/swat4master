@@ -2,8 +2,8 @@ package collector
 
 import (
 	"context"
-	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
@@ -16,11 +16,12 @@ type Collector struct{}
 func Run(
 	stop chan struct{},
 	stopped chan struct{},
+	clock clock.Clock,
 	logger *zerolog.Logger,
 	metrics *monitoring.MetricService,
 	cfg config.Config,
 ) {
-	ticker := time.NewTicker(cfg.CollectorInterval)
+	ticker := clock.Ticker(cfg.CollectorInterval)
 	defer ticker.Stop()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -48,6 +49,7 @@ func NewCollector(
 	lc fx.Lifecycle,
 	cfg config.Config,
 	metrics *monitoring.MetricService,
+	clock clock.Clock,
 	logger *zerolog.Logger,
 ) *Collector {
 	stopped := make(chan struct{})
@@ -55,7 +57,7 @@ func NewCollector(
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			go Run(stop, stopped, logger, metrics, cfg) // nolint: contextcheck
+			go Run(stop, stopped, clock, logger, metrics, cfg) // nolint: contextcheck
 			return nil
 		},
 		OnStop: func(context.Context) error {

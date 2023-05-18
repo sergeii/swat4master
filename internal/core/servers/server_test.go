@@ -3,6 +3,7 @@ package servers_test
 import (
 	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -200,7 +201,7 @@ func TestServer_InfoIsUpdated(t *testing.T) {
 		"gamevariant": "SWAT 4",
 		"gametype":    "Barricaded Suspects",
 	})
-	svr.UpdateInfo(newInfo)
+	svr.UpdateInfo(newInfo, time.Now())
 
 	updatedInfo := svr.GetInfo()
 	assert.Equal(t, "Swat4 Server", updatedInfo.Hostname)
@@ -285,7 +286,7 @@ func TestServer_DetailsAreUpdated(t *testing.T) {
 		},
 	}
 	newDetails := details.MustNewDetailsFromParams(serverParams, players, objectives)
-	svr.UpdateDetails(newDetails)
+	svr.UpdateDetails(newDetails, time.Now())
 
 	updatedDetails := svr.GetDetails()
 	assert.Equal(t, "[c=0099ff]SEF 7.0 EU [c=ffffff]www.swat4.tk", updatedDetails.Info.Hostname)

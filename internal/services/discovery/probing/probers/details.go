@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/go-playground/validator/v10"
 	"github.com/rs/zerolog"
 
@@ -21,6 +22,7 @@ import (
 type DetailsProber struct {
 	metrics  *monitoring.MetricService
 	validate *validator.Validate
+	clock    clock.Clock
 	logger   *zerolog.Logger
 }
 
@@ -28,11 +30,13 @@ func NewDetailsProber(
 	service *probing.Service,
 	metrics *monitoring.MetricService,
 	validate *validator.Validate,
+	clock clock.Clock,
 	logger *zerolog.Logger,
 ) (*DetailsProber, error) {
 	dp := &DetailsProber{
 		metrics:  metrics,
 		validate: validate,
+		clock:    clock,
 		logger:   logger,
 	}
 	if err := service.Register(probes.GoalDetails, dp); err != nil {
@@ -54,7 +58,7 @@ func (s *DetailsProber) Probe(
 	addr := svr.GetAddr()
 	qAddr := netip.AddrPortFrom(netip.AddrFrom4(addr.GetIP4()), uint16(queryPort))
 
-	queryStarted := time.Now()
+	queryStarted := s.clock.Now()
 
 	resp, err := gs1.Query(ctx, qAddr, timeout)
 	if err != nil {
@@ -65,7 +69,7 @@ func (s *DetailsProber) Probe(
 		return details.Blank, err
 	}
 
-	queryDur := time.Since(queryStarted).Seconds()
+	queryDur := s.clock.Since(queryStarted).Seconds()
 	s.metrics.DiscoveryQueryDurations.Observe(queryDur)
 	s.logger.Debug().
 		Stringer("addr", addr).Int("port", queryPort).
@@ -94,7 +98,7 @@ func (s *DetailsProber) HandleSuccess(result any, svr servers.Server) servers.Se
 	if !ok {
 		panic(fmt.Errorf("unexpected result type %T, %v", result, result))
 	}
-	svr.UpdateDetails(det)
+	svr.UpdateDetails(det, s.clock.Now())
 	svr.UpdateDiscoveryStatus(ds.Info | ds.Details)
 	svr.ClearDiscoveryStatus(ds.NoDetails | ds.DetailsRetry)
 	return svr
