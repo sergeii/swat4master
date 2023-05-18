@@ -371,11 +371,8 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	var repo servers.Repository
 	var probeService *probe.Service
 
-	clockMock := clock.NewMock()
-
 	app := fx.New(
 		application.Module,
-		fx.Decorate(func() clock.Clock { return clockMock }),
 		fx.Provide(func() config.Config {
 			return config.Config{
 				ExporterListenAddr:    "localhost:11338",
@@ -411,7 +408,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 					udpAddr.Port,
 				),
 			)
-			<-clockMock.After(time.Millisecond * 200)
+			<-time.After(time.Millisecond * 200)
 			conn.WriteToUDP(packet, addr) // nolint: errcheck
 		},
 	)
@@ -442,21 +439,21 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	probe4.IncRetries(2)
 	probe5 := probes.New(addr.NewForTesting(addr2.IP, addr2.Port), addr2.Port, probes.GoalDetails)
 	// will be launched immediately but will expire in 1s
-	probeService.AddBefore(ctx, probe1, clockMock.Now().Add(time.Second)) // nolint: errcheck
+	probeService.AddBefore(ctx, probe1, time.Now().Add(time.Second)) // nolint: errcheck
 	// will be launched no earlier than 100ms but will expire in 1s
 	probeService.AddBetween( // nolint: errcheck
 		ctx,
 		probe2,
-		clockMock.Now().Add(time.Millisecond*100),
-		clockMock.Now().Add(time.Second),
+		time.Now().Add(time.Millisecond*100),
+		time.Now().Add(time.Second),
 	)
-	probeService.AddAfter(ctx, probe3, clockMock.Now().Add(time.Millisecond*300)) // nolint: errcheck
-	probeService.AddAfter(ctx, probe4, clockMock.Now().Add(time.Millisecond*300)) // nolint: errcheck
+	probeService.AddAfter(ctx, probe3, time.Now().Add(time.Millisecond*300)) // nolint: errcheck
+	probeService.AddAfter(ctx, probe4, time.Now().Add(time.Millisecond*300)) // nolint: errcheck
 	// already expired
-	probeService.AddBefore(ctx, probe5, clockMock.Now().Add(-time.Millisecond)) // nolint: errcheck
+	probeService.AddBefore(ctx, probe5, time.Now().Add(-time.Millisecond)) // nolint: errcheck
 
-	clockMock.Add(time.Millisecond * 50)
-	// 1 probe is picked and the worker is busy waited for response
+	<-time.After(time.Millisecond * 50)
+	// 1 probe is picked and the worker is busy waiting for response
 	mf := getMetrics(t)
 	assert.Equal(t, 1, int(mf["discovery_busy_workers"].Metric[0].Gauge.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_available_workers"].Metric[0].Gauge.GetValue()))
@@ -465,7 +462,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	assert.Equal(t, 1, int(mf["discovery_queue_expired_total"].Metric[0].Counter.GetValue()))
 	assert.Nil(t, mf["discovery_probes_total"])
 
-	clockMock.Add(time.Millisecond * 200)
+	<-time.After(time.Millisecond * 200)
 	// port probe is picked, previous detail probe finished
 	mf = getMetrics(t)
 	assert.Equal(t, 1, int(mf["discovery_busy_workers"].Metric[0].Gauge.GetValue()))
@@ -485,7 +482,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	assert.Nil(t, mf["discovery_probe_failures_total"])
 	assert.Nil(t, mf["discovery_probe_errors_total"])
 
-	clockMock.Add(time.Millisecond * 200)
+	<-time.After(time.Millisecond * 200)
 	// details and port probes for unresponsive server are picked
 	// previous probes are finished
 	mf = getMetrics(t)
@@ -508,7 +505,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	assert.Nil(t, mf["discovery_probe_failures_total"])
 	assert.Nil(t, mf["discovery_probe_retries_total"])
 
-	clockMock.Add(time.Millisecond * 200)
+	<-time.After(time.Millisecond * 200)
 	// both probes failed due to timeout
 	mf = getMetrics(t)
 	assert.Equal(t, 0, int(mf["discovery_busy_workers"].Metric[0].Gauge.GetValue()))
