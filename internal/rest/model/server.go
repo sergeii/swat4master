@@ -9,8 +9,8 @@ import (
 )
 
 type NewServer struct {
-	IP   string `json:"ip" binding:"required,ipv4"`
-	Port int    `json:"port" binding:"required,gte=1025,lte=65535"`
+	IP   string `binding:"required,ipv4"               json:"ip"`
+	Port int    `binding:"required,gte=1025,lte=65535" json:"port"`
 }
 
 type Server struct {

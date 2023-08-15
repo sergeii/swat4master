@@ -1,4 +1,4 @@
-FROM golang:1.20-alpine AS build
+FROM golang:1.21-alpine AS build
 
 ARG build_commit_sha="-"
 ARG build_version="-"
@@ -7,6 +7,7 @@ ARG build_time="-"
 ENV CGO_ENABLED=0
 ENV GOOS=linux
 ENV GOARCH=amd64
+ENV GOEXPERIMENT=loopvar
 ENV PATH=/go/bin/linux_amd64:$PATH
 
 ARG _pkg="github.com/sergeii/swat4master/cmd/swat4master"

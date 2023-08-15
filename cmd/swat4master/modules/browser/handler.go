@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-
-	"github.com/sergeii/swat4master/pkg/logutils"
 )
 
 func (h *Handler) Handle(ctx context.Context, conn *net.TCPConn) {
@@ -23,9 +21,6 @@ func (h *Handler) Handle(ctx context.Context, conn *net.TCPConn) {
 	h.logger.Debug().
 		Int("len", len(req)).Stringer("src", conn.RemoteAddr()).
 		Msg("Received server browser request")
-	if e := h.logger.Debug(); e.Enabled() {
-		logutils.Hexdump(req) // nolint: errcheck
-	}
 
 	h.metrics.BrowserReceived.Add(float64(len(req)))
 

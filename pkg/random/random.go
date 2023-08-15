@@ -6,7 +6,7 @@ import (
 )
 
 func RandInt(min, max int) int {
-	return mrand.Intn(max-min) + min // nolint: gosec
+	return mrand.Intn(max-min) + min // nolint: gosec // no need for crypto/rand here
 }
 
 func RandBytes(sz int) []byte {

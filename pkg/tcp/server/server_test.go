@@ -4,13 +4,13 @@ import (
 	"context"
 	"io"
 	"net"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/sergeii/swat4master/pkg/slice"
 	tcp "github.com/sergeii/swat4master/pkg/tcp/server"
 )
 
@@ -23,7 +23,8 @@ func TestServerListen(t *testing.T) {
 			defer conn.Close()
 			buf := make([]byte, 1024)
 			n, _ := conn.Read(buf)
-			resp := slice.Reverse(buf[:n])
+			resp := buf[:n]
+			slices.Reverse(resp)
 			conn.Write(resp) // nolint: errcheck
 		}),
 		tcp.WithReadySignal(func(net.Addr) {
