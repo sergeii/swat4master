@@ -10,10 +10,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
-	"github.com/sergeii/swat4master/internal/services/monitoring"
-	"github.com/sergeii/swat4master/pkg/logutils"
-
 	"github.com/sergeii/swat4master/internal/services/master/reporting"
+	"github.com/sergeii/swat4master/internal/services/monitoring"
 	udp "github.com/sergeii/swat4master/pkg/udp/server"
 )
 
@@ -46,9 +44,6 @@ func (h *Handler) Handle(
 	h.logger.Debug().
 		Str("type", fmt.Sprintf("0x%02x", req[0])).Stringer("src", addr).Int("len", len(req)).
 		Msg("Received request")
-	if e := h.logger.Debug(); e.Enabled() {
-		logutils.Hexdump(req) // nolint: errcheck
-	}
 
 	h.metrics.ReporterReceived.Add(float64(len(req)))
 
@@ -66,9 +61,6 @@ func (h *Handler) Handle(
 		h.logger.Debug().
 			Stringer("dst", addr).Int("len", len(resp)).
 			Msg("Sending response")
-		if e := h.logger.Debug(); e.Enabled() {
-			logutils.Hexdump(resp) // nolint: errcheck
-		}
 		if _, err := conn.WriteToUDP(resp, addr); err != nil {
 			h.logger.Error().
 				Err(err).Stringer("dst", addr).Int("len", len(resp)).

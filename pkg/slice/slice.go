@@ -14,17 +14,6 @@ func TruncateSafe[T any](s []T, n int) []T {
 }
 
 func RandomChoice[T any](s []T) T {
-	idx := rand.Intn(len(s)) // nolint:gosec
+	idx := rand.Intn(len(s)) // nolint: gosec // no need for crypto/rand here
 	return s[idx]
-}
-
-func Reverse[T any](s []T) []T {
-	i := 0
-	j := len(s) - 1
-	for i < j {
-		s[i], s[j] = s[j], s[i]
-		i++
-		j--
-	}
-	return s
 }

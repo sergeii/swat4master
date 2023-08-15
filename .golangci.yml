@@ -26,6 +26,8 @@ linters:
     - maintidx
     - misspell
     - dupword
+    - depguard
+    - structcheck
 linters-settings:
   cyclop:
     max-complexity: 10

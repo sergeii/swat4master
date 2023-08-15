@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -13,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/sergeii/swat4master/pkg/http/server"
-	"github.com/sergeii/swat4master/pkg/slice"
 )
 
 func TestHTTPServerListenAndServe(t *testing.T) {
@@ -23,7 +23,9 @@ func TestHTTPServerListenAndServe(t *testing.T) {
 		server.WithHandler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			body, _ := io.ReadAll(r.Body)
 			rw.WriteHeader(http.StatusTeapot)
-			rw.Write(slice.Reverse(body)) // nolint:errcheck
+			resp := body
+			slices.Reverse(resp)
+			rw.Write(resp) // nolint:errcheck
 		})),
 		server.WithReadySignal(func(net.Addr) {
 			close(ready)

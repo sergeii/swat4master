@@ -49,25 +49,25 @@ func (pt PlayerTeam) String() string {
 }
 
 type Player struct {
-	Name            string           `validate:"required" param:"player"`
+	Name            string           `param:"player"             validate:"required"`
 	Score           int              `param:"score"`
 	Ping            int              `param:"ping"`
 	Team            PlayerTeam       `validate:"oneof=0 1 2"`
 	VIP             bool             `param:"vip"`
 	CoopStatus      PlayerCoopStatus `validate:"oneof=0 1 2 3 4"`
 	Kills           int              `validate:"gte=0"`
-	TeamKills       int              `validate:"gte=0" param:"tkills"`
+	TeamKills       int              `param:"tkills"             validate:"gte=0"`
 	Deaths          int              `validate:"gte=0"`
 	Arrests         int              `validate:"gte=0"`
 	Arrested        int              `validate:"gte=0"`
-	VIPEscapes      int              `validate:"gte=0" param:"vescaped"`
-	VIPArrests      int              `validate:"gte=0" param:"arrestedvip"`
-	VIPRescues      int              `validate:"gte=0" param:"unarrestedvip"`
-	VIPKillsValid   int              `validate:"gte=0" param:"validvipkills"`
-	VIPKillsInvalid int              `validate:"gte=0" param:"invalidvipkills"`
-	BombsDefused    int              `validate:"gte=0" param:"bombsdiffused"`
+	VIPEscapes      int              `param:"vescaped"           validate:"gte=0"`
+	VIPArrests      int              `param:"arrestedvip"        validate:"gte=0"`
+	VIPRescues      int              `param:"unarrestedvip"      validate:"gte=0"`
+	VIPKillsValid   int              `param:"validvipkills"      validate:"gte=0"`
+	VIPKillsInvalid int              `param:"invalidvipkills"    validate:"gte=0"`
+	BombsDefused    int              `param:"bombsdiffused"      validate:"gte=0"`
 	BombsDetonated  bool             `param:"rdcrybaby"`
-	CaseEscapes     int              `validate:"gte=0" param:"escapedcase"`
-	CaseKills       int              `validate:"gte=0" param:"killedcase"`
+	CaseEscapes     int              `param:"escapedcase"        validate:"gte=0"`
+	CaseKills       int              `param:"killedcase"         validate:"gte=0"`
 	CaseSecured     bool             `param:"sgcrybaby"`
 }

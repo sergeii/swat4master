@@ -10,7 +10,7 @@ type Info struct {
 	Hostname       string `validate:"required"`
 	HostPort       int    `validate:"required,gt=0"`
 	GameVariant    string `validate:"required"`
-	GameVersion    string `validate:"required" param:"gamever"`
+	GameVersion    string `validate:"required" param:"gamever"` // nolint: tagalign
 	GameType       string `validate:"required"`
 	NumPlayers     int    `validate:"gte=0"`
 	MaxPlayers     int    `validate:"gte=0"`
@@ -30,7 +30,7 @@ type Info struct {
 	TocReports     string `validate:"ratio"`
 	WeaponsSecured string `validate:"ratio"`
 
-	Version string `validate:"-" param:"-"`
+	Version string `param:"-" validate:"-"`
 }
 
 func NewInfoFromParams(pms map[string]string) (Info, error) {

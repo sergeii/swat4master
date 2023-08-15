@@ -3,12 +3,12 @@ package server_test
 import (
 	"context"
 	"net"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/sergeii/swat4master/pkg/slice"
 	udp "github.com/sergeii/swat4master/pkg/udp/server"
 )
 
@@ -18,7 +18,8 @@ func TestServerListen(t *testing.T) {
 	server, err := udp.New(
 		"localhost:0", // 0 - listen an any available port
 		udp.HandleFunc(func(ctx context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {
-			resp := slice.Reverse(req)
+			resp := req
+			slices.Reverse(resp)
 			conn.WriteToUDP(resp, addr) // nolint: errcheck
 		}),
 		udp.WithReadySignal(func() {

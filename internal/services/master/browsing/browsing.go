@@ -15,7 +15,6 @@ import (
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query"
 	"github.com/sergeii/swat4master/pkg/gamespy/crypt"
 	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/params"
-	"github.com/sergeii/swat4master/pkg/logutils"
 )
 
 const GameEncKey = "tG3j8c"
@@ -73,9 +72,6 @@ func (s *Service) HandleRequest(ctx context.Context, addr *net.TCPAddr, payload 
 	s.logger.Debug().
 		Int("count", len(available)).Stringer("src", addr).Str("filters", req.Filters).
 		Msg("Packed available")
-	if e := s.logger.Debug(); e.Enabled() {
-		logutils.Hexdump(resp) // nolint: errcheck
-	}
 
 	return crypt.Encrypt(s.gameKey, req.Challenge, resp), nil
 }
