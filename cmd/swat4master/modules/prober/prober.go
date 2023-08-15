@@ -2,7 +2,6 @@ package prober
 
 import (
 	"context"
-	"time"
 
 	"github.com/benbjohnson/clock"
 	"github.com/rs/zerolog"
@@ -38,11 +37,12 @@ func Run(
 	stop chan struct{},
 	stopped chan struct{},
 	logger *zerolog.Logger,
+	clock clock.Clock,
 	queue *probe.Service,
 	wg *WorkerGroup,
 	cfg config.Config,
 ) {
-	ticker := time.NewTicker(cfg.ProbePollSchedule)
+	ticker := clock.Ticker(cfg.ProbePollSchedule)
 	defer ticker.Stop()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -79,6 +79,7 @@ type Params struct {
 func NewProber(
 	lc fx.Lifecycle,
 	cfg config.Config,
+	clock clock.Clock,
 	queue *probe.Service,
 	wg *WorkerGroup,
 	logger *zerolog.Logger,
@@ -89,7 +90,7 @@ func NewProber(
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			go Run(stop, stopped, logger, queue, wg, cfg) // nolint: contextcheck
+			go Run(stop, stopped, logger, clock, queue, wg, cfg) // nolint: contextcheck
 			return nil
 		},
 		OnStop: func(context.Context) error {

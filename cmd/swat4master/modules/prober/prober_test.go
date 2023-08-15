@@ -148,7 +148,7 @@ func TestProber_Run(t *testing.T) {
 				DiscoveryRevivalScope:    time.Second,
 				DiscoveryRevivalPorts:    []int{1},
 				ProbeConcurrency:         5,
-				ProbePollSchedule:        time.Millisecond,
+				ProbePollSchedule:        time.Millisecond * 50, // speed up the test
 				ProbeRetries:             2,
 				ProbeTimeout:             time.Millisecond * 100,
 			}
@@ -168,8 +168,8 @@ func TestProber_Run(t *testing.T) {
 	}()
 	runtime.Gosched()
 
-	for i := 0; i < 10; i++ {
-		clockMock.Add(time.Millisecond * 100)
+	for i := 0; i < 100; i++ {
+		clockMock.Add(time.Millisecond * 10)
 	}
 
 	updatedSvr1, _ := repos.Servers.Get(ctx, svr1.GetAddr())
