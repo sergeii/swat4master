@@ -7,19 +7,20 @@ import (
 
 	"github.com/benbjohnson/clock"
 
-	"github.com/sergeii/swat4master/internal/core/servers"
-	"github.com/sergeii/swat4master/internal/entity/addr"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/addr"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
+	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query"
 )
 
 type Service struct {
-	servers servers.Repository
+	servers repositories.ServerRepository
 	clock   clock.Clock
 }
 
 func NewService(
-	repo servers.Repository,
+	repo repositories.ServerRepository,
 	clock clock.Clock,
 ) *Service {
 	return &Service{
@@ -30,42 +31,42 @@ func NewService(
 
 func (s *Service) Create(
 	ctx context.Context,
-	svr servers.Server,
-	onConflict func(*servers.Server) bool,
-) (servers.Server, error) {
+	svr server.Server,
+	onConflict func(*server.Server) bool,
+) (server.Server, error) {
 	return s.servers.Add(ctx, svr, onConflict)
 }
 
 func (s *Service) Update(
 	ctx context.Context,
-	svr servers.Server,
-	onConflict func(*servers.Server) bool,
-) (servers.Server, error) {
+	svr server.Server,
+	onConflict func(*server.Server) bool,
+) (server.Server, error) {
 	return s.servers.Update(ctx, svr, onConflict)
 }
 
 func (s *Service) CreateOrUpdate(
 	ctx context.Context,
-	svr servers.Server,
-	onConflictDo func(*servers.Server),
-) (servers.Server, error) {
-	repoOnConflict := func(s *servers.Server) bool {
+	svr server.Server,
+	onConflictDo func(*server.Server),
+) (server.Server, error) {
+	repoOnConflict := func(s *server.Server) bool {
 		onConflictDo(s)
 		// we never want to fail an update
 		return true
 	}
 	if _, err := s.servers.Get(ctx, svr.GetAddr()); err != nil {
 		switch {
-		case errors.Is(err, servers.ErrServerNotFound):
+		case errors.Is(err, repositories.ErrServerNotFound):
 			return s.servers.Add(ctx, svr, repoOnConflict)
 		default:
-			return servers.Blank, err
+			return server.Blank, err
 		}
 	}
 	return s.servers.Update(ctx, svr, repoOnConflict)
 }
 
-func (s *Service) Get(ctx context.Context, address addr.Addr) (servers.Server, error) {
+func (s *Service) Get(ctx context.Context, address addr.Addr) (server.Server, error) {
 	return s.servers.Get(ctx, address)
 }
 
@@ -74,15 +75,15 @@ func (s *Service) FilterRecent(
 	recentness time.Duration,
 	q query.Query,
 	withStatus ds.DiscoveryStatus,
-) ([]servers.Server, error) {
-	fs := servers.NewFilterSet().ActiveAfter(s.clock.Now().Add(-recentness)).WithStatus(withStatus)
+) ([]server.Server, error) {
+	fs := repositories.NewServerFilterSet().ActiveAfter(s.clock.Now().Add(-recentness)).WithStatus(withStatus)
 
 	recent, err := s.servers.Filter(ctx, fs)
 	if err != nil {
 		return nil, err
 	}
 
-	filtered := make([]servers.Server, 0, len(recent))
+	filtered := make([]server.Server, 0, len(recent))
 	for _, svr := range recent {
 		details := svr.GetInfo()
 		if q.Match(&details) {

@@ -4,12 +4,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/sergeii/swat4master/internal/core/servers"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
 )
 
 type Prober interface {
-	Probe(context.Context, servers.Server, int, time.Duration) (any, error)
-	HandleSuccess(any, servers.Server) servers.Server
-	HandleRetry(servers.Server) servers.Server
-	HandleFailure(servers.Server) servers.Server
+	Probe(context.Context, server.Server, int, time.Duration) (any, error)
+	HandleSuccess(any, server.Server) server.Server
+	HandleRetry(server.Server) server.Server
+	HandleFailure(server.Server) server.Server
 }

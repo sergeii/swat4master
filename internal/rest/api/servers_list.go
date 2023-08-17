@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/rest/model"
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query"
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query/filter"

@@ -12,9 +12,10 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 
-	"github.com/sergeii/swat4master/internal/core/instances"
-	"github.com/sergeii/swat4master/internal/core/servers"
-	"github.com/sergeii/swat4master/internal/entity/addr"
+	"github.com/sergeii/swat4master/internal/core/entities/addr"
+	"github.com/sergeii/swat4master/internal/core/entities/instance"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
+	repos "github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/services/cleaning"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
@@ -22,7 +23,10 @@ import (
 
 func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts := []fx.Option{
-		fx.Provide(memory.New),
+		fx.Provide(func(c clock.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
+			mem := memory.New(c)
+			return mem.Servers, mem.Instances, mem.Probes
+		}),
 		fx.Provide(func() *zerolog.Logger {
 			logger := zerolog.Nop()
 			return &logger
@@ -48,41 +52,41 @@ func provideClock(c clock.Clock) fx.Option {
 
 func TestCleaningService_Clean(t *testing.T) {
 	var service *cleaning.Service
-	var serversRepo servers.Repository
-	var instancesRepo instances.Repository
+	var serversRepo repos.ServerRepository
+	var instancesRepo repos.InstanceRepository
 
 	ctx := context.TODO()
 	clockMock := clock.NewMock()
 
 	makeApp(t, fx.Populate(&service, &serversRepo, &instancesRepo), provideClock(clockMock))
 
-	instance1 := instances.MustNew("foo", net.ParseIP("1.1.1.1"), 10480)
-	instance3 := instances.MustNew("bar", net.ParseIP("3.3.3.3"), 10480)
-	instance4 := instances.MustNew("baz", net.ParseIP("4.4.4.4"), 10480)
+	instance1 := instance.MustNew("foo", net.ParseIP("1.1.1.1"), 10480)
+	instance3 := instance.MustNew("bar", net.ParseIP("3.3.3.3"), 10480)
+	instance4 := instance.MustNew("baz", net.ParseIP("4.4.4.4"), 10480)
 
 	instancesRepo.Add(ctx, instance1) // nolint: errcheck
 	instancesRepo.Add(ctx, instance3) // nolint: errcheck
 	instancesRepo.Add(ctx, instance4) // nolint: errcheck
 
-	server1 := servers.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	server2 := servers.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
-	server3 := servers.MustNew(net.ParseIP("3.3.3.3"), 10480, 10481)
-	server4 := servers.MustNew(net.ParseIP("4.4.4.4"), 10480, 10481)
+	server1 := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
+	server2 := server.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
+	server3 := server.MustNew(net.ParseIP("3.3.3.3"), 10480, 10481)
+	server4 := server.MustNew(net.ParseIP("4.4.4.4"), 10480, 10481)
 
 	beforeAll := clockMock.Now()
 
-	serversRepo.Add(ctx, server1, servers.OnConflictIgnore) // nolint: errcheck
+	serversRepo.Add(ctx, server1, repos.ServerOnConflictIgnore) // nolint: errcheck
 	clockMock.Add(time.Microsecond)
 
 	before2 := clockMock.Now()
 
-	serversRepo.Add(ctx, server2, servers.OnConflictIgnore) // nolint: errcheck
+	serversRepo.Add(ctx, server2, repos.ServerOnConflictIgnore) // nolint: errcheck
 	clockMock.Add(time.Microsecond)
 
-	serversRepo.Add(ctx, server3, servers.OnConflictIgnore) // nolint: errcheck
+	serversRepo.Add(ctx, server3, repos.ServerOnConflictIgnore) // nolint: errcheck
 	clockMock.Add(time.Microsecond)
 
-	serversRepo.Add(ctx, server4, servers.OnConflictIgnore) // nolint: errcheck
+	serversRepo.Add(ctx, server4, repos.ServerOnConflictIgnore) // nolint: errcheck
 	clockMock.Add(time.Microsecond)
 
 	afterAll := clockMock.Now()
@@ -107,12 +111,12 @@ func TestCleaningService_Clean(t *testing.T) {
 	insCount, _ = instancesRepo.Count(ctx)
 	assert.Equal(t, 2, insCount)
 	_, getSvrErr := serversRepo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
-	assert.ErrorIs(t, getSvrErr, servers.ErrServerNotFound)
+	assert.ErrorIs(t, getSvrErr, repos.ErrServerNotFound)
 	_, getInsErr := instancesRepo.GetByID(ctx, "foo")
-	assert.ErrorIs(t, getInsErr, instances.ErrInstanceNotFound)
+	assert.ErrorIs(t, getInsErr, repos.ErrInstanceNotFound)
 
 	clockMock.Add(time.Microsecond)
-	serversRepo.Update(ctx, server3, servers.OnConflictIgnore) // nolint: errcheck
+	serversRepo.Update(ctx, server3, repos.ServerOnConflictIgnore) // nolint: errcheck
 
 	err = service.Clean(context.TODO(), afterAll)
 	assert.NoError(t, err)

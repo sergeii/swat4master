@@ -1,4 +1,4 @@
-package servers
+package server
 
 import (
 	"errors"
@@ -6,9 +6,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/sergeii/swat4master/internal/entity/addr"
-	"github.com/sergeii/swat4master/internal/entity/details"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/addr"
+	"github.com/sergeii/swat4master/internal/core/entities/details"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 )
 
 var ErrInvalidQueryPort = errors.New("invalid port number")

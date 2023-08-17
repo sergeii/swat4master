@@ -10,10 +10,10 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/rs/zerolog"
 
-	"github.com/sergeii/swat4master/internal/core/probes"
-	"github.com/sergeii/swat4master/internal/core/servers"
-	"github.com/sergeii/swat4master/internal/entity/details"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/details"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/probe"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/services/discovery/probing"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
 	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/gs1"
@@ -39,7 +39,7 @@ func NewDetailsProber(
 		clock:    clock,
 		logger:   logger,
 	}
-	if err := service.Register(probes.GoalDetails, dp); err != nil {
+	if err := service.Register(probe.GoalDetails, dp); err != nil {
 		return nil, err
 	}
 	return dp, nil
@@ -51,7 +51,7 @@ func NewDetailsProber(
 // create the server beforehand
 func (s *DetailsProber) Probe(
 	ctx context.Context,
-	svr servers.Server,
+	svr server.Server,
 	queryPort int,
 	timeout time.Duration,
 ) (any, error) {
@@ -93,7 +93,7 @@ func (s *DetailsProber) Probe(
 	return svrDetails, nil
 }
 
-func (s *DetailsProber) HandleSuccess(result any, svr servers.Server) servers.Server {
+func (s *DetailsProber) HandleSuccess(result any, svr server.Server) server.Server {
 	det, ok := result.(details.Details)
 	if !ok {
 		panic(fmt.Errorf("unexpected result type %T, %v", result, result))
@@ -104,12 +104,12 @@ func (s *DetailsProber) HandleSuccess(result any, svr servers.Server) servers.Se
 	return svr
 }
 
-func (s *DetailsProber) HandleRetry(svr servers.Server) servers.Server {
+func (s *DetailsProber) HandleRetry(svr server.Server) server.Server {
 	svr.UpdateDiscoveryStatus(ds.DetailsRetry)
 	return svr
 }
 
-func (s *DetailsProber) HandleFailure(svr servers.Server) servers.Server {
+func (s *DetailsProber) HandleFailure(svr server.Server) server.Server {
 	svr.ClearDiscoveryStatus(ds.Details | ds.Info | ds.DetailsRetry | ds.Port)
 	svr.UpdateDiscoveryStatus(ds.NoDetails)
 	return svr

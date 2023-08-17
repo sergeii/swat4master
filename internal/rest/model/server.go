@@ -3,8 +3,8 @@ package model
 import (
 	"github.com/gosimple/slug"
 
-	"github.com/sergeii/swat4master/internal/core/servers"
-	"github.com/sergeii/swat4master/internal/entity/details"
+	"github.com/sergeii/swat4master/internal/core/entities/details"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/pkg/swat/styles"
 )
 
@@ -43,7 +43,7 @@ type Server struct {
 	WeaponsSecured string `json:"coop_weapons"` // 17/19
 }
 
-func NewServerFromRepo(svr servers.Server) Server {
+func NewServerFromRepo(svr server.Server) Server {
 	status := svr.GetInfo()
 	hostname := status.Hostname
 	return Server{
@@ -151,7 +151,7 @@ type ServerDetail struct {
 	Objectives []ServerObjective `json:"objectives"`
 }
 
-func NewServerDetailFromRepo(svr servers.Server) ServerDetail {
+func NewServerDetailFromRepo(svr server.Server) ServerDetail {
 	var objectives []ServerObjective
 	var players []ServerPlayer
 

@@ -14,15 +14,15 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/rs/zerolog"
 
-	"github.com/sergeii/swat4master/internal/core/instances"
-	"github.com/sergeii/swat4master/internal/core/probes"
-	"github.com/sergeii/swat4master/internal/core/servers"
-	"github.com/sergeii/swat4master/internal/entity/addr"
-	"github.com/sergeii/swat4master/internal/entity/details"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/addr"
+	"github.com/sergeii/swat4master/internal/core/entities/details"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/instance"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
+	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/services/discovery/finding"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
-	"github.com/sergeii/swat4master/internal/services/server"
+	ss "github.com/sergeii/swat4master/internal/services/server"
 	"github.com/sergeii/swat4master/pkg/binutils"
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query/filter"
 )
@@ -62,10 +62,10 @@ func (msg MasterMsg) String() string {
 }
 
 type Service struct {
-	servers        servers.Repository
-	instances      instances.Repository
+	servers        repositories.ServerRepository
+	instances      repositories.InstanceRepository
 	findingService *finding.Service
-	serverService  *server.Service
+	serverService  *ss.Service
 	metrics        *monitoring.MetricService
 	validate       *validator.Validate
 	clock          clock.Clock
@@ -73,9 +73,9 @@ type Service struct {
 }
 
 func NewService(
-	servers servers.Repository,
-	instances instances.Repository,
-	serverService *server.Service,
+	servers repositories.ServerRepository,
+	instances repositories.InstanceRepository,
+	serverService *ss.Service,
 	findingService *finding.Service,
 	metrics *monitoring.MetricService,
 	validate *validator.Validate,
@@ -164,7 +164,7 @@ func (s *Service) handleKeepalive(
 	now := s.clock.Now()
 	svr.Refresh(now)
 
-	if _, updateErr := s.servers.Update(ctx, svr, func(s *servers.Server) bool {
+	if _, updateErr := s.servers.Update(ctx, svr, func(s *server.Server) bool {
 		s.Refresh(now)
 		return true
 	}); updateErr != nil {
@@ -217,7 +217,7 @@ func (s *Service) removeServer(
 	svr, err := s.servers.Get(ctx, svrAddr)
 	if err != nil {
 		switch {
-		case errors.Is(err, servers.ErrServerNotFound):
+		case errors.Is(err, repositories.ErrServerNotFound):
 			s.logger.Info().
 				Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
 				Msg("Removed server not found")
@@ -231,7 +231,7 @@ func (s *Service) removeServer(
 	if err != nil {
 		switch {
 		// this could be a race condition - ignore
-		case errors.Is(err, instances.ErrInstanceNotFound):
+		case errors.Is(err, repositories.ErrInstanceNotFound):
 			s.logger.Info().
 				Stringer("src", connAddr).
 				Stringer("server", svr).
@@ -247,7 +247,7 @@ func (s *Service) removeServer(
 		return nil, ErrUnknownInstanceID
 	}
 
-	if err = s.servers.Remove(ctx, svr, func(s *servers.Server) bool {
+	if err = s.servers.Remove(ctx, svr, func(s *server.Server) bool {
 		return true
 	}); err != nil {
 		return nil, err
@@ -269,11 +269,11 @@ func (s *Service) removeServer(
 func (s *Service) reportServer(
 	ctx context.Context,
 	connAddr *net.UDPAddr,
-	svr servers.Server,
+	svr server.Server,
 	instanceID string,
 	fields map[string]string,
 ) ([]byte, error) {
-	instance, err := instances.New(instanceID, svr.GetIP(), svr.GetGamePort())
+	instance, err := instance.New(instanceID, svr.GetIP(), svr.GetGamePort())
 	if err != nil {
 		s.logger.Error().
 			Err(err).
@@ -302,7 +302,7 @@ func (s *Service) reportServer(
 	svr.UpdateInfo(info, now)
 	svr.UpdateDiscoveryStatus(ds.Master | ds.Info)
 
-	if svr, err = s.serverService.CreateOrUpdate(ctx, svr, func(conflict *servers.Server) {
+	if svr, err = s.serverService.CreateOrUpdate(ctx, svr, func(conflict *server.Server) {
 		// in case of conflict, just do all the same
 		conflict.UpdateInfo(info, now)
 		conflict.UpdateDiscoveryStatus(ds.Master | ds.Info)
@@ -352,7 +352,7 @@ func (s *Service) reportServer(
 	return resp, nil
 }
 
-func (s *Service) maybeDiscoverPort(ctx context.Context, pending servers.Server) error {
+func (s *Service) maybeDiscoverPort(ctx context.Context, pending server.Server) error {
 	var err error
 	// the server has either already go its port discovered
 	// or it is currently in the queue
@@ -360,13 +360,13 @@ func (s *Service) maybeDiscoverPort(ctx context.Context, pending servers.Server)
 		return nil
 	}
 
-	if err = s.findingService.DiscoverPort(ctx, pending.GetAddr(), probes.NC, probes.NC); err != nil {
+	if err = s.findingService.DiscoverPort(ctx, pending.GetAddr(), repositories.NC, repositories.NC); err != nil {
 		return err
 	}
 
 	pending.UpdateDiscoveryStatus(ds.PortRetry)
 
-	if _, err := s.serverService.Update(ctx, pending, func(conflict *servers.Server) bool {
+	if _, err := s.serverService.Update(ctx, pending, func(conflict *server.Server) bool {
 		// while we were updating this server,
 		// it's got the port, or it was put in the queue.
 		// In such a case, resolve the conflict by not doing anything
@@ -386,18 +386,18 @@ func (s *Service) obtainServerByAddr(
 	ctx context.Context,
 	svrAddr addr.Addr,
 	queryPort int,
-) (servers.Server, error) {
+) (server.Server, error) {
 	svr, err := s.servers.Get(ctx, svrAddr)
 	if err != nil {
 		switch {
-		case errors.Is(err, servers.ErrServerNotFound):
+		case errors.Is(err, repositories.ErrServerNotFound):
 			// create new server
-			if svr, err = servers.NewFromAddr(svrAddr, queryPort); err != nil {
-				return servers.Blank, err
+			if svr, err = server.NewFromAddr(svrAddr, queryPort); err != nil {
+				return server.Blank, err
 			}
 			return svr, nil
 		default:
-			return servers.Blank, err
+			return server.Blank, err
 		}
 	}
 	return svr, nil

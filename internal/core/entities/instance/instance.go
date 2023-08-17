@@ -1,9 +1,9 @@
-package instances
+package instance
 
 import (
 	"net"
 
-	"github.com/sergeii/swat4master/internal/entity/addr"
+	"github.com/sergeii/swat4master/internal/core/entities/addr"
 )
 
 type Instance struct {

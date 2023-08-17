@@ -1,4 +1,4 @@
-package memory
+package probes
 
 import (
 	"container/list"
@@ -9,11 +9,12 @@ import (
 
 	"github.com/benbjohnson/clock"
 
-	"github.com/sergeii/swat4master/internal/core/probes"
+	"github.com/sergeii/swat4master/internal/core/entities/probe"
+	"github.com/sergeii/swat4master/internal/core/repositories"
 )
 
 type enqueued struct {
-	target probes.Target
+	target probe.Probe
 	before time.Time
 	after  time.Time
 }
@@ -33,17 +34,17 @@ func New(c clock.Clock) *Repository {
 	return repo
 }
 
-func (r *Repository) Add(_ context.Context, target probes.Target) error {
-	r.enqueue(target, probes.NC, probes.NC)
+func (r *Repository) Add(_ context.Context, target probe.Probe) error {
+	r.enqueue(target, repositories.NC, repositories.NC)
 	return nil
 }
 
-func (r *Repository) AddBetween(_ context.Context, target probes.Target, after time.Time, before time.Time) error {
+func (r *Repository) AddBetween(_ context.Context, target probe.Probe, after time.Time, before time.Time) error {
 	r.enqueue(target, before, after)
 	return nil
 }
 
-func (r *Repository) Pop(_ context.Context) (probes.Target, error) {
+func (r *Repository) Pop(_ context.Context) (probe.Probe, error) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	passes := r.length
@@ -59,28 +60,28 @@ func (r *Repository) Pop(_ context.Context) (probes.Target, error) {
 			continue
 		}
 		switch {
-		case errors.Is(err, probes.ErrTargetHasExpired):
-			return probes.Blank, probes.ErrQueueIsEmpty
+		case errors.Is(err, repositories.ErrProbeHasExpired):
+			return probe.Blank, repositories.ErrProbeQueueIsEmpty
 		default:
-			return probes.Blank, err
+			return probe.Blank, err
 		}
 	}
 }
 
-func (r *Repository) PopAny(_ context.Context) (probes.Target, error) {
+func (r *Repository) PopAny(_ context.Context) (probe.Probe, error) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	last := r.queue.Front()
 	// queue is empty
 	if last == nil {
-		return probes.Blank, probes.ErrQueueIsEmpty
+		return probe.Blank, repositories.ErrProbeQueueIsEmpty
 	}
 	r.queue.Remove(last)
 	r.length--
 	return last.Value.(enqueued).target, nil // nolint: forcetypeassert
 }
 
-func (r *Repository) PopMany(_ context.Context, count int) ([]probes.Target, int, error) {
+func (r *Repository) PopMany(_ context.Context, count int) ([]probe.Probe, int, error) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -89,7 +90,7 @@ func (r *Repository) PopMany(_ context.Context, count int) ([]probes.Target, int
 		return nil, 0, nil
 	}
 
-	targets := make([]probes.Target, 0, count)
+	targets := make([]probe.Probe, 0, count)
 	seenItems := make([]*list.Element, 0, count)
 	futureItems := make([]*list.Element, 0)
 	expiredCount := 0
@@ -133,7 +134,7 @@ func (r *Repository) Count(context.Context) (int, error) {
 }
 
 func (r *Repository) enqueue(
-	target probes.Target, before time.Time, after time.Time,
+	target probe.Probe, before time.Time, after time.Time,
 ) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -147,19 +148,19 @@ func (r *Repository) next() (*list.Element, error) {
 	next := r.queue.Front()
 	// queue is empty
 	if next == nil {
-		return nil, probes.ErrQueueIsEmpty
+		return nil, repositories.ErrProbeQueueIsEmpty
 	}
 	item := next.Value.(enqueued) // nolint: forcetypeassert
 	// the target's time has expired
 	if !item.before.IsZero() && item.before.Before(now) {
 		r.queue.Remove(next)
 		r.length--
-		return nil, probes.ErrTargetHasExpired
+		return nil, repositories.ErrProbeHasExpired
 	}
 	// the target's time hasn't come yet
 	if !item.after.IsZero() && item.after.After(now) {
 		r.queue.MoveToBack(next)
-		return nil, probes.ErrTargetIsNotReady
+		return nil, repositories.ErrProbeIsNotReady
 	}
 	return next, nil
 }

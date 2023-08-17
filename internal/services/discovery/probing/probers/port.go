@@ -13,10 +13,10 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/rs/zerolog"
 
-	"github.com/sergeii/swat4master/internal/core/probes"
-	"github.com/sergeii/swat4master/internal/core/servers"
-	"github.com/sergeii/swat4master/internal/entity/details"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/details"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/probe"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/services/discovery/probing"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
 	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/gs1"
@@ -66,7 +66,7 @@ func NewPortProber(
 		logger:   logger,
 		opts:     opts,
 	}
-	if err := service.Register(probes.GoalPort, pp); err != nil {
+	if err := service.Register(probe.GoalPort, pp); err != nil {
 		return nil, err
 	}
 	return pp, nil
@@ -78,7 +78,7 @@ func NewPortProber(
 // according to this order: gs1 mod, admin mod, vanilla response.
 func (s *PortProber) Probe(
 	ctx context.Context,
-	svr servers.Server,
+	svr server.Server,
 	_ int,
 	timeout time.Duration,
 ) (any, error) {
@@ -216,7 +216,7 @@ func (s *PortProber) compareResponses(this, that response) response {
 	return that
 }
 
-func (s *PortProber) HandleSuccess(res any, svr servers.Server) servers.Server {
+func (s *PortProber) HandleSuccess(res any, svr server.Server) server.Server {
 	result, ok := res.(Result)
 	if !ok {
 		panic(fmt.Errorf("unexpected result type %T, %v", result, result))
@@ -228,12 +228,12 @@ func (s *PortProber) HandleSuccess(res any, svr servers.Server) servers.Server {
 	return svr
 }
 
-func (s *PortProber) HandleRetry(svr servers.Server) servers.Server {
+func (s *PortProber) HandleRetry(svr server.Server) server.Server {
 	svr.UpdateDiscoveryStatus(ds.PortRetry)
 	return svr
 }
 
-func (s *PortProber) HandleFailure(svr servers.Server) servers.Server {
+func (s *PortProber) HandleFailure(svr server.Server) server.Server {
 	svr.ClearDiscoveryStatus(ds.PortRetry)
 	svr.UpdateDiscoveryStatus(ds.NoPort)
 	return svr

@@ -5,10 +5,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/sergeii/swat4master/internal/core/servers"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
 )
 
-func AssertServers(t testing.TB, expected []string, actual []servers.Server) {
+func AssertServers(t testing.TB, expected []string, actual []server.Server) {
 	addresses := make([]string, 0, len(actual))
 	for _, s := range actual {
 		addresses = append(addresses, s.GetAddr().String())

@@ -6,21 +6,21 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/sergeii/swat4master/internal/core/instances"
-	"github.com/sergeii/swat4master/internal/core/servers"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
+	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
 )
 
 type Service struct {
-	servers   servers.Repository
-	instances instances.Repository
+	servers   repositories.ServerRepository
+	instances repositories.InstanceRepository
 	metrics   *monitoring.MetricService
 	logger    *zerolog.Logger
 }
 
 func NewService(
-	servers servers.Repository,
-	instances instances.Repository,
+	servers repositories.ServerRepository,
+	instances repositories.InstanceRepository,
 	metrics *monitoring.MetricService,
 	logger *zerolog.Logger,
 ) *Service {
@@ -43,7 +43,7 @@ func (s *Service) Clean(ctx context.Context, until time.Time) error {
 		Stringer("until", until).Int("servers", before).
 		Msg("Starting to clean outdated servers")
 
-	fs := servers.NewFilterSet().UpdatedBefore(until)
+	fs := repositories.NewServerFilterSet().UpdatedBefore(until)
 	outdatedServers, err := s.servers.Filter(ctx, fs)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Unable to obtain servers for cleanup")
@@ -59,7 +59,7 @@ func (s *Service) Clean(ctx context.Context, until time.Time) error {
 			errors++
 			continue
 		}
-		if err = s.servers.Remove(ctx, svr, func(conflict *servers.Server) bool {
+		if err = s.servers.Remove(ctx, svr, func(conflict *server.Server) bool {
 			refreshedAt := conflict.GetRefreshedAt()
 			if refreshedAt.After(until) {
 				s.logger.Info().

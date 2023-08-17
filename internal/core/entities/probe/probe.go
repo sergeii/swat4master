@@ -1,9 +1,9 @@
-package probes
+package probe
 
 import (
 	"fmt"
 
-	"github.com/sergeii/swat4master/internal/entity/addr"
+	"github.com/sergeii/swat4master/internal/core/entities/addr"
 )
 
 type Goal int
@@ -23,44 +23,44 @@ func (goal Goal) String() string {
 	return fmt.Sprintf("%d", goal)
 }
 
-type Target struct {
+type Probe struct {
 	addr    addr.Addr
 	port    int
 	goal    Goal
 	retries int
 }
 
-var Blank Target // nolint: gochecknoglobals
+var Blank Probe // nolint: gochecknoglobals
 
-func New(addr addr.Addr, port int, goal Goal) Target {
-	return Target{
+func New(addr addr.Addr, port int, goal Goal) Probe {
+	return Probe{
 		addr: addr,
 		port: port,
 		goal: goal,
 	}
 }
 
-func (t *Target) GetDottedIP() string {
+func (t *Probe) GetDottedIP() string {
 	return t.addr.GetDottedIP()
 }
 
-func (t *Target) GetPort() int {
+func (t *Probe) GetPort() int {
 	return t.port
 }
 
-func (t *Target) GetAddr() addr.Addr {
+func (t *Probe) GetAddr() addr.Addr {
 	return t.addr
 }
 
-func (t *Target) GetGoal() Goal {
+func (t *Probe) GetGoal() Goal {
 	return t.goal
 }
 
-func (t *Target) GetRetries() int {
+func (t *Probe) GetRetries() int {
 	return t.retries
 }
 
-func (t *Target) IncRetries(maxRetries int) (int, bool) {
+func (t *Probe) IncRetries(maxRetries int) (int, bool) {
 	if t.retries >= maxRetries {
 		return t.retries, false
 	}

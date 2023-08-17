@@ -6,23 +6,23 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/sergeii/swat4master/internal/core/probes"
-	"github.com/sergeii/swat4master/internal/core/servers"
-	"github.com/sergeii/swat4master/internal/entity/addr"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
-	"github.com/sergeii/swat4master/internal/services/probe"
+	"github.com/sergeii/swat4master/internal/core/entities/addr"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/probe"
+	"github.com/sergeii/swat4master/internal/core/repositories"
+	ps "github.com/sergeii/swat4master/internal/services/probe"
 	"github.com/sergeii/swat4master/pkg/random"
 )
 
 type Service struct {
-	servers servers.Repository
-	queue   *probe.Service
+	servers repositories.ServerRepository
+	queue   *ps.Service
 	logger  *zerolog.Logger
 }
 
 func NewService(
-	servers servers.Repository,
-	queue *probe.Service,
+	servers repositories.ServerRepository,
+	queue *ps.Service,
 	logger *zerolog.Logger,
 ) *Service {
 	service := &Service{
@@ -37,7 +37,7 @@ func (s *Service) RefreshDetails(
 	ctx context.Context,
 	deadline time.Time,
 ) (int, error) {
-	fs := servers.NewFilterSet().WithStatus(ds.Port).NoStatus(ds.DetailsRetry)
+	fs := repositories.NewServerFilterSet().WithStatus(ds.Port).NoStatus(ds.DetailsRetry)
 	serversWithDetails, err := s.servers.Filter(ctx, fs)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Unable to obtain servers for details discovery")
@@ -66,7 +66,7 @@ func (s *Service) ReviveServers(
 	maxCountdown time.Time,
 	deadline time.Time,
 ) (int, error) {
-	fs := servers.NewFilterSet().ActiveAfter(minScope).ActiveBefore(maxScope).NoStatus(ds.Port | ds.PortRetry)
+	fs := repositories.NewServerFilterSet().ActiveAfter(minScope).ActiveBefore(maxScope).NoStatus(ds.Port | ds.PortRetry)
 	serversWithoutPort, err := s.servers.Filter(ctx, fs)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Unable to obtain servers for port discovery")
@@ -98,8 +98,8 @@ func (s *Service) DiscoverDetails(
 	queryPort int,
 	deadline time.Time,
 ) error {
-	target := probes.New(addr, queryPort, probes.GoalDetails)
-	return s.queue.AddBefore(ctx, target, deadline)
+	prb := probe.New(addr, queryPort, probe.GoalDetails)
+	return s.queue.AddBefore(ctx, prb, deadline)
 }
 
 func (s *Service) DiscoverPort(
@@ -108,8 +108,8 @@ func (s *Service) DiscoverPort(
 	countdown time.Time,
 	deadline time.Time,
 ) error {
-	target := probes.New(addr, addr.Port, probes.GoalPort)
-	return s.queue.AddBetween(ctx, target, countdown, deadline)
+	prb := probe.New(addr, addr.Port, probe.GoalPort)
+	return s.queue.AddBetween(ctx, prb, countdown, deadline)
 }
 
 func selectCountdown(min, max time.Time) time.Time {

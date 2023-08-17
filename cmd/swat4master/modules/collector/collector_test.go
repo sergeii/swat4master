@@ -15,7 +15,8 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/application"
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/collector"
-	"github.com/sergeii/swat4master/internal/core/servers"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
+	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
 )
 
@@ -23,7 +24,7 @@ func TestCollector_Run(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
-	var repo servers.Repository
+	var repo repositories.ServerRepository
 	var metrics *monitoring.MetricService
 
 	clockMock := clock.NewMock()
@@ -47,8 +48,8 @@ func TestCollector_Run(t *testing.T) {
 	}()
 	runtime.Gosched()
 
-	gs, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	repo.Add(ctx, gs, servers.OnConflictIgnore) // nolint: errcheck
+	gs, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	repo.Add(ctx, gs, repositories.ServerOnConflictIgnore) // nolint: errcheck
 
 	valueBeforeTick := testutil.ToFloat64(metrics.ServerRepositorySize)
 	assert.Equal(t, 0.0, valueBeforeTick)

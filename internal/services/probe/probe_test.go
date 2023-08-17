@@ -10,11 +10,12 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 
-	"github.com/sergeii/swat4master/internal/core/probes"
-	"github.com/sergeii/swat4master/internal/entity/addr"
+	"github.com/sergeii/swat4master/internal/core/entities/addr"
+	"github.com/sergeii/swat4master/internal/core/entities/probe"
+	repos "github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
-	"github.com/sergeii/swat4master/internal/services/probe"
+	sp "github.com/sergeii/swat4master/internal/services/probe"
 )
 
 func makeApp(tb fxtest.TB, extra ...fx.Option) {
@@ -24,10 +25,13 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 			logger := zerolog.Nop()
 			return &logger
 		}),
-		fx.Provide(memory.New),
+		fx.Provide(func(c clock.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
+			mem := memory.New(c)
+			return mem.Servers, mem.Instances, mem.Probes
+		}),
 		fx.Provide(
 			monitoring.NewMetricService,
-			probe.NewService,
+			sp.NewService,
 		),
 		fx.NopLogger,
 	}
@@ -39,8 +43,8 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 func TestProbeService_PopMany(t *testing.T) {
 	ctx := context.TODO()
 
-	var repo probes.Repository
-	var service *probe.Service
+	var repo repos.ProbeRepository
+	var service *sp.Service
 	makeApp(t, fx.Populate(&repo, &service))
 
 	// empty
@@ -49,7 +53,7 @@ func TestProbeService_PopMany(t *testing.T) {
 	assert.Len(t, empty, 0)
 
 	for _, ipaddr := range []string{"1.1.1.1", "2.2.2.2", "3.3.3.3"} {
-		repo.Add(ctx, probes.New(addr.MustNewFromString(ipaddr, 10480), 10480, probes.GoalDetails)) // nolint: errcheck
+		repo.Add(ctx, probe.New(addr.MustNewFromString(ipaddr, 10480), 10480, probe.GoalDetails)) // nolint: errcheck
 	}
 
 	targets, _ := service.PopMany(ctx, 2)

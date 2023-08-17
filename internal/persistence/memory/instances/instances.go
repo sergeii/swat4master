@@ -1,28 +1,29 @@
-package memory
+package instances
 
 import (
 	"context"
 	"sync"
 
-	"github.com/sergeii/swat4master/internal/core/instances"
-	"github.com/sergeii/swat4master/internal/entity/addr"
+	"github.com/sergeii/swat4master/internal/core/entities/addr"
+	"github.com/sergeii/swat4master/internal/core/entities/instance"
+	"github.com/sergeii/swat4master/internal/core/repositories"
 )
 
 type Repository struct {
-	ids   map[string]instances.Instance
-	addrs map[addr.Addr]instances.Instance
+	ids   map[string]instance.Instance
+	addrs map[addr.Addr]instance.Instance
 	mutex sync.RWMutex
 }
 
 func New() *Repository {
 	repo := &Repository{
-		ids:   make(map[string]instances.Instance),
-		addrs: make(map[addr.Addr]instances.Instance),
+		ids:   make(map[string]instance.Instance),
+		addrs: make(map[addr.Addr]instance.Instance),
 	}
 	return repo
 }
 
-func (r *Repository) Add(_ context.Context, instance instances.Instance) error {
+func (r *Repository) Add(_ context.Context, instance instance.Instance) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	// check whether a server with this address has been reported under different instance id
@@ -60,24 +61,24 @@ func (r *Repository) RemoveByAddr(_ context.Context, insAddr addr.Addr) error {
 	return nil
 }
 
-func (r *Repository) GetByID(_ context.Context, id string) (instances.Instance, error) {
+func (r *Repository) GetByID(_ context.Context, id string) (instance.Instance, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
-	instance, exists := r.ids[id]
+	ins, exists := r.ids[id]
 	if !exists {
-		return instances.Blank, instances.ErrInstanceNotFound
+		return instance.Blank, repositories.ErrInstanceNotFound
 	}
-	return instance, nil
+	return ins, nil
 }
 
-func (r *Repository) GetByAddr(_ context.Context, insAddr addr.Addr) (instances.Instance, error) {
+func (r *Repository) GetByAddr(_ context.Context, insAddr addr.Addr) (instance.Instance, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
-	instance, exists := r.addrs[insAddr]
+	ins, exists := r.addrs[insAddr]
 	if !exists {
-		return instances.Blank, instances.ErrInstanceNotFound
+		return instance.Blank, repositories.ErrInstanceNotFound
 	}
-	return instance, nil
+	return ins, nil
 }
 
 func (r *Repository) Count(_ context.Context) (int, error) {

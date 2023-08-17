@@ -16,17 +16,17 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 
-	"github.com/sergeii/swat4master/internal/core/instances"
-	"github.com/sergeii/swat4master/internal/core/probes"
-	"github.com/sergeii/swat4master/internal/core/servers"
-	"github.com/sergeii/swat4master/internal/entity/addr"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/addr"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/probe"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
+	repos "github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/services/discovery/finding"
 	"github.com/sergeii/swat4master/internal/services/master/reporting"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
-	"github.com/sergeii/swat4master/internal/services/probe"
-	"github.com/sergeii/swat4master/internal/services/server"
+	sp "github.com/sergeii/swat4master/internal/services/probe"
+	ss "github.com/sergeii/swat4master/internal/services/server"
 	"github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/internal/validation"
 )
@@ -34,7 +34,10 @@ import (
 func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts := []fx.Option{
 		fx.Provide(clock.New),
-		fx.Provide(memory.New),
+		fx.Provide(func(c clock.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
+			mem := memory.New(c)
+			return mem.Servers, mem.Instances, mem.Probes
+		}),
 		fx.Provide(validation.New),
 		fx.Provide(func() *zerolog.Logger {
 			logger := zerolog.Nop()
@@ -42,8 +45,8 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 		}),
 		fx.Provide(
 			monitoring.NewMetricService,
-			server.NewService,
-			probe.NewService,
+			ss.NewService,
+			sp.NewService,
 			finding.NewService,
 			reporting.NewService,
 		),
@@ -147,7 +150,7 @@ func TestReporter_DispatchHeartbeatRequest_OK(t *testing.T) {
 
 func TestReporter_DispatchHeartbeatRequest_ServerIsAddedAndUpdated(t *testing.T) {
 	var service *reporting.Service
-	var repo servers.Repository
+	var repo repos.ServerRepository
 
 	ctx := context.TODO()
 	makeApp(t, fx.Populate(&service, &repo))
@@ -223,17 +226,17 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdated(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var service *reporting.Service
-			var repo servers.Repository
+			var repo repos.ServerRepository
 
 			ctx := context.TODO()
 			makeApp(t, fx.Populate(&service, &repo))
 
 			if !tt.isNew {
-				svr := servers.MustNew(net.ParseIP("55.55.55.55"), 10580, 10584)
+				svr := server.MustNew(net.ParseIP("55.55.55.55"), 10580, 10584)
 				if tt.initStatus.HasStatus() {
 					svr.UpdateDiscoveryStatus(tt.initStatus)
 				}
-				repo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+				repo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 			}
 
 			instanceID := []byte{0xfe, 0xed, 0xf0, 0x0d}
@@ -315,18 +318,18 @@ func TestReporter_DispatchHeartbeatRequest_ServerPortIsDiscovered(t *testing.T) 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var service *reporting.Service
-			var serversRepo servers.Repository
-			var probesRepo probes.Repository
+			var serversRepo repos.ServerRepository
+			var probesRepo repos.ProbeRepository
 
 			ctx := context.TODO()
 			makeApp(t, fx.Populate(&service, &serversRepo, &probesRepo))
 
 			if !tt.isNew {
-				svr := servers.MustNew(net.ParseIP("55.55.55.55"), 10580, 10584)
+				svr := server.MustNew(net.ParseIP("55.55.55.55"), 10580, 10584)
 				if tt.initStatus.HasStatus() {
 					svr.UpdateDiscoveryStatus(tt.initStatus)
 				}
-				serversRepo.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+				serversRepo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 			}
 
 			instanceID := []byte{0xfe, 0xed, 0xf0, 0x0d}
@@ -354,11 +357,11 @@ func TestReporter_DispatchHeartbeatRequest_ServerPortIsDiscovered(t *testing.T) 
 
 			if tt.isDiscovered {
 				assert.Equal(t, 1, queueCount)
-				target, err := probesRepo.Pop(ctx)
+				tgt, err := probesRepo.Pop(ctx)
 				require.NoError(t, err)
-				assert.Equal(t, probes.GoalPort, target.GetGoal())
-				assert.Equal(t, "55.55.55.55:10580", target.GetAddr().String())
-				assert.Equal(t, 10580, target.GetPort())
+				assert.Equal(t, probe.GoalPort, tgt.GetGoal())
+				assert.Equal(t, "55.55.55.55:10580", tgt.GetAddr().String())
+				assert.Equal(t, 10580, tgt.GetPort())
 			} else {
 				assert.Equal(t, 0, queueCount)
 			}
@@ -368,7 +371,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerPortIsDiscovered(t *testing.T) 
 
 func TestReporter_DispatchHeartbeatRequest_HandleServerBehindNAT(t *testing.T) {
 	var service *reporting.Service
-	var repo servers.Repository
+	var repo repos.ServerRepository
 
 	ctx := context.TODO()
 	clockMock := clock.NewMock()
@@ -422,14 +425,14 @@ func TestReporter_DispatchHeartbeatRequest_HandleServerBehindNAT(t *testing.T) {
 	assert.Equal(t, 10480, svr.GetGamePort())
 	assert.Equal(t, 10484, svr.GetQueryPort())
 
-	svrs, _ := repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(before).WithStatus(ds.Master))
+	svrs, _ := repo.Filter(ctx, repos.NewServerFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, svrs, 1)
 }
 
 func TestReporter_DispatchHeartbeatRequest_ServerIsUpdatedWithNewInstanceID(t *testing.T) {
 	var service *reporting.Service
-	var serversRepo servers.Repository
-	var instancesRepo instances.Repository
+	var serversRepo repos.ServerRepository
+	var instancesRepo repos.InstanceRepository
 
 	ctx := context.TODO()
 	makeApp(t, fx.Populate(&service, &serversRepo, &instancesRepo))
@@ -479,7 +482,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdatedWithNewInstanceID(t *t
 
 	// at the same time the server is no longer accessible by the former instance key
 	_, getErr := instancesRepo.GetByID(ctx, string(oldInstanceID))
-	assert.ErrorIs(t, getErr, instances.ErrInstanceNotFound)
+	assert.ErrorIs(t, getErr, repos.ErrInstanceNotFound)
 }
 
 func TestReporter_DispatchHeartbeatRequest_InvalidPayload(t *testing.T) {
@@ -597,7 +600,7 @@ func TestReporter_DispatchHeartbeatRequest_OnlyIPv4IsSupported(t *testing.T) {
 
 func TestReporter_DispatchHeartbeatRequest_ServerLivenessIsRefreshed(t *testing.T) {
 	var service *reporting.Service
-	var repo servers.Repository
+	var repo repos.ServerRepository
 
 	ctx := context.TODO()
 	clockMock := clock.NewMock()
@@ -615,7 +618,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerLivenessIsRefreshed(t *testing.
 	clockMock.Add(time.Millisecond)
 
 	before := clockMock.Now()
-	reportedSinceBefore, _ := repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(before).WithStatus(ds.Master))
+	reportedSinceBefore, _ := repo.Filter(ctx, repos.NewServerFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceBefore, 0)
 
 	// successive report refreshes the server
@@ -625,13 +628,13 @@ func TestReporter_DispatchHeartbeatRequest_ServerLivenessIsRefreshed(t *testing.
 	)
 	assert.NoError(t, err)
 	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
-	reportedSinceBefore, _ = repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(before).WithStatus(ds.Master))
+	reportedSinceBefore, _ = repo.Filter(ctx, repos.NewServerFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceBefore, 1)
 }
 
 func TestReporter_DispatchHeartbeatRequest_ServerIsRemoved(t *testing.T) {
 	var service *reporting.Service
-	var repo servers.Repository
+	var repo repos.ServerRepository
 
 	ctx := context.TODO()
 	clockMock := clock.NewMock()
@@ -645,7 +648,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsRemoved(t *testing.T) {
 	)
 	assert.NoError(t, err)
 	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
-	reportedSinceBefore, _ := repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(before).WithStatus(ds.Master))
+	reportedSinceBefore, _ := repo.Filter(ctx, repos.NewServerFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceBefore, 1)
 
 	// remove the server by sending param statechanged=2
@@ -659,7 +662,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsRemoved(t *testing.T) {
 	)
 	assert.NoError(t, err)
 	assert.Empty(t, resp) // no response
-	reportedSinceBefore, _ = repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(before).WithStatus(ds.Master))
+	reportedSinceBefore, _ = repo.Filter(ctx, repos.NewServerFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceBefore, 0)
 
 	// subsequent statechanged=2 requests should produce no errors
@@ -673,7 +676,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsRemoved(t *testing.T) {
 	)
 	assert.NoError(t, err)
 	assert.Empty(t, resp)
-	reportedSinceBefore, _ = repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(before).WithStatus(ds.Master))
+	reportedSinceBefore, _ = repo.Filter(ctx, repos.NewServerFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceBefore, 0)
 
 	remainingServers, _ := repo.Count(ctx)
@@ -729,7 +732,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerRemovalIsValidated(t *testing.T
 		t.Run(tt.name, func(t *testing.T) {
 			var service *reporting.Service
 			var metrics *monitoring.MetricService
-			var repo servers.Repository
+			var repo repos.ServerRepository
 
 			ctx := context.TODO()
 			clockMock := clock.NewMock()
@@ -754,7 +757,8 @@ func TestReporter_DispatchHeartbeatRequest_ServerRemovalIsValidated(t *testing.T
 			)
 			require.NoError(t, err)
 
-			reportedSinceBefore, _ := repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(before).WithStatus(ds.Master))
+			fs := repos.NewServerFilterSet().ActiveAfter(before).WithStatus(ds.Master)
+			reportedSinceBefore, _ := repo.Filter(ctx, fs)
 			metricValue := testutil.ToFloat64(metrics.ReporterRemovals)
 			if tt.wantSuccess {
 				assert.Len(t, reportedSinceBefore, 0)
@@ -769,7 +773,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerRemovalIsValidated(t *testing.T
 
 func TestReporter_DispatchKeepaliveRequest_RefreshesServerLiveness(t *testing.T) {
 	var service *reporting.Service
-	var repo servers.Repository
+	var repo repos.ServerRepository
 
 	ctx := context.TODO()
 	clockMock := clock.NewMock()
@@ -783,13 +787,13 @@ func TestReporter_DispatchKeepaliveRequest_RefreshesServerLiveness(t *testing.T)
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
 	)
 	require.NoError(t, err)
-	reportedSinceBefore, _ := repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(before).WithStatus(ds.Master))
+	reportedSinceBefore, _ := repo.Filter(ctx, repos.NewServerFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceBefore, 1)
 
 	clockMock.Add(time.Millisecond)
 
 	after := clockMock.Now()
-	reportedSinceAfter, _ := repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(after).WithStatus(ds.Master))
+	reportedSinceAfter, _ := repo.Filter(ctx, repos.NewServerFilterSet().ActiveAfter(after).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceAfter, 0)
 
 	resp, _, _ := service.DispatchRequest(
@@ -799,7 +803,7 @@ func TestReporter_DispatchKeepaliveRequest_RefreshesServerLiveness(t *testing.T)
 	)
 	assert.Empty(t, resp)
 	// the server is now live again
-	reportedSinceAfter, _ = repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(after).WithStatus(ds.Master))
+	reportedSinceAfter, _ = repo.Filter(ctx, repos.NewServerFilterSet().ActiveAfter(after).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceAfter, 1)
 }
 
@@ -837,7 +841,7 @@ func TestReporter_DispatchKeepaliveRequest_Errors(t *testing.T) {
 			instanceID: []byte{0xfe, 0xed, 0xf0, 0x0d},
 			payload:    []byte{0x08, 0xde, 0xad, 0xbe, 0xef},
 			ipaddr:     "1.1.1.1",
-			wantErr:    instances.ErrInstanceNotFound,
+			wantErr:    repos.ErrInstanceNotFound,
 		},
 		{
 			name:       "unacceptable payload - length",
@@ -852,7 +856,7 @@ func TestReporter_DispatchKeepaliveRequest_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var service *reporting.Service
-			var repo servers.Repository
+			var repo repos.ServerRepository
 
 			ctx := context.TODO()
 			clockMock := clock.NewMock()
@@ -875,7 +879,7 @@ func TestReporter_DispatchKeepaliveRequest_Errors(t *testing.T) {
 				tt.payload,
 				&net.UDPAddr{IP: net.ParseIP(tt.ipaddr), Port: 10481},
 			)
-			reportedSinceAfter, _ := repo.Filter(ctx, servers.NewFilterSet().ActiveAfter(since).WithStatus(ds.Master))
+			reportedSinceAfter, _ := repo.Filter(ctx, repos.NewServerFilterSet().ActiveAfter(since).WithStatus(ds.Master))
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				assert.Len(t, reportedSinceAfter, 0)

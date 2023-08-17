@@ -7,13 +7,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/sergeii/swat4master/internal/core/probes"
-	repo "github.com/sergeii/swat4master/internal/core/servers"
-	"github.com/sergeii/swat4master/internal/entity/addr"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/addr"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
+	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/rest/model"
 	"github.com/sergeii/swat4master/internal/services/discovery/finding"
-	"github.com/sergeii/swat4master/internal/services/server"
+	ss "github.com/sergeii/swat4master/internal/services/server"
 )
 
 // AddServer godoc
@@ -38,7 +38,7 @@ func (a *API) AddServer(c *gin.Context) {
 	svr, err := a.app.ServerService.Get(c, address)
 	if err != nil {
 		switch {
-		case errors.Is(err, repo.ErrServerNotFound):
+		case errors.Is(err, repositories.ErrServerNotFound):
 			newSvr, err := createServerFromAddress(c, address, a.app.ServerService)
 			if err != nil {
 				a.logger.Error().
@@ -60,7 +60,7 @@ func (a *API) AddServer(c *gin.Context) {
 	a.addServer(c, svr)
 }
 
-func (a *API) addServer(c *gin.Context, svr repo.Server) {
+func (a *API) addServer(c *gin.Context, svr server.Server) {
 	switch {
 	case svr.HasDiscoveryStatus(ds.Details):
 		a.logger.Debug().
@@ -112,19 +112,19 @@ func parseAddServerAddress(c *gin.Context) (addr.Addr, error) {
 func createServerFromAddress(
 	ctx context.Context,
 	address addr.Addr,
-	servers *server.Service,
-) (repo.Server, error) {
-	svr, err := repo.NewFromAddr(address, address.Port+1)
+	servers *ss.Service,
+) (server.Server, error) {
+	svr, err := server.NewFromAddr(address, address.Port+1)
 	if err != nil {
-		return repo.Blank, err
+		return server.Blank, err
 	}
 
-	if svr, err = servers.Create(ctx, svr, func(upd *repo.Server) bool {
+	if svr, err = servers.Create(ctx, svr, func(upd *server.Server) bool {
 		// a server with exactly same address was created in the process,
 		// we cannot proceed further
 		return false
 	}); err != nil {
-		return repo.Blank, err
+		return server.Blank, err
 	}
 
 	return svr, nil
@@ -132,15 +132,15 @@ func createServerFromAddress(
 
 func discoverServer(
 	ctx context.Context,
-	servers *server.Service,
+	servers *ss.Service,
 	finder *finding.Service,
-	svr repo.Server,
+	svr server.Server,
 ) error {
 	var err error
 
 	svr.UpdateDiscoveryStatus(ds.PortRetry)
 
-	if svr, err = servers.Update(ctx, svr, func(updated *repo.Server) bool {
+	if svr, err = servers.Update(ctx, svr, func(updated *server.Server) bool {
 		// some of the statuses that we don't want to run discovery for has appeared
 		// in the process, so we abort here
 		if svr.HasDiscoveryStatus(ds.Details | ds.PortRetry | ds.DetailsRetry) {
@@ -153,5 +153,5 @@ func discoverServer(
 		return err
 	}
 
-	return finder.DiscoverPort(ctx, svr.GetAddr(), probes.NC, probes.NC)
+	return finder.DiscoverPort(ctx, svr.GetAddr(), repositories.NC, repositories.NC)
 }
