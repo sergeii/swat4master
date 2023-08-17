@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/sergeii/swat4master/internal/entity/details"
+	"github.com/sergeii/swat4master/internal/core/entities/details"
 	"github.com/sergeii/swat4master/internal/validation"
 )
 

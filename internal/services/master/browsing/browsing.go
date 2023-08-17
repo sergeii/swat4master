@@ -8,9 +8,9 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/sergeii/swat4master/internal/core/servers"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
-	"github.com/sergeii/swat4master/internal/services/server"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
+	ss "github.com/sergeii/swat4master/internal/services/server"
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing"
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query"
 	"github.com/sergeii/swat4master/pkg/gamespy/crypt"
@@ -24,14 +24,14 @@ type ServiceOpts struct {
 }
 
 type Service struct {
-	serverService *server.Service
+	serverService *ss.Service
 	logger        *zerolog.Logger
 	opts          ServiceOpts
 	gameKey       [6]byte
 }
 
 func NewService(
-	ss *server.Service,
+	ss *ss.Service,
 	logger *zerolog.Logger,
 	opts ServiceOpts,
 ) *Service {
@@ -76,7 +76,7 @@ func (s *Service) HandleRequest(ctx context.Context, addr *net.TCPAddr, payload 
 	return crypt.Encrypt(s.gameKey, req.Challenge, resp), nil
 }
 
-func (s *Service) packServers(servers []servers.Server, addr *net.TCPAddr, fields []string) []byte {
+func (s *Service) packServers(servers []server.Server, addr *net.TCPAddr, fields []string) []byte {
 	payload := make([]byte, 6, 26)
 	// the first 6 bytes are the client's IP and port
 	copy(payload[:4], addr.IP.To4())

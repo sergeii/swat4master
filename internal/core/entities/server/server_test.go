@@ -1,4 +1,4 @@
-package servers_test
+package server_test
 
 import (
 	"net"
@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/sergeii/swat4master/internal/core/servers"
-	"github.com/sergeii/swat4master/internal/entity/addr"
-	"github.com/sergeii/swat4master/internal/entity/details"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/addr"
+	"github.com/sergeii/swat4master/internal/core/entities/details"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
 )
 
 func TestServer_New(t *testing.T) {
@@ -77,7 +77,7 @@ func TestServer_New(t *testing.T) {
 			port:    10480,
 			qPort:   65536,
 			want:    addr.Blank,
-			wantErr: servers.ErrInvalidQueryPort,
+			wantErr: server.ErrInvalidQueryPort,
 		},
 		{
 			name:    "valid query port number is required #3",
@@ -85,7 +85,7 @@ func TestServer_New(t *testing.T) {
 			port:    10480,
 			qPort:   -10481,
 			want:    addr.Blank,
-			wantErr: servers.ErrInvalidQueryPort,
+			wantErr: server.ErrInvalidQueryPort,
 		},
 		{
 			name:    "valid query port number is required #3",
@@ -98,7 +98,7 @@ func TestServer_New(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := servers.New(net.ParseIP(tt.ip), tt.port, tt.qPort)
+			got, err := server.New(net.ParseIP(tt.ip), tt.port, tt.qPort)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 			} else {
@@ -171,7 +171,7 @@ func TestServer_New_ValidIPAddress(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := servers.New(net.ParseIP(tt.ip), 10480, 10481)
+			_, err := server.New(net.ParseIP(tt.ip), 10480, 10481)
 			if tt.want {
 				require.NoError(t, err)
 			} else {
@@ -182,14 +182,14 @@ func TestServer_New_ValidIPAddress(t *testing.T) {
 }
 
 func TestServer_DefaultInfo(t *testing.T) {
-	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
 	defaultDetails := svr.GetInfo()
 	assert.Equal(t, "", defaultDetails.Hostname)
 }
 
 func TestServer_InfoIsUpdated(t *testing.T) {
-	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	basicDetails := svr.GetInfo()
 	assert.Equal(t, "", basicDetails.Hostname)
 
@@ -215,7 +215,7 @@ func TestServer_InfoIsUpdated(t *testing.T) {
 }
 
 func TestServer_DefaultDetails(t *testing.T) {
-	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
 	defaultDetails := svr.GetDetails()
 	assert.Equal(t, "", defaultDetails.Info.Hostname)
@@ -224,7 +224,7 @@ func TestServer_DefaultDetails(t *testing.T) {
 }
 
 func TestServer_DetailsAreUpdated(t *testing.T) {
-	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	currentDetails := svr.GetDetails()
 	assert.Equal(t, "", currentDetails.Info.Hostname)
 
@@ -300,7 +300,7 @@ func TestServer_DetailsAreUpdated(t *testing.T) {
 }
 
 func TestServer_DiscoveryStatusIsUpdated(t *testing.T) {
-	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 
 	// default status is new
 	assert.Equal(t, ds.New, svr.GetDiscoveryStatus())
@@ -328,7 +328,7 @@ func TestServer_DiscoveryStatusIsUpdated(t *testing.T) {
 }
 
 func TestServer_DiscoveryStatusIsCleared(t *testing.T) {
-	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	// default status is new
 	assert.Equal(t, ds.New, svr.GetDiscoveryStatus())
 
@@ -360,7 +360,7 @@ func TestServer_DiscoveryStatusIsCleared(t *testing.T) {
 }
 
 func TestServer_HasDiscoveryStatusStatus(t *testing.T) {
-	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 
 	// default status is "new"
 	assert.Equal(t, ds.New, svr.GetDiscoveryStatus())

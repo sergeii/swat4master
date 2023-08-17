@@ -8,7 +8,7 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/rs/zerolog"
 
-	"github.com/sergeii/swat4master/internal/core/probes"
+	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/services/discovery/probing"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
 )
@@ -38,9 +38,9 @@ func NewWorkerGroup(
 	}
 }
 
-func (wg *WorkerGroup) Run(ctx context.Context) chan probes.Target {
+func (wg *WorkerGroup) Run(ctx context.Context) chan probe.Probe {
 	wg.metrics.DiscoveryWorkersAvailable.Add(float64(wg.concurrency))
-	queue := make(chan probes.Target, wg.concurrency)
+	queue := make(chan probe.Probe, wg.concurrency)
 	for i := 0; i < wg.concurrency; i++ {
 		go wg.work(ctx, queue)
 	}
@@ -49,20 +49,20 @@ func (wg *WorkerGroup) Run(ctx context.Context) chan probes.Target {
 
 func (wg *WorkerGroup) work(
 	ctx context.Context,
-	queue chan probes.Target,
+	queue chan probe.Probe,
 ) {
 	for {
 		select {
 		case <-ctx.Done():
 			wg.logger.Debug().Msg("Stopping worker")
 			return
-		case target := <-queue:
-			wg.probe(ctx, target)
+		case prb := <-queue:
+			wg.probe(ctx, prb)
 		}
 	}
 }
 
-func (wg *WorkerGroup) probe(ctx context.Context, target probes.Target) {
+func (wg *WorkerGroup) probe(ctx context.Context, prb probe.Probe) {
 	atomic.AddInt64(&wg.busy, 1)
 	wg.metrics.DiscoveryWorkersBusy.Inc()
 	wg.metrics.DiscoveryWorkersAvailable.Dec()
@@ -71,32 +71,32 @@ func (wg *WorkerGroup) probe(ctx context.Context, target probes.Target) {
 		wg.metrics.DiscoveryWorkersBusy.Dec()
 		wg.metrics.DiscoveryWorkersAvailable.Inc()
 	}()
-	goal := target.GetGoal()
+	goal := prb.GetGoal()
 	goalLabel := goal.String()
 
 	wg.logger.Debug().
-		Stringer("addr", target.GetAddr()).Stringer("goal", goal).
-		Int64("busyness", atomic.LoadInt64(&wg.busy)).Int("retries", target.GetRetries()).
+		Stringer("addr", prb.GetAddr()).Stringer("goal", goal).
+		Int64("busyness", atomic.LoadInt64(&wg.busy)).Int("retries", prb.GetRetries()).
 		Msg("About to start probing")
 
 	before := wg.clock.Now()
 
-	if err := wg.prober.Probe(ctx, target); err != nil {
+	if err := wg.prober.Probe(ctx, prb); err != nil {
 		if errors.Is(err, probing.ErrProbeRetried) { // nolint: gocritic
 			wg.metrics.DiscoveryProbeRetries.WithLabelValues(goalLabel).Inc()
 			wg.logger.Debug().
-				Stringer("addr", target.GetAddr()).Stringer("goal", goal).
+				Stringer("addr", prb.GetAddr()).Stringer("goal", goal).
 				Msg("Probe is retried")
 		} else if errors.Is(err, probing.ErrOutOfRetries) {
 			wg.metrics.DiscoveryProbeFailures.WithLabelValues(goalLabel).Inc()
 			wg.logger.Debug().
-				Stringer("addr", target.GetAddr()).Stringer("goal", goal).
+				Stringer("addr", prb.GetAddr()).Stringer("goal", goal).
 				Msg("Probe failed after retries")
 		} else {
 			wg.metrics.DiscoveryProbeErrors.WithLabelValues(goalLabel).Inc()
 			wg.logger.Error().
 				Err(err).
-				Stringer("addr", target.GetAddr()).Stringer("goal", goal).
+				Stringer("addr", prb.GetAddr()).Stringer("goal", goal).
 				Msg("Probe failed due to error")
 		}
 	} else {
@@ -104,7 +104,7 @@ func (wg *WorkerGroup) probe(ctx context.Context, target probes.Target) {
 	}
 
 	wg.logger.Debug().
-		Stringer("addr", target.GetAddr()).Stringer("goal", goal).
+		Stringer("addr", prb.GetAddr()).Stringer("goal", goal).
 		Int64("busyness", atomic.LoadInt64(&wg.busy)).
 		Dur("elapsed", wg.clock.Since(before)).
 		Msg("Finished probing")

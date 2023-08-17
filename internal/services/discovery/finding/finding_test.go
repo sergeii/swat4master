@@ -13,14 +13,15 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 
-	"github.com/sergeii/swat4master/internal/core/probes"
-	"github.com/sergeii/swat4master/internal/core/servers"
-	"github.com/sergeii/swat4master/internal/entity/addr"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/addr"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/probe"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
+	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/services/discovery/finding"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
-	"github.com/sergeii/swat4master/internal/services/probe"
+	sp "github.com/sergeii/swat4master/internal/services/probe"
 )
 
 func makeApp(tb fxtest.TB, extra ...fx.Option) {
@@ -32,7 +33,7 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 		}),
 		fx.Provide(
 			monitoring.NewMetricService,
-			probe.NewService,
+			sp.NewService,
 			finding.NewService,
 		),
 		fx.NopLogger,
@@ -54,7 +55,7 @@ func TestFindingService_DiscoverDetails(t *testing.T) {
 	ctx := context.TODO()
 	clockMock := clock.NewMock()
 
-	var queue probes.Repository
+	var queue repositories.ProbeRepository
 	var finder *finding.Service
 	makeApp(t, fx.Populate(&finder, &queue), provideClock(clockMock))
 
@@ -67,20 +68,20 @@ func TestFindingService_DiscoverDetails(t *testing.T) {
 
 	t1, _ := queue.Pop(ctx)
 	assert.Equal(t, "1.1.1.1", t1.GetDottedIP())
-	assert.Equal(t, probes.GoalDetails, t1.GetGoal())
+	assert.Equal(t, probe.GoalDetails, t1.GetGoal())
 	assert.Equal(t, 10481, t1.GetPort())
 
 	clockMock.Add(time.Millisecond * 15)
 
 	_, err := queue.Pop(ctx)
-	assert.ErrorIs(t, err, probes.ErrQueueIsEmpty)
+	assert.ErrorIs(t, err, repositories.ErrProbeQueueIsEmpty)
 }
 
 func TestFindingService_DiscoverPort(t *testing.T) {
 	ctx := context.TODO()
 	clockMock := clock.NewMock()
 
-	var queue probes.Repository
+	var queue repositories.ProbeRepository
 	var finder *finding.Service
 	makeApp(t, fx.Populate(&finder, &queue), provideClock(clockMock))
 
@@ -93,72 +94,72 @@ func TestFindingService_DiscoverPort(t *testing.T) {
 	}
 
 	_, err := queue.Pop(ctx)
-	assert.ErrorIs(t, err, probes.ErrTargetIsNotReady)
+	assert.ErrorIs(t, err, repositories.ErrProbeIsNotReady)
 
 	clockMock.Add(time.Millisecond * 5)
 
 	t1, _ := queue.Pop(ctx)
 	assert.Equal(t, "1.1.1.1", t1.GetDottedIP())
-	assert.Equal(t, probes.GoalPort, t1.GetGoal())
+	assert.Equal(t, probe.GoalPort, t1.GetGoal())
 	assert.Equal(t, 10480, t1.GetPort())
 
 	clockMock.Add(time.Millisecond * 5)
 
 	t2, _ := queue.Pop(ctx)
 	assert.Equal(t, "2.2.2.2", t2.GetDottedIP())
-	assert.Equal(t, probes.GoalPort, t2.GetGoal())
+	assert.Equal(t, probe.GoalPort, t2.GetGoal())
 	assert.Equal(t, 10480, t2.GetPort())
 
 	clockMock.Add(time.Millisecond * 10)
 
 	_, err = queue.Pop(ctx)
-	assert.ErrorIs(t, err, probes.ErrQueueIsEmpty)
+	assert.ErrorIs(t, err, repositories.ErrProbeQueueIsEmpty)
 }
 
 func TestFindingService_RefreshDetails(t *testing.T) {
 	ctx := context.TODO()
 	clockMock := clock.NewMock()
 
-	var serversRepo servers.Repository
-	var probesRepo probes.Repository
+	var serversRepo repositories.ServerRepository
+	var probesRepo repositories.ProbeRepository
 	var service *finding.Service
 	makeApp(t, fx.Populate(&serversRepo, &probesRepo, &service), provideClock(clockMock))
 
-	gs1, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	gs1, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	gs1.Refresh(clockMock.Now())
 	gs1.UpdateDiscoveryStatus(ds.Master)
 
-	gs2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
+	gs2, _ := server.New(net.ParseIP("2.2.2.2"), 10480, 10481)
 	gs2.Refresh(clockMock.Now())
 	gs2.UpdateDiscoveryStatus(ds.Port)
 
-	gs3, _ := servers.New(net.ParseIP("3.3.3.3"), 10480, 10481)
+	gs3, _ := server.New(net.ParseIP("3.3.3.3"), 10480, 10481)
 	gs3.Refresh(clockMock.Now())
 	gs3.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Port)
 
-	gs4, _ := servers.New(net.ParseIP("4.4.4.4"), 10480, 10481)
+	gs4, _ := server.New(net.ParseIP("4.4.4.4"), 10480, 10481)
 	gs4.Refresh(clockMock.Now())
 	gs4.UpdateDiscoveryStatus(ds.NoDetails)
 
-	gs5, _ := servers.New(net.ParseIP("5.5.5.5"), 10480, 10481)
+	gs5, _ := server.New(net.ParseIP("5.5.5.5"), 10480, 10481)
 	gs5.Refresh(clockMock.Now())
 	gs5.UpdateDiscoveryStatus(ds.DetailsRetry)
 
-	gs6, _ := servers.New(net.ParseIP("6.6.6.6"), 10480, 10481)
+	gs6, _ := server.New(net.ParseIP("6.6.6.6"), 10480, 10481)
 	gs6.Refresh(clockMock.Now())
 	gs6.UpdateDiscoveryStatus(ds.Port | ds.Details | ds.DetailsRetry)
 
-	gs7, _ := servers.New(net.ParseIP("7.7.7.7"), 10480, 10481)
+	gs7, _ := server.New(net.ParseIP("7.7.7.7"), 10480, 10481)
 	gs7.Refresh(clockMock.Now())
 	gs7.UpdateDiscoveryStatus(ds.Master | ds.Info | ds.Details | ds.Port)
 
-	gs1, _ = serversRepo.Add(ctx, gs1, servers.OnConflictIgnore)
-	gs2, _ = serversRepo.Add(ctx, gs2, servers.OnConflictIgnore)
-	gs3, _ = serversRepo.Add(ctx, gs3, servers.OnConflictIgnore)
-	gs4, _ = serversRepo.Add(ctx, gs4, servers.OnConflictIgnore)
-	gs5, _ = serversRepo.Add(ctx, gs5, servers.OnConflictIgnore)
-	gs6, _ = serversRepo.Add(ctx, gs6, servers.OnConflictIgnore)
-	gs7, _ = serversRepo.Add(ctx, gs7, servers.OnConflictIgnore)
+	gs1, _ = serversRepo.Add(ctx, gs1, repositories.ServerOnConflictIgnore)
+	gs2, _ = serversRepo.Add(ctx, gs2, repositories.ServerOnConflictIgnore)
+	gs3, _ = serversRepo.Add(ctx, gs3, repositories.ServerOnConflictIgnore)
+	gs4, _ = serversRepo.Add(ctx, gs4, repositories.ServerOnConflictIgnore)
+	gs5, _ = serversRepo.Add(ctx, gs5, repositories.ServerOnConflictIgnore)
+	gs6, _ = serversRepo.Add(ctx, gs6, repositories.ServerOnConflictIgnore)
+	gs7, _ = serversRepo.Add(ctx, gs7, repositories.ServerOnConflictIgnore)
 
 	deadline := clockMock.Now().Add(time.Second * 60)
 
@@ -173,7 +174,7 @@ func TestFindingService_RefreshDetails(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		tgt, err := probesRepo.PopAny(ctx)
 		require.NoError(t, err)
-		require.Equal(t, probes.GoalDetails, tgt.GetGoal())
+		require.Equal(t, probe.GoalDetails, tgt.GetGoal())
 		refreshedServers = append(refreshedServers, tgt.GetDottedIP())
 	}
 	assert.Equal(t, []string{"7.7.7.7", "3.3.3.3", "2.2.2.2"}, refreshedServers)
@@ -183,69 +184,69 @@ func TestFindingService_ReviveServers(t *testing.T) {
 	ctx := context.TODO()
 	clockMock := clock.NewMock()
 
-	var serversRepo servers.Repository
-	var probesRepo probes.Repository
+	var serversRepo repositories.ServerRepository
+	var probesRepo repositories.ProbeRepository
 	var service *finding.Service
 	makeApp(t, fx.Populate(&serversRepo, &probesRepo, &service), provideClock(clockMock))
 
 	clockMock.Add(time.Millisecond)
-	gs1, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	gs1, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	gs1.Refresh(clockMock.Now())
 	gs1.UpdateDiscoveryStatus(ds.Master)
 
 	clockMock.Add(time.Millisecond)
-	gs2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
+	gs2, _ := server.New(net.ParseIP("2.2.2.2"), 10480, 10481)
 	gs2.Refresh(clockMock.Now())
 	gs2.UpdateDiscoveryStatus(ds.Port)
 
 	before3rd := clockMock.Now()
 
 	clockMock.Add(time.Millisecond)
-	gs3, _ := servers.New(net.ParseIP("3.3.3.3"), 10480, 10481)
+	gs3, _ := server.New(net.ParseIP("3.3.3.3"), 10480, 10481)
 	gs3.Refresh(clockMock.Now())
 	gs3.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Port)
 
 	clockMock.Add(time.Millisecond)
-	gs4, _ := servers.New(net.ParseIP("4.4.4.4"), 10480, 10481)
+	gs4, _ := server.New(net.ParseIP("4.4.4.4"), 10480, 10481)
 	gs4.Refresh(clockMock.Now())
 	gs4.UpdateDiscoveryStatus(ds.NoDetails)
 
 	clockMock.Add(time.Millisecond)
-	gs5, _ := servers.New(net.ParseIP("5.5.5.5"), 10480, 10481)
+	gs5, _ := server.New(net.ParseIP("5.5.5.5"), 10480, 10481)
 	gs5.Refresh(clockMock.Now())
 	gs5.UpdateDiscoveryStatus(ds.DetailsRetry)
 
 	clockMock.Add(time.Millisecond)
-	gs6, _ := servers.New(net.ParseIP("6.6.6.6"), 10480, 10481)
+	gs6, _ := server.New(net.ParseIP("6.6.6.6"), 10480, 10481)
 	gs6.Refresh(clockMock.Now())
 	gs6.UpdateDiscoveryStatus(ds.Port | ds.Details | ds.DetailsRetry)
 
 	clockMock.Add(time.Millisecond)
-	gs7, _ := servers.New(net.ParseIP("7.7.7.7"), 10480, 10481)
+	gs7, _ := server.New(net.ParseIP("7.7.7.7"), 10480, 10481)
 	gs7.Refresh(clockMock.Now())
 	gs7.UpdateDiscoveryStatus(ds.Master | ds.Info | ds.Details)
 
 	clockMock.Add(time.Millisecond)
-	gs8, _ := servers.New(net.ParseIP("8.8.8.8"), 10480, 10481)
+	gs8, _ := server.New(net.ParseIP("8.8.8.8"), 10480, 10481)
 	gs8.Refresh(clockMock.Now())
 	gs8.UpdateDiscoveryStatus(ds.Master | ds.PortRetry)
 
 	beforeLast := clockMock.Now()
 
 	clockMock.Add(time.Millisecond)
-	gs9, _ := servers.New(net.ParseIP("9.9.9.9"), 10480, 10481)
+	gs9, _ := server.New(net.ParseIP("9.9.9.9"), 10480, 10481)
 	gs9.Refresh(clockMock.Now())
 	gs9.UpdateDiscoveryStatus(ds.Info)
 
-	gs1, _ = serversRepo.Add(ctx, gs1, servers.OnConflictIgnore)
-	gs2, _ = serversRepo.Add(ctx, gs2, servers.OnConflictIgnore)
-	gs3, _ = serversRepo.Add(ctx, gs3, servers.OnConflictIgnore)
-	gs4, _ = serversRepo.Add(ctx, gs4, servers.OnConflictIgnore)
-	gs5, _ = serversRepo.Add(ctx, gs5, servers.OnConflictIgnore)
-	gs6, _ = serversRepo.Add(ctx, gs6, servers.OnConflictIgnore)
-	gs7, _ = serversRepo.Add(ctx, gs7, servers.OnConflictIgnore)
-	gs8, _ = serversRepo.Add(ctx, gs8, servers.OnConflictIgnore)
-	gs9, _ = serversRepo.Add(ctx, gs9, servers.OnConflictIgnore)
+	gs1, _ = serversRepo.Add(ctx, gs1, repositories.ServerOnConflictIgnore)
+	gs2, _ = serversRepo.Add(ctx, gs2, repositories.ServerOnConflictIgnore)
+	gs3, _ = serversRepo.Add(ctx, gs3, repositories.ServerOnConflictIgnore)
+	gs4, _ = serversRepo.Add(ctx, gs4, repositories.ServerOnConflictIgnore)
+	gs5, _ = serversRepo.Add(ctx, gs5, repositories.ServerOnConflictIgnore)
+	gs6, _ = serversRepo.Add(ctx, gs6, repositories.ServerOnConflictIgnore)
+	gs7, _ = serversRepo.Add(ctx, gs7, repositories.ServerOnConflictIgnore)
+	gs8, _ = serversRepo.Add(ctx, gs8, repositories.ServerOnConflictIgnore)
+	gs9, _ = serversRepo.Add(ctx, gs9, repositories.ServerOnConflictIgnore)
 
 	minCountdown := clockMock.Now()
 	maxCountdown := clockMock.Now()
@@ -262,7 +263,7 @@ func TestFindingService_ReviveServers(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		tgt, err := probesRepo.PopAny(ctx)
 		require.NoError(t, err)
-		require.Equal(t, probes.GoalPort, tgt.GetGoal())
+		require.Equal(t, probe.GoalPort, tgt.GetGoal())
 		revivedServers = append(revivedServers, tgt.GetDottedIP())
 	}
 	assert.Equal(t, []string{"7.7.7.7", "5.5.5.5", "4.4.4.4"}, revivedServers)

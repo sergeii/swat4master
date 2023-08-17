@@ -18,10 +18,11 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/finder"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/prober"
-	"github.com/sergeii/swat4master/internal/core/servers"
-	"github.com/sergeii/swat4master/internal/entity/addr"
-	"github.com/sergeii/swat4master/internal/entity/details"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/addr"
+	"github.com/sergeii/swat4master/internal/core/entities/details"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
+	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/gs1"
 )
@@ -76,7 +77,7 @@ func TestProber_Run(t *testing.T) {
 		"gametype":    "Barricaded Suspects",
 	})
 
-	svr1, err := servers.NewFromAddr(addr.NewForTesting(addr1.IP, addr1.Port-1), addr1.Port)
+	svr1, err := server.NewFromAddr(addr.NewForTesting(addr1.IP, addr1.Port-1), addr1.Port)
 	require.NoError(t, err)
 	svr1.UpdateInfo(info, clockMock.Now())
 	svr1.UpdateDiscoveryStatus(ds.Details | ds.Master | ds.Port)
@@ -98,12 +99,12 @@ func TestProber_Run(t *testing.T) {
 		}
 	}(ctx, responses1, svr1.GetGamePort())
 
-	svr2, err := servers.NewFromAddr(addr.NewForTesting(addr2.IP, addr2.Port-1), addr2.Port)
+	svr2, err := server.NewFromAddr(addr.NewForTesting(addr2.IP, addr2.Port-1), addr2.Port)
 	require.NoError(t, err)
 	svr2.UpdateInfo(info, clockMock.Now())
 	svr2.UpdateDiscoveryStatus(ds.PortRetry | ds.DetailsRetry) // has both PortRetry and DetailsRetry status
 
-	svr3, err := servers.NewFromAddr(addr.NewForTesting(addr3.IP, addr3.Port-1), addr3.Port)
+	svr3, err := server.NewFromAddr(addr.NewForTesting(addr3.IP, addr3.Port-1), addr3.Port)
 	require.NoError(t, err)
 	svr3.UpdateInfo(info, clockMock.Now())
 	svr3.UpdateDiscoveryStatus(ds.Master)
@@ -130,13 +131,13 @@ func TestProber_Run(t *testing.T) {
 		}
 	}(ctx, responses3, svr3.GetGamePort())
 
-	repos.Servers.Add(ctx, svr1, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, svr1, repositories.ServerOnConflictIgnore) // nolint: errcheck
 	clockMock.Add(time.Millisecond)
 
-	repos.Servers.Add(ctx, svr2, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, svr2, repositories.ServerOnConflictIgnore) // nolint: errcheck
 	clockMock.Add(time.Millisecond)
 
-	repos.Servers.Add(ctx, svr3, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, svr3, repositories.ServerOnConflictIgnore) // nolint: errcheck
 	clockMock.Add(time.Millisecond)
 
 	app := fx.New(
@@ -154,7 +155,7 @@ func TestProber_Run(t *testing.T) {
 			}
 		}),
 		fx.Decorate(func() clock.Clock { return clockMock }),
-		fx.Decorate(func() servers.Repository {
+		fx.Decorate(func() repositories.ServerRepository {
 			return repos.Servers
 		}),
 		prober.Module,

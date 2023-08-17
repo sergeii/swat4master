@@ -1,4 +1,4 @@
-package memory
+package servers
 
 import (
 	"container/list"
@@ -8,13 +8,14 @@ import (
 
 	"github.com/benbjohnson/clock"
 
-	"github.com/sergeii/swat4master/internal/core/servers"
-	"github.com/sergeii/swat4master/internal/entity/addr"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/addr"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
+	"github.com/sergeii/swat4master/internal/core/repositories"
 )
 
-type server struct {
-	Server    servers.Server
+type serverItem struct {
+	Server    server.Server
 	UpdatedAt time.Time // most recent report time, either with a heartbeat or a keepalive message
 }
 
@@ -36,18 +37,18 @@ func New(c clock.Clock) *Repository {
 
 func (mr *Repository) Add(
 	ctx context.Context,
-	svr servers.Server,
-	onConflict func(*servers.Server) bool,
-) (servers.Server, error) {
+	svr server.Server,
+	onConflict func(*server.Server) bool,
+) (server.Server, error) {
 	mr.mutex.Lock()
 	defer mr.mutex.Unlock()
 
-	var item *server
+	var item *serverItem
 
 	key := svr.GetAddr()
 	elem, exists := mr.servers[key]
 	if !exists {
-		item = &server{
+		item = &serverItem{
 			Server:    svr,
 			UpdatedAt: mr.clock.Now(),
 		}
@@ -58,11 +59,11 @@ func (mr *Repository) Add(
 
 	// in case the server already exists
 	// let the caller decide what to do with the conflict
-	item = elem.Value.(*server) // nolint: forcetypeassert
+	item = elem.Value.(*serverItem) // nolint: forcetypeassert
 	resolved := item.Server
 	if !onConflict(&resolved) {
 		// in case the caller has decided not to resolve the conflict, return error
-		return servers.Blank, servers.ErrServerExists
+		return server.Blank, repositories.ErrServerExists
 	}
 	svr = resolved
 	return mr.update(ctx, elem, item, svr)
@@ -70,19 +71,19 @@ func (mr *Repository) Add(
 
 func (mr *Repository) Update(
 	ctx context.Context,
-	svr servers.Server,
-	onConflict func(*servers.Server) bool,
-) (servers.Server, error) {
+	svr server.Server,
+	onConflict func(*server.Server) bool,
+) (server.Server, error) {
 	mr.mutex.Lock()
 	defer mr.mutex.Unlock()
 
 	key := svr.GetAddr()
 	elem, exists := mr.servers[key]
 	if !exists {
-		return servers.Blank, servers.ErrServerNotFound
+		return server.Blank, repositories.ErrServerNotFound
 	}
 
-	item := elem.Value.(*server) // nolint: forcetypeassert
+	item := elem.Value.(*serverItem) // nolint: forcetypeassert
 
 	// only allow writes when the updated server's version
 	// does not exceed the version of current saved version in the repository
@@ -103,9 +104,9 @@ func (mr *Repository) Update(
 func (mr *Repository) update(
 	_ context.Context,
 	elem *list.Element,
-	item *server,
-	svr servers.Server,
-) (servers.Server, error) {
+	item *serverItem,
+	svr server.Server,
+) (server.Server, error) {
 	// bump the version counter
 	// so this version of the server instance
 	// maybe be only rewritten when other writers
@@ -122,8 +123,8 @@ func (mr *Repository) update(
 
 func (mr *Repository) Remove(
 	_ context.Context,
-	svr servers.Server,
-	onConflict func(*servers.Server) bool,
+	svr server.Server,
+	onConflict func(*server.Server) bool,
 ) error {
 	mr.mutex.Lock()
 	defer mr.mutex.Unlock()
@@ -134,7 +135,7 @@ func (mr *Repository) Remove(
 		return nil
 	}
 
-	item := elem.Value.(*server) // nolint: forcetypeassert
+	item := elem.Value.(*serverItem) // nolint: forcetypeassert
 	// don't allow to remove servers with version greater than provided
 	if item.Server.GetVersion() > svr.GetVersion() {
 		// let the caller resolve the conflict
@@ -149,21 +150,21 @@ func (mr *Repository) Remove(
 	return nil
 }
 
-func (mr *Repository) Get(_ context.Context, addr addr.Addr) (servers.Server, error) {
+func (mr *Repository) Get(_ context.Context, addr addr.Addr) (server.Server, error) {
 	mr.mutex.RLock()
 	defer mr.mutex.RUnlock()
 	item, exists := mr.servers[addr]
 	if !exists {
-		return servers.Blank, servers.ErrServerNotFound
+		return server.Blank, repositories.ErrServerNotFound
 	}
-	svr := item.Value.(*server) // nolint: forcetypeassert
+	svr := item.Value.(*serverItem) // nolint: forcetypeassert
 	return svr.Server, nil
 }
 
 func (mr *Repository) Filter( // nolint: cyclop
 	_ context.Context,
-	fs servers.FilterSet,
-) ([]servers.Server, error) {
+	fs repositories.ServerFilterSet,
+) ([]server.Server, error) {
 	mr.mutex.RLock()
 	defer mr.mutex.RUnlock()
 
@@ -175,9 +176,9 @@ func (mr *Repository) Filter( // nolint: cyclop
 	noStatus, byNoStatus := fs.GetNoStatus()
 
 	// make the slice with enough size to fit all servers
-	recent := make([]servers.Server, 0, len(mr.servers))
+	recent := make([]server.Server, 0, len(mr.servers))
 	for item := mr.history.Front(); item != nil; item = item.Next() {
-		rep := item.Value.(*server) // nolint: forcetypeassert
+		rep := item.Value.(*serverItem) // nolint: forcetypeassert
 		updatedAt := rep.UpdatedAt
 		refreshedAt := rep.Server.GetRefreshedAt()
 		if byUpdatedAfter && updatedAt.Before(updatedAfter) {
@@ -217,7 +218,7 @@ func (mr *Repository) CountByStatus(_ context.Context) (map[ds.DiscoveryStatus]i
 	counter := make(map[ds.DiscoveryStatus]int)
 
 	for item := mr.history.Front(); item != nil; item = item.Next() {
-		rep := item.Value.(*server) // nolint: forcetypeassert
+		rep := item.Value.(*serverItem) // nolint: forcetypeassert
 		status := rep.Server.GetDiscoveryStatus()
 		for bit = 1; bit <= status; bit <<= 1 {
 			if status&bit == bit {

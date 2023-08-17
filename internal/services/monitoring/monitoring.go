@@ -10,10 +10,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog"
 
-	"github.com/sergeii/swat4master/internal/core/instances"
-	"github.com/sergeii/swat4master/internal/core/probes"
-	"github.com/sergeii/swat4master/internal/core/servers"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/repositories"
 )
 
 type ObserverConfig struct {
@@ -25,9 +23,9 @@ type MetricService struct {
 	clock    clock.Clock
 	logger   *zerolog.Logger
 
-	servers   servers.Repository
-	instances instances.Repository
-	probes    probes.Repository
+	servers   repositories.ServerRepository
+	instances repositories.InstanceRepository
+	probes    repositories.ProbeRepository
 
 	ReporterRequests  *prometheus.CounterVec
 	ReporterErrors    *prometheus.CounterVec
@@ -68,9 +66,9 @@ type MetricService struct {
 }
 
 func NewMetricService(
-	servers servers.Repository,
-	instances instances.Repository,
-	probes probes.Repository,
+	servers repositories.ServerRepository,
+	instances repositories.InstanceRepository,
+	probes repositories.ProbeRepository,
 	clock clock.Clock,
 	logger *zerolog.Logger,
 ) *MetricService {
@@ -270,7 +268,7 @@ func (ms *MetricService) observeActiveServers(
 	playedServers := make(map[string]int)
 
 	activeSince := ms.clock.Now().Add(-cfg.ServerLiveness)
-	fs := servers.NewFilterSet().ActiveAfter(activeSince).WithStatus(ds.Info)
+	fs := repositories.NewServerFilterSet().ActiveAfter(activeSince).WithStatus(ds.Info)
 	activeServers, err := ms.servers.Filter(ctx, fs)
 	if err != nil {
 		ms.logger.Error().Err(err).Msg("Unable to observe active server count")

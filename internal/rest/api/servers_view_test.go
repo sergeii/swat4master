@@ -11,9 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/sergeii/swat4master/internal/core/servers"
-	"github.com/sergeii/swat4master/internal/entity/details"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/details"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
+	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/testutils"
 )
@@ -92,7 +93,7 @@ func TestAPI_ViewServer_OK(t *testing.T) {
 	ts, cancel := testutils.PrepareTestServer(
 		t,
 		fx.Decorate(func() clock.Clock { return clockMock }),
-		fx.Decorate(func() servers.Repository {
+		fx.Decorate(func() repositories.ServerRepository {
 			return repos.Servers
 		}),
 	)
@@ -141,10 +142,10 @@ func TestAPI_ViewServer_OK(t *testing.T) {
 		},
 	}
 
-	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10580, 10581)
+	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10580, 10581)
 	svr.UpdateDetails(details.MustNewDetailsFromParams(fields, players, nil), clockMock.Now())
 	svr.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-	repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
 	clockMock.Add(time.Millisecond * 5)
 
 	obj := serverDetailSchema{}
@@ -203,7 +204,7 @@ func TestAPI_ViewServer_Coop_OK(t *testing.T) {
 	ts, cancel := testutils.PrepareTestServer(
 		t,
 		fx.Decorate(func() clock.Clock { return clockMock }),
-		fx.Decorate(func() servers.Repository {
+		fx.Decorate(func() repositories.ServerRepository {
 			return repos.Servers
 		}),
 	)
@@ -267,10 +268,10 @@ func TestAPI_ViewServer_Coop_OK(t *testing.T) {
 		},
 	}
 
-	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10880, 10881)
+	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10880, 10881)
 	svr.UpdateDetails(details.MustNewDetailsFromParams(fields, players, objectives), clockMock.Now())
 	svr.UpdateDiscoveryStatus(ds.Details | ds.Info)
-	repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
 	clockMock.Add(time.Millisecond * 5)
 
 	obj := serverDetailSchema{}
@@ -332,7 +333,7 @@ func TestAPI_ViewServer_MinimalInfo_OK(t *testing.T) {
 	ts, cancel := testutils.PrepareTestServer(
 		t,
 		fx.Decorate(func() clock.Clock { return clockMock }),
-		fx.Decorate(func() servers.Repository {
+		fx.Decorate(func() repositories.ServerRepository {
 			return repos.Servers
 		}),
 	)
@@ -347,10 +348,10 @@ func TestAPI_ViewServer_MinimalInfo_OK(t *testing.T) {
 		"gametype":    "VIP Escort",
 	}
 
-	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil), clockMock.Now())
 	svr.UpdateDiscoveryStatus(ds.Details | ds.Info)
-	repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
 	clockMock.Add(time.Millisecond * 5)
 
 	obj := serverDetailSchema{}
@@ -385,15 +386,15 @@ func TestAPI_ViewServer_NoInfo_OK(t *testing.T) {
 	ts, cancel := testutils.PrepareTestServer(
 		t,
 		fx.Decorate(func() clock.Clock { return clockMock }),
-		fx.Decorate(func() servers.Repository {
+		fx.Decorate(func() repositories.ServerRepository {
 			return repos.Servers
 		}),
 	)
 	defer cancel()
 
-	svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	svr.UpdateDiscoveryStatus(ds.Details | ds.Info)
-	repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+	repos.Servers.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
 	clockMock.Add(time.Millisecond * 5)
 
 	obj := serverDetailSchema{}
@@ -446,7 +447,7 @@ func TestAPI_ViewServer_NotFound(t *testing.T) {
 			ts, cancel := testutils.PrepareTestServer(
 				t,
 				fx.Decorate(func() clock.Clock { return clockMock }),
-				fx.Decorate(func() servers.Repository {
+				fx.Decorate(func() repositories.ServerRepository {
 					return repos.Servers
 				}),
 			)
@@ -461,10 +462,10 @@ func TestAPI_ViewServer_NotFound(t *testing.T) {
 				"gametype":    "VIP Escort",
 			}
 
-			svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+			svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 			svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil), clockMock.Now())
 			svr.UpdateDiscoveryStatus(ds.Details)
-			repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+			repos.Servers.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
 			clockMock.Add(time.Millisecond * 5)
 
 			path := "/api/servers/" + tt.address
@@ -574,7 +575,7 @@ func TestAPI_ViewServer_AddressValidation(t *testing.T) {
 			ts, cancel := testutils.PrepareTestServer(
 				t,
 				fx.Decorate(func() clock.Clock { return clockMock }),
-				fx.Decorate(func() servers.Repository {
+				fx.Decorate(func() repositories.ServerRepository {
 					return repos.Servers
 				}),
 			)
@@ -589,10 +590,10 @@ func TestAPI_ViewServer_AddressValidation(t *testing.T) {
 				"gametype":    "VIP Escort",
 			}
 
-			svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+			svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 			svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil), clockMock.Now())
 			svr.UpdateDiscoveryStatus(ds.Details)
-			repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+			repos.Servers.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
 			clockMock.Add(time.Millisecond * 5)
 
 			obj := serverDetailSchema{}
@@ -651,7 +652,7 @@ func TestAPI_ViewServer_StatusValidation(t *testing.T) {
 			ts, cancel := testutils.PrepareTestServer(
 				t,
 				fx.Decorate(func() clock.Clock { return clockMock }),
-				fx.Decorate(func() servers.Repository {
+				fx.Decorate(func() repositories.ServerRepository {
 					return repos.Servers
 				}),
 			)
@@ -666,10 +667,10 @@ func TestAPI_ViewServer_StatusValidation(t *testing.T) {
 				"gametype":    "VIP Escort",
 			}
 
-			svr, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+			svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 			svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil), clockMock.Now())
 			svr.UpdateDiscoveryStatus(tt.status)
-			repos.Servers.Add(ctx, svr, servers.OnConflictIgnore) // nolint: errcheck
+			repos.Servers.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
 			clockMock.Add(time.Millisecond * 5)
 
 			if tt.want {

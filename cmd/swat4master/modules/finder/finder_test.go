@@ -15,10 +15,11 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/application"
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/finder"
-	"github.com/sergeii/swat4master/internal/core/probes"
-	"github.com/sergeii/swat4master/internal/core/servers"
-	"github.com/sergeii/swat4master/internal/entity/details"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/details"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/probe"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
+	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/persistence/memory"
 )
 
@@ -47,9 +48,9 @@ func TestFinder_Run_OK(t *testing.T) {
 		portTargets := make([]string, 0, len(wantPorts))
 		for _, tgt := range targets {
 			switch tgt.GetGoal() {
-			case probes.GoalDetails:
+			case probe.GoalDetails:
 				detailsTargets = append(detailsTargets, tgt.GetAddr().String())
-			case probes.GoalPort:
+			case probe.GoalPort:
 				portTargets = append(portTargets, tgt.GetAddr().String())
 			}
 		}
@@ -67,44 +68,44 @@ func TestFinder_Run_OK(t *testing.T) {
 		"gametype":    "CO-OP",
 	})
 
-	gs1, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	gs1, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	gs1.UpdateInfo(info, clockMock.Now())
 	gs1.UpdateDiscoveryStatus(ds.Master)
 
-	gs2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
+	gs2, _ := server.New(net.ParseIP("2.2.2.2"), 10480, 10481)
 	gs2.UpdateInfo(info, clockMock.Now())
 	gs2.UpdateDiscoveryStatus(ds.Port)
 
-	gs3, _ := servers.New(net.ParseIP("3.3.3.3"), 10480, 10481)
+	gs3, _ := server.New(net.ParseIP("3.3.3.3"), 10480, 10481)
 	gs3.UpdateInfo(info, clockMock.Now())
 	gs3.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Port)
 
-	gs4, _ := servers.New(net.ParseIP("4.4.4.4"), 10480, 10481)
+	gs4, _ := server.New(net.ParseIP("4.4.4.4"), 10480, 10481)
 	gs4.UpdateInfo(info, clockMock.Now())
 	gs4.UpdateDiscoveryStatus(ds.NoDetails)
 
-	gs5, _ := servers.New(net.ParseIP("5.5.5.5"), 10480, 10481)
+	gs5, _ := server.New(net.ParseIP("5.5.5.5"), 10480, 10481)
 	gs5.UpdateInfo(info, clockMock.Now())
 	gs5.UpdateDiscoveryStatus(ds.DetailsRetry)
 
-	gs6, _ := servers.New(net.ParseIP("6.6.6.6"), 10480, 10481)
+	gs6, _ := server.New(net.ParseIP("6.6.6.6"), 10480, 10481)
 	gs6.UpdateInfo(info, clockMock.Now())
 	gs6.UpdateDiscoveryStatus(ds.Port | ds.Details | ds.DetailsRetry)
 
-	gs7, _ := servers.New(net.ParseIP("7.7.7.7"), 10480, 10481)
+	gs7, _ := server.New(net.ParseIP("7.7.7.7"), 10480, 10481)
 	gs7.UpdateInfo(info, clockMock.Now())
 	gs7.UpdateDiscoveryStatus(ds.Master | ds.Info | ds.Details)
 
-	gs8, _ := servers.New(net.ParseIP("8.8.8.8"), 10480, 10481)
+	gs8, _ := server.New(net.ParseIP("8.8.8.8"), 10480, 10481)
 	gs8.UpdateInfo(info, clockMock.Now())
 	gs8.UpdateDiscoveryStatus(ds.Master | ds.PortRetry)
 
-	gs9, _ := servers.New(net.ParseIP("9.9.9.9"), 10480, 10481)
+	gs9, _ := server.New(net.ParseIP("9.9.9.9"), 10480, 10481)
 	gs9.UpdateInfo(info, clockMock.Now())
 	gs9.UpdateDiscoveryStatus(ds.Port | ds.PortRetry)
 
-	for _, gs := range []*servers.Server{&gs1, &gs2, &gs3, &gs4, &gs5, &gs6, &gs7, &gs8, &gs9} {
-		*gs, _ = repos.Servers.Add(ctx, *gs, servers.OnConflictIgnore)
+	for _, gs := range []*server.Server{&gs1, &gs2, &gs3, &gs4, &gs5, &gs6, &gs7, &gs8, &gs9} {
+		*gs, _ = repos.Servers.Add(ctx, *gs, repositories.ServerOnConflictIgnore)
 		clockMock.Add(time.Millisecond)
 	}
 
@@ -120,7 +121,7 @@ func TestFinder_Run_OK(t *testing.T) {
 			}
 		}),
 		fx.Decorate(func() clock.Clock { return clockMock }),
-		fx.Decorate(func() (servers.Repository, probes.Repository) {
+		fx.Decorate(func() (repositories.ServerRepository, repositories.ProbeRepository) {
 			return repos.Servers, repos.Probes
 		}),
 		finder.Module,
@@ -148,8 +149,8 @@ func TestFinder_Run_OK(t *testing.T) {
 
 	gs3.ClearDiscoveryStatus(ds.Details | ds.Port)
 	gs6.ClearDiscoveryStatus(ds.DetailsRetry)
-	gs3, _ = repos.Servers.Update(ctx, gs3, servers.OnConflictIgnore)
-	gs6, _ = repos.Servers.Update(ctx, gs6, servers.OnConflictIgnore)
+	gs3, _ = repos.Servers.Update(ctx, gs3, repositories.ServerOnConflictIgnore)
+	gs6, _ = repos.Servers.Update(ctx, gs6, repositories.ServerOnConflictIgnore)
 
 	tickTimes(20) // 450ms
 	// port timer triggered, details triggered twice
@@ -164,9 +165,9 @@ func TestFinder_Run_OK(t *testing.T) {
 	gs2.ClearDiscoveryStatus(ds.Port)
 	gs6.ClearDiscoveryStatus(ds.Details | ds.Port)
 	gs9.ClearDiscoveryStatus(ds.Port)
-	gs2, _ = repos.Servers.Update(ctx, gs2, servers.OnConflictIgnore)
-	gs6, _ = repos.Servers.Update(ctx, gs6, servers.OnConflictIgnore)
-	gs9, _ = repos.Servers.Update(ctx, gs9, servers.OnConflictIgnore)
+	gs2, _ = repos.Servers.Update(ctx, gs2, repositories.ServerOnConflictIgnore)
+	gs6, _ = repos.Servers.Update(ctx, gs6, repositories.ServerOnConflictIgnore)
+	gs9, _ = repos.Servers.Update(ctx, gs9, repositories.ServerOnConflictIgnore)
 
 	tickTimes(20) // 650ms
 	// port timer triggered, details never triggered
@@ -181,7 +182,7 @@ func TestFinder_Run_OK(t *testing.T) {
 
 	// bump server
 	gs6.UpdateInfo(info, clockMock.Now())
-	gs6, _ = repos.Servers.Update(ctx, gs6, servers.OnConflictIgnore)
+	gs6, _ = repos.Servers.Update(ctx, gs6, repositories.ServerOnConflictIgnore)
 	tickTimes(40) // 700ms
 
 	// all other servers are out of scope
@@ -195,14 +196,14 @@ func TestFinder_Run_Expiry(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
-	gs1, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
+	gs1, _ := server.New(net.ParseIP("2.2.2.2"), 10480, 10481)
 	gs1.UpdateDiscoveryStatus(ds.Details | ds.Port)
 
-	gs2, _ := servers.New(net.ParseIP("6.6.6.6"), 10480, 10481)
+	gs2, _ := server.New(net.ParseIP("6.6.6.6"), 10480, 10481)
 	gs2.UpdateDiscoveryStatus(ds.Master | ds.Port)
 
-	gs1, _ = repos.Servers.Add(ctx, gs1, servers.OnConflictIgnore)
-	gs2, _ = repos.Servers.Add(ctx, gs2, servers.OnConflictIgnore)
+	gs1, _ = repos.Servers.Add(ctx, gs1, repositories.ServerOnConflictIgnore)
+	gs2, _ = repos.Servers.Add(ctx, gs2, repositories.ServerOnConflictIgnore)
 
 	clockMock.Add(time.Millisecond)
 
@@ -218,7 +219,7 @@ func TestFinder_Run_Expiry(t *testing.T) {
 			}
 		}),
 		fx.Decorate(func() clock.Clock { return clockMock }),
-		fx.Decorate(func() (servers.Repository, probes.Repository) {
+		fx.Decorate(func() (repositories.ServerRepository, repositories.ProbeRepository) {
 			return repos.Servers, repos.Probes
 		}),
 		finder.Module,

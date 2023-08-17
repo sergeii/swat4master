@@ -3,15 +3,13 @@ package persistence
 import (
 	"go.uber.org/fx"
 
-	"github.com/sergeii/swat4master/internal/core/instances"
-	"github.com/sergeii/swat4master/internal/core/probes"
-	"github.com/sergeii/swat4master/internal/core/servers"
+	"github.com/sergeii/swat4master/internal/core/repositories"
 )
 
 type Repositories struct {
 	fx.Out
 
-	Servers   servers.Repository
-	Instances instances.Repository
-	Probes    probes.Repository
+	Servers   repositories.ServerRepository
+	Instances repositories.InstanceRepository
+	Probes    repositories.ProbeRepository
 }

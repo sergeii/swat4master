@@ -11,9 +11,10 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/rs/zerolog"
 
-	"github.com/sergeii/swat4master/internal/core/probes"
-	"github.com/sergeii/swat4master/internal/core/servers"
-	"github.com/sergeii/swat4master/internal/services/probe"
+	"github.com/sergeii/swat4master/internal/core/entities/probe"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
+	"github.com/sergeii/swat4master/internal/core/repositories"
+	ps "github.com/sergeii/swat4master/internal/services/probe"
 )
 
 var (
@@ -27,18 +28,18 @@ type ServiceOpts struct {
 }
 
 type Service struct {
-	servers servers.Repository
-	queue   *probe.Service
+	servers repositories.ServerRepository
+	queue   *ps.Service
 	opts    ServiceOpts
-	probers map[probes.Goal]Prober
+	probers map[probe.Goal]Prober
 	clock   clock.Clock
 	logger  *zerolog.Logger
 	mutex   sync.Mutex
 }
 
 func NewService(
-	servers servers.Repository,
-	queue *probe.Service,
+	servers repositories.ServerRepository,
+	queue *ps.Service,
 	clock clock.Clock,
 	logger *zerolog.Logger,
 	opts ServiceOpts,
@@ -46,7 +47,7 @@ func NewService(
 	service := &Service{
 		servers: servers,
 		queue:   queue,
-		probers: make(map[probes.Goal]Prober),
+		probers: make(map[probe.Goal]Prober),
 		clock:   clock,
 		logger:  logger,
 		opts:    opts,
@@ -54,7 +55,7 @@ func NewService(
 	return service
 }
 
-func (s *Service) Register(pg probes.Goal, prober Prober) error {
+func (s *Service) Register(pg probe.Goal, prober Prober) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if another, exists := s.probers[pg]; exists {
@@ -64,10 +65,10 @@ func (s *Service) Register(pg probes.Goal, prober Prober) error {
 	return nil
 }
 
-func (s *Service) Probe(ctx context.Context, target probes.Target) error {
-	goal := target.GetGoal()
-	addr := target.GetAddr()
-	queryPort := target.GetPort()
+func (s *Service) Probe(ctx context.Context, prb probe.Probe) error {
+	goal := prb.GetGoal()
+	addr := prb.GetAddr()
+	queryPort := prb.GetPort()
 
 	prober, err := s.selectProber(goal)
 	if err != nil {
@@ -90,12 +91,12 @@ func (s *Service) Probe(ctx context.Context, target probes.Target) error {
 			Err(probeErr).
 			Stringer("addr", addr).Stringer("goal", goal).Int("port", queryPort).
 			Msg("Probe failed")
-		return s.retry(ctx, prober, target, svr)
+		return s.retry(ctx, prober, prb, svr)
 	}
 
 	svr = prober.HandleSuccess(result, svr)
 
-	if _, updateErr := s.servers.Update(ctx, svr, func(s *servers.Server) bool {
+	if _, updateErr := s.servers.Update(ctx, svr, func(s *server.Server) bool {
 		*s = prober.HandleSuccess(result, *s)
 		return true
 	}); updateErr != nil {
@@ -108,13 +109,13 @@ func (s *Service) Probe(ctx context.Context, target probes.Target) error {
 
 	s.logger.Debug().
 		Stringer("server", svr).Int("port", queryPort).
-		Stringer("goal", goal).Int("retries", target.GetRetries()).
+		Stringer("goal", goal).Int("retries", prb.GetRetries()).
 		Msg("Successfully probed server")
 
 	return nil
 }
 
-func (s *Service) selectProber(goal probes.Goal) (Prober, error) {
+func (s *Service) selectProber(goal probe.Goal) (Prober, error) {
 	if prober, ok := s.probers[goal]; ok {
 		return prober, nil
 	}
@@ -124,8 +125,8 @@ func (s *Service) selectProber(goal probes.Goal) (Prober, error) {
 func (s *Service) retry(
 	ctx context.Context,
 	prober Prober,
-	tgt probes.Target,
-	svr servers.Server,
+	tgt probe.Probe,
+	svr server.Server,
 ) error {
 	goal := tgt.GetGoal()
 	addr := tgt.GetAddr()
@@ -155,7 +156,7 @@ func (s *Service) retry(
 
 	svr = prober.HandleRetry(svr)
 
-	if _, updateErr := s.servers.Update(ctx, svr, func(s *servers.Server) bool {
+	if _, updateErr := s.servers.Update(ctx, svr, func(s *server.Server) bool {
 		*s = prober.HandleFailure(*s)
 		return true
 	}); updateErr != nil {
@@ -177,12 +178,12 @@ func (s *Service) retry(
 func (s *Service) fail(
 	ctx context.Context,
 	prober Prober,
-	tgt probes.Target,
-	svr servers.Server,
+	tgt probe.Probe,
+	svr server.Server,
 ) error {
 	svr = prober.HandleFailure(svr)
 
-	if _, updateErr := s.servers.Update(ctx, svr, func(s *servers.Server) bool {
+	if _, updateErr := s.servers.Update(ctx, svr, func(s *server.Server) bool {
 		*s = prober.HandleFailure(*s)
 		return true
 	}); updateErr != nil {

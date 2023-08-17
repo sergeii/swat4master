@@ -24,13 +24,14 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/exporter"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/prober"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/reporter"
-	"github.com/sergeii/swat4master/internal/core/instances"
-	"github.com/sergeii/swat4master/internal/core/probes"
-	"github.com/sergeii/swat4master/internal/core/servers"
-	"github.com/sergeii/swat4master/internal/entity/addr"
-	"github.com/sergeii/swat4master/internal/entity/details"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
-	"github.com/sergeii/swat4master/internal/services/probe"
+	"github.com/sergeii/swat4master/internal/core/entities/addr"
+	"github.com/sergeii/swat4master/internal/core/entities/details"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/instance"
+	"github.com/sergeii/swat4master/internal/core/entities/probe"
+	"github.com/sergeii/swat4master/internal/core/entities/server"
+	"github.com/sergeii/swat4master/internal/core/repositories"
+	ps "github.com/sergeii/swat4master/internal/services/probe"
 	"github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/gs1"
 )
@@ -143,7 +144,7 @@ func TestExporter_ServerMetrics(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
-	var repo servers.Repository
+	var repo repositories.ServerRepository
 
 	app := fx.New(
 		application.Module,
@@ -167,7 +168,7 @@ func TestExporter_ServerMetrics(t *testing.T) {
 	}()
 	runtime.Gosched()
 
-	svr1, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr1, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	svr1.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 		"hostname":    "Swat4 Server",
 		"hostport":    "10480",
@@ -178,7 +179,7 @@ func TestExporter_ServerMetrics(t *testing.T) {
 	}), clockMock.Now())
 	svr1.UpdateDiscoveryStatus(ds.Master | ds.Info)
 
-	svr2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
+	svr2, _ := server.New(net.ParseIP("2.2.2.2"), 10480, 10481)
 	svr2.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 		"hostname":    "Another Swat4 Server",
 		"hostport":    "10480",
@@ -191,7 +192,7 @@ func TestExporter_ServerMetrics(t *testing.T) {
 	}), clockMock.Now())
 	svr2.UpdateDiscoveryStatus(ds.Details | ds.Info)
 
-	svr3, _ := servers.New(net.ParseIP("3.3.3.3"), 10480, 10481)
+	svr3, _ := server.New(net.ParseIP("3.3.3.3"), 10480, 10481)
 	svr3.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 		"hostname":    "Awesome Swat4 Server",
 		"hostport":    "10480",
@@ -204,7 +205,7 @@ func TestExporter_ServerMetrics(t *testing.T) {
 	}), clockMock.Now())
 	svr3.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
 
-	svr4, _ := servers.New(net.ParseIP("4.4.4.4"), 10480, 10481)
+	svr4, _ := server.New(net.ParseIP("4.4.4.4"), 10480, 10481)
 	svr4.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 		"hostname":    "Other Server",
 		"hostport":    "10480",
@@ -217,10 +218,10 @@ func TestExporter_ServerMetrics(t *testing.T) {
 	}), clockMock.Now())
 	svr4.UpdateDiscoveryStatus(ds.NoDetails)
 
-	svr1, _ = repo.Add(ctx, svr1, servers.OnConflictIgnore)
-	svr2, _ = repo.Add(ctx, svr2, servers.OnConflictIgnore)
-	svr3, _ = repo.Add(ctx, svr3, servers.OnConflictIgnore)
-	svr4, _ = repo.Add(ctx, svr4, servers.OnConflictIgnore)
+	svr1, _ = repo.Add(ctx, svr1, repositories.ServerOnConflictIgnore)
+	svr2, _ = repo.Add(ctx, svr2, repositories.ServerOnConflictIgnore)
+	svr3, _ = repo.Add(ctx, svr3, repositories.ServerOnConflictIgnore)
+	svr4, _ = repo.Add(ctx, svr4, repositories.ServerOnConflictIgnore)
 
 	clockMock.Add(time.Millisecond * 5)
 	mf := getMetrics(t)
@@ -262,9 +263,9 @@ func TestExporter_ReposMetrics(t *testing.T) {
 
 	clockMock := clock.NewMock()
 
-	var serversRepo servers.Repository
-	var instancesRepo instances.Repository
-	var probesRepo probes.Repository
+	var serversRepo repositories.ServerRepository
+	var instancesRepo repositories.InstanceRepository
+	var probesRepo repositories.ProbeRepository
 
 	app := fx.New(
 		application.Module,
@@ -288,23 +289,23 @@ func TestExporter_ReposMetrics(t *testing.T) {
 	runtime.Gosched()
 
 	// servers
-	svr1, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	svr2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
-	svr3, _ := servers.New(net.ParseIP("3.3.3.3"), 10480, 10481)
-	serversRepo.Add(ctx, svr1, servers.OnConflictIgnore) // nolint: errcheck
-	serversRepo.Add(ctx, svr2, servers.OnConflictIgnore) // nolint: errcheck
-	serversRepo.Add(ctx, svr3, servers.OnConflictIgnore) // nolint: errcheck
+	svr1, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr2, _ := server.New(net.ParseIP("2.2.2.2"), 10480, 10481)
+	svr3, _ := server.New(net.ParseIP("3.3.3.3"), 10480, 10481)
+	serversRepo.Add(ctx, svr1, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	serversRepo.Add(ctx, svr2, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	serversRepo.Add(ctx, svr3, repositories.ServerOnConflictIgnore) // nolint: errcheck
 
 	// instances
-	ins1 := instances.MustNew("foo", net.ParseIP("1.1.1.1"), 10480)
-	ins2 := instances.MustNew("bar", net.ParseIP("2.2.2.2"), 10480)
+	ins1 := instance.MustNew("foo", net.ParseIP("1.1.1.1"), 10480)
+	ins2 := instance.MustNew("bar", net.ParseIP("2.2.2.2"), 10480)
 	instancesRepo.Add(ctx, ins1) // nolint: errcheck
 	instancesRepo.Add(ctx, ins2) // nolint: errcheck
 
-	probe1 := probes.New(svr1.GetAddr(), svr1.GetQueryPort(), probes.GoalDetails)
-	probe2 := probes.New(svr2.GetAddr(), svr2.GetQueryPort(), probes.GoalDetails)
-	probesRepo.AddBetween(ctx, probe1, clockMock.Now().Add(time.Hour), probes.NC) // nolint: errcheck
-	probesRepo.Add(ctx, probe2)                                                   // nolint: errcheck
+	probe1 := probe.New(svr1.GetAddr(), svr1.GetQueryPort(), probe.GoalDetails)
+	probe2 := probe.New(svr2.GetAddr(), svr2.GetQueryPort(), probe.GoalDetails)
+	probesRepo.AddBetween(ctx, probe1, clockMock.Now().Add(time.Hour), repositories.NC) // nolint: errcheck
+	probesRepo.Add(ctx, probe2)                                                         // nolint: errcheck
 
 	clockMock.Add(time.Millisecond * 5)
 	mf := getMetrics(t)
@@ -318,7 +319,7 @@ func TestExporter_CleanerMetrics(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
-	var repo servers.Repository
+	var repo repositories.ServerRepository
 
 	clockMock := clock.NewMock()
 
@@ -346,10 +347,10 @@ func TestExporter_CleanerMetrics(t *testing.T) {
 	}()
 	runtime.Gosched()
 
-	svr1, _ := servers.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	repo.Add(ctx, svr1, servers.OnConflictIgnore) // nolint: errcheck
-	svr2, _ := servers.New(net.ParseIP("2.2.2.2"), 10480, 10481)
-	repo.Add(ctx, svr2, servers.OnConflictIgnore) // nolint: errcheck
+	svr1, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	repo.Add(ctx, svr1, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	svr2, _ := server.New(net.ParseIP("2.2.2.2"), 10480, 10481)
+	repo.Add(ctx, svr2, repositories.ServerOnConflictIgnore) // nolint: errcheck
 
 	clockMock.Add(time.Millisecond * 50)
 
@@ -368,8 +369,8 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
-	var repo servers.Repository
-	var probeService *probe.Service
+	var repo repositories.ServerRepository
+	var probeService *ps.Service
 
 	app := fx.New(
 		application.Module,
@@ -421,23 +422,23 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	addr2 := udp2.LocalAddr()
 	defer cancelSvr2()
 
-	svr1, err := servers.NewFromAddr(addr.NewForTesting(addr1.IP, addr1.Port), addr1.Port)
+	svr1, err := server.NewFromAddr(addr.NewForTesting(addr1.IP, addr1.Port), addr1.Port)
 	require.NoError(t, err)
 	svr1.UpdateDiscoveryStatus(ds.Port)
 
-	svr2, err := servers.NewFromAddr(addr.NewForTesting(addr2.IP, addr2.Port), addr2.Port)
+	svr2, err := server.NewFromAddr(addr.NewForTesting(addr2.IP, addr2.Port), addr2.Port)
 	require.NoError(t, err)
 	svr2.UpdateDiscoveryStatus(ds.Port)
 
-	svr1, _ = repo.Add(ctx, svr1, servers.OnConflictIgnore)
-	svr2, _ = repo.Add(ctx, svr2, servers.OnConflictIgnore)
+	svr1, _ = repo.Add(ctx, svr1, repositories.ServerOnConflictIgnore)
+	svr2, _ = repo.Add(ctx, svr2, repositories.ServerOnConflictIgnore)
 
-	probe1 := probes.New(addr.NewForTesting(addr1.IP, addr1.Port), addr1.Port, probes.GoalDetails)
-	probe2 := probes.New(addr.NewForTesting(addr1.IP, addr1.Port), addr1.Port, probes.GoalPort)
-	probe3 := probes.New(addr.NewForTesting(addr2.IP, addr2.Port), addr2.Port, probes.GoalDetails)
-	probe4 := probes.New(addr.NewForTesting(addr2.IP, addr2.Port), addr2.Port, probes.GoalPort)
+	probe1 := probe.New(addr.NewForTesting(addr1.IP, addr1.Port), addr1.Port, probe.GoalDetails)
+	probe2 := probe.New(addr.NewForTesting(addr1.IP, addr1.Port), addr1.Port, probe.GoalPort)
+	probe3 := probe.New(addr.NewForTesting(addr2.IP, addr2.Port), addr2.Port, probe.GoalDetails)
+	probe4 := probe.New(addr.NewForTesting(addr2.IP, addr2.Port), addr2.Port, probe.GoalPort)
 	probe4.IncRetries(2)
-	probe5 := probes.New(addr.NewForTesting(addr2.IP, addr2.Port), addr2.Port, probes.GoalDetails)
+	probe5 := probe.New(addr.NewForTesting(addr2.IP, addr2.Port), addr2.Port, probe.GoalDetails)
 	// will be launched immediately but will expire in 1s
 	probeService.AddBefore(ctx, probe1, time.Now().Add(time.Second)) // nolint: errcheck
 	// will be launched no earlier than 100ms but will expire in 1s

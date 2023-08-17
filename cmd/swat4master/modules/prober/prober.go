@@ -8,11 +8,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
-	"github.com/sergeii/swat4master/internal/core/probes"
+	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/services/discovery/probing"
 	"github.com/sergeii/swat4master/internal/services/discovery/probing/probers"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
-	"github.com/sergeii/swat4master/internal/services/probe"
+	ps "github.com/sergeii/swat4master/internal/services/probe"
 )
 
 type Prober struct{}
@@ -38,7 +38,7 @@ func Run(
 	stopped chan struct{},
 	logger *zerolog.Logger,
 	clock clock.Clock,
-	queue *probe.Service,
+	queue *ps.Service,
 	wg *WorkerGroup,
 	cfg config.Config,
 ) {
@@ -80,7 +80,7 @@ func NewProber(
 	lc fx.Lifecycle,
 	cfg config.Config,
 	clock clock.Clock,
-	queue *probe.Service,
+	queue *ps.Service,
 	wg *WorkerGroup,
 	logger *zerolog.Logger,
 	_ Params,
@@ -107,8 +107,8 @@ func feed(
 	ctx context.Context,
 	logger *zerolog.Logger,
 	wg *WorkerGroup,
-	pool chan probes.Target,
-	queue *probe.Service,
+	pool chan probe.Probe,
+	queue *ps.Service,
 ) {
 	availability := wg.Available()
 	if availability <= 0 {
@@ -116,7 +116,7 @@ func feed(
 		return
 	}
 
-	targets, err := queue.PopMany(ctx, availability)
+	probes, err := queue.PopMany(ctx, availability)
 	if err != nil {
 		logger.Warn().
 			Err(err).Int("availability", availability).
@@ -124,20 +124,20 @@ func feed(
 		return
 	}
 
-	if len(targets) == 0 {
+	if len(probes) == 0 {
 		return
 	}
 
 	logger.Debug().
-		Int("availability", availability).Int("targets", len(targets)).
+		Int("availability", availability).Int("probes", len(probes)).
 		Msg("Obtained targets")
 
-	for _, target := range targets {
-		pool <- target
+	for _, prb := range probes {
+		pool <- prb
 	}
 
 	logger.Debug().
-		Int("availability", availability).Int("targets", len(targets)).
+		Int("availability", availability).Int("probes", len(probes)).
 		Msg("Sent targets to work pool")
 }
 

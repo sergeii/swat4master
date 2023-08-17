@@ -25,7 +25,7 @@ import (
 	"github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/internal/validation"
 	"github.com/sergeii/swat4master/pkg/binutils"
-	gsbrowsing "github.com/sergeii/swat4master/pkg/gamespy/browsing"
+	gamespybrowsing "github.com/sergeii/swat4master/pkg/gamespy/browsing"
 	"github.com/sergeii/swat4master/pkg/random"
 )
 
@@ -133,7 +133,7 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 				testutils.GenBrowserChallenge8,
 				testutils.CalcReqLength,
 			),
-			wantErr: gsbrowsing.ErrNoFieldsRequested,
+			wantErr: gamespybrowsing.ErrNoFieldsRequested,
 		},
 		{
 			name: "invalid challenge length",
@@ -150,22 +150,22 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 				},
 				testutils.CalcReqLength,
 			),
-			wantErr: gsbrowsing.ErrInvalidRequestFormat,
+			wantErr: gamespybrowsing.ErrInvalidRequestFormat,
 		},
 		{
 			name:    "junk payload",
 			payload: random.RandBytes(200),
-			wantErr: gsbrowsing.ErrInvalidRequestFormat,
+			wantErr: gamespybrowsing.ErrInvalidRequestFormat,
 		},
 		{
 			name:    "empty payload",
 			payload: []byte{},
-			wantErr: gsbrowsing.ErrInvalidRequestFormat,
+			wantErr: gamespybrowsing.ErrInvalidRequestFormat,
 		},
 		{
 			name:    "null payload",
 			payload: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-			wantErr: gsbrowsing.ErrInvalidRequestFormat,
+			wantErr: gamespybrowsing.ErrInvalidRequestFormat,
 		},
 		{
 			name: "incomplete payload",
@@ -176,7 +176,7 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 				testutils.GenBrowserChallenge8,
 				testutils.CalcReqLength,
 			)[:30],
-			wantErr: gsbrowsing.ErrInvalidRequestFormat,
+			wantErr: gamespybrowsing.ErrInvalidRequestFormat,
 		},
 		{
 			name: "declared length exceeds the bounds",
@@ -187,7 +187,7 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 				testutils.GenBrowserChallenge8,
 				testutils.WithBrowserChallengeLength(400),
 			),
-			wantErr: gsbrowsing.ErrInvalidRequestFormat,
+			wantErr: gamespybrowsing.ErrInvalidRequestFormat,
 		},
 		{
 			name: "declared length is low",
@@ -198,7 +198,7 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 				testutils.GenBrowserChallenge8,
 				testutils.WithBrowserChallengeLength(30),
 			),
-			wantErr: gsbrowsing.ErrInvalidRequestFormat,
+			wantErr: gamespybrowsing.ErrInvalidRequestFormat,
 		},
 		{
 			name: "declared length is zero",
@@ -209,7 +209,7 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 				testutils.GenBrowserChallenge8,
 				testutils.WithBrowserChallengeLength(0),
 			),
-			wantErr: gsbrowsing.ErrInvalidRequestFormat,
+			wantErr: gamespybrowsing.ErrInvalidRequestFormat,
 		},
 		{
 			name: "invalid list type option",
@@ -220,7 +220,7 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 				testutils.GenBrowserChallenge8,
 				testutils.CalcReqLength,
 			),
-			wantErr: gsbrowsing.ErrInvalidRequestFormat,
+			wantErr: gamespybrowsing.ErrInvalidRequestFormat,
 		},
 		{
 			name: "invalid option mask length",
@@ -231,7 +231,7 @@ func TestMasterBrowserService_HandleRequest_Parse(t *testing.T) {
 				testutils.GenBrowserChallenge8,
 				testutils.CalcReqLength,
 			),
-			wantErr: gsbrowsing.ErrInvalidRequestFormat,
+			wantErr: gamespybrowsing.ErrInvalidRequestFormat,
 		},
 	}
 

@@ -8,9 +8,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/sergeii/swat4master/internal/core/servers"
-	"github.com/sergeii/swat4master/internal/entity/addr"
-	ds "github.com/sergeii/swat4master/internal/entity/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/addr"
+	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/rest/model"
 )
 
@@ -31,7 +31,7 @@ func (a *API) ViewServer(c *gin.Context) {
 	svr, err := a.app.ServerService.Get(c, address)
 	if err != nil {
 		switch {
-		case errors.Is(err, servers.ErrServerNotFound):
+		case errors.Is(err, repositories.ErrServerNotFound):
 			a.logger.Debug().
 				Stringer("addr", address).
 				Msg("Requested server not found")
