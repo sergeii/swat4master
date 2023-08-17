@@ -13,7 +13,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/repositories"
-	"github.com/sergeii/swat4master/internal/data/memory/probes"
+	"github.com/sergeii/swat4master/internal/persistence/memory/probes"
 )
 
 func makeRepo() (*probes.Repository, *clock.Mock) {

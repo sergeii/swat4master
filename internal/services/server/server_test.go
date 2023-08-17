@@ -17,7 +17,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/details"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
-	"github.com/sergeii/swat4master/internal/core/repositories"
+	repos "github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/persistence/memory"
 	ss "github.com/sergeii/swat4master/internal/services/server"
 	"github.com/sergeii/swat4master/internal/testutils"
@@ -27,7 +27,10 @@ import (
 func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts := []fx.Option{
 		fx.Provide(clock.New),
-		fx.Provide(memory.New),
+		fx.Provide(func(c clock.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
+			mem := memory.New(c)
+			return mem.Servers, mem.Instances, mem.Probes
+		}),
 		fx.Provide(
 			ss.NewService,
 		),
@@ -49,7 +52,7 @@ func overrideClock(c clock.Clock) fx.Option {
 func TestServerService_Create_OK(t *testing.T) {
 	ctx := context.TODO()
 
-	var repo repositories.ServerRepository
+	var repo repos.ServerRepository
 	var service *ss.Service
 	makeApp(t, fx.Populate(&repo, &service))
 
@@ -67,7 +70,7 @@ func TestServerService_Create_OK(t *testing.T) {
 func TestServerService_Create_IgnoreConflict(t *testing.T) {
 	ctx := context.TODO()
 
-	var repo repositories.ServerRepository
+	var repo repos.ServerRepository
 	var service *ss.Service
 	makeApp(t, fx.Populate(&repo, &service))
 
@@ -80,7 +83,7 @@ func TestServerService_Create_IgnoreConflict(t *testing.T) {
 		_, err := service.Create(ctx, s, func(s *server.Server) bool {
 			return false
 		})
-		require.ErrorIs(t, err, repositories.ErrServerExists)
+		require.ErrorIs(t, err, repos.ErrServerExists)
 		close(ignored)
 	}(svr)
 
@@ -102,7 +105,7 @@ func TestServerService_Create_IgnoreConflict(t *testing.T) {
 func TestServerService_Create_ResolveConflict(t *testing.T) {
 	ctx := context.TODO()
 
-	var repo repositories.ServerRepository
+	var repo repos.ServerRepository
 	var service *ss.Service
 	makeApp(t, fx.Populate(&repo, &service))
 
@@ -141,12 +144,12 @@ func TestServerService_Create_ResolveConflict(t *testing.T) {
 func TestServerService_Update_OK(t *testing.T) {
 	ctx := context.TODO()
 
-	var repo repositories.ServerRepository
+	var repo repos.ServerRepository
 	var service *ss.Service
 	makeApp(t, fx.Populate(&repo, &service))
 
 	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	repo.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	repo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 	assert.Equal(t, ds.New, svr.GetDiscoveryStatus())
 
 	svr.UpdateDiscoveryStatus(ds.Master)
@@ -161,12 +164,12 @@ func TestServerService_Update_OK(t *testing.T) {
 func TestServerService_Update_IgnoreConflict(t *testing.T) {
 	ctx := context.TODO()
 
-	var repo repositories.ServerRepository
+	var repo repos.ServerRepository
 	var service *ss.Service
 	makeApp(t, fx.Populate(&repo, &service))
 
 	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	repo.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	repo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 	assert.Equal(t, ds.New, svr.GetDiscoveryStatus())
 
 	ignored := make(chan struct{})
@@ -204,12 +207,12 @@ func TestServerService_Update_IgnoreConflict(t *testing.T) {
 func TestServerService_Update_ResolveConflict(t *testing.T) {
 	ctx := context.TODO()
 
-	var repo repositories.ServerRepository
+	var repo repos.ServerRepository
 	var service *ss.Service
 	makeApp(t, fx.Populate(&repo, &service))
 
 	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	repo.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	repo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 	assert.Equal(t, ds.New, svr.GetDiscoveryStatus())
 
 	resolved := make(chan struct{})
@@ -248,7 +251,7 @@ func TestServerService_Update_ResolveConflict(t *testing.T) {
 func TestServerService_CreateOrUpdate_Created(t *testing.T) {
 	ctx := context.TODO()
 
-	var repo repositories.ServerRepository
+	var repo repos.ServerRepository
 	var service *ss.Service
 	makeApp(t, fx.Populate(&repo, &service))
 
@@ -268,13 +271,13 @@ func TestServerService_CreateOrUpdate_Created(t *testing.T) {
 func TestServerService_CreateOrUpdate_Updated(t *testing.T) {
 	ctx := context.TODO()
 
-	var repo repositories.ServerRepository
+	var repo repos.ServerRepository
 	var service *ss.Service
 	makeApp(t, fx.Populate(&repo, &service))
 
 	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 	svr.UpdateDiscoveryStatus(ds.Master)
-	repo.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	repo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 
 	svr.UpdateDiscoveryStatus(ds.Details)
 	svr, err := service.CreateOrUpdate(ctx, svr, func(s *server.Server) {
@@ -291,12 +294,12 @@ func TestServerService_CreateOrUpdate_Updated(t *testing.T) {
 func TestServerService_CreateOrUpdate_Race(t *testing.T) {
 	ctx := context.TODO()
 
-	var repo repositories.ServerRepository
+	var repo repos.ServerRepository
 	var service *ss.Service
 	makeApp(t, fx.Populate(&repo, &service))
 
 	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	repo.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	repo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 
 	wg := &sync.WaitGroup{}
 	update := func(t *testing.T, svr server.Server, status ds.DiscoveryStatus) {
@@ -324,12 +327,12 @@ func TestServerService_CreateOrUpdate_Race(t *testing.T) {
 func TestServerService_Get(t *testing.T) {
 	ctx := context.TODO()
 
-	var repo repositories.ServerRepository
+	var repo repos.ServerRepository
 	var service *ss.Service
 	makeApp(t, fx.Populate(&repo, &service))
 
 	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	repo.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	repo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 
 	svr, err := service.Get(ctx, svr.GetAddr())
 	require.NoError(t, err)
@@ -404,7 +407,7 @@ func TestServerService_FilterRecent(t *testing.T) {
 	for _, tt := range tests {
 		testname := fmt.Sprintf("%s;%s;%s", tt.recentness, tt.q, tt.status)
 		t.Run(testname, func(t *testing.T) {
-			var repo repositories.ServerRepository
+			var repo repos.ServerRepository
 			var service *ss.Service
 
 			ctx := context.TODO()
@@ -422,7 +425,7 @@ func TestServerService_FilterRecent(t *testing.T) {
 				"gametype":    "VIP Escort",
 			}), clockMock.Now())
 			svr1.UpdateDiscoveryStatus(ds.Master | ds.Info)
-			svr1, _ = repo.Add(ctx, svr1, repositories.ServerOnConflictIgnore)
+			svr1, _ = repo.Add(ctx, svr1, repos.ServerOnConflictIgnore)
 
 			clockMock.Add(time.Millisecond * 10)
 
@@ -438,7 +441,7 @@ func TestServerService_FilterRecent(t *testing.T) {
 				"maxplayers":  "16",
 			}), clockMock.Now())
 			svr2.UpdateDiscoveryStatus(ds.Details | ds.Info)
-			svr2, _ = repo.Add(ctx, svr2, repositories.ServerOnConflictIgnore)
+			svr2, _ = repo.Add(ctx, svr2, repos.ServerOnConflictIgnore)
 
 			clockMock.Add(time.Millisecond * 10)
 
@@ -454,7 +457,7 @@ func TestServerService_FilterRecent(t *testing.T) {
 				"maxplayers":  "10",
 			}), clockMock.Now())
 			svr3.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-			svr3, _ = repo.Add(ctx, svr3, repositories.ServerOnConflictIgnore)
+			svr3, _ = repo.Add(ctx, svr3, repos.ServerOnConflictIgnore)
 
 			svr4, _ := server.New(net.ParseIP("4.4.4.4"), 10480, 10481)
 			svr4.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -468,7 +471,7 @@ func TestServerService_FilterRecent(t *testing.T) {
 				"maxplayers":  "16",
 			}), clockMock.Now())
 			svr4.UpdateDiscoveryStatus(ds.Master)
-			svr4, _ = repo.Add(ctx, svr4, repositories.ServerOnConflictIgnore)
+			svr4, _ = repo.Add(ctx, svr4, repos.ServerOnConflictIgnore)
 
 			clockMock.Add(time.Millisecond * 10)
 

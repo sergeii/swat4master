@@ -16,7 +16,7 @@ import (
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
-	"github.com/sergeii/swat4master/internal/data/memory/servers"
+	"github.com/sergeii/swat4master/internal/persistence/memory/servers"
 	"github.com/sergeii/swat4master/internal/testutils"
 )
 

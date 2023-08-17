@@ -17,7 +17,7 @@ import (
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
-	"github.com/sergeii/swat4master/internal/core/repositories"
+	repos "github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/services/discovery/finding"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
@@ -26,7 +26,10 @@ import (
 
 func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts := []fx.Option{
-		fx.Provide(memory.New),
+		fx.Provide(func(c clock.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
+			mem := memory.New(c)
+			return mem.Servers, mem.Instances, mem.Probes
+		}),
 		fx.Provide(func() *zerolog.Logger {
 			logger := zerolog.Nop()
 			return &logger
@@ -55,7 +58,7 @@ func TestFindingService_DiscoverDetails(t *testing.T) {
 	ctx := context.TODO()
 	clockMock := clock.NewMock()
 
-	var queue repositories.ProbeRepository
+	var queue repos.ProbeRepository
 	var finder *finding.Service
 	makeApp(t, fx.Populate(&finder, &queue), provideClock(clockMock))
 
@@ -74,14 +77,14 @@ func TestFindingService_DiscoverDetails(t *testing.T) {
 	clockMock.Add(time.Millisecond * 15)
 
 	_, err := queue.Pop(ctx)
-	assert.ErrorIs(t, err, repositories.ErrProbeQueueIsEmpty)
+	assert.ErrorIs(t, err, repos.ErrProbeQueueIsEmpty)
 }
 
 func TestFindingService_DiscoverPort(t *testing.T) {
 	ctx := context.TODO()
 	clockMock := clock.NewMock()
 
-	var queue repositories.ProbeRepository
+	var queue repos.ProbeRepository
 	var finder *finding.Service
 	makeApp(t, fx.Populate(&finder, &queue), provideClock(clockMock))
 
@@ -94,7 +97,7 @@ func TestFindingService_DiscoverPort(t *testing.T) {
 	}
 
 	_, err := queue.Pop(ctx)
-	assert.ErrorIs(t, err, repositories.ErrProbeIsNotReady)
+	assert.ErrorIs(t, err, repos.ErrProbeIsNotReady)
 
 	clockMock.Add(time.Millisecond * 5)
 
@@ -113,15 +116,15 @@ func TestFindingService_DiscoverPort(t *testing.T) {
 	clockMock.Add(time.Millisecond * 10)
 
 	_, err = queue.Pop(ctx)
-	assert.ErrorIs(t, err, repositories.ErrProbeQueueIsEmpty)
+	assert.ErrorIs(t, err, repos.ErrProbeQueueIsEmpty)
 }
 
 func TestFindingService_RefreshDetails(t *testing.T) {
 	ctx := context.TODO()
 	clockMock := clock.NewMock()
 
-	var serversRepo repositories.ServerRepository
-	var probesRepo repositories.ProbeRepository
+	var serversRepo repos.ServerRepository
+	var probesRepo repos.ProbeRepository
 	var service *finding.Service
 	makeApp(t, fx.Populate(&serversRepo, &probesRepo, &service), provideClock(clockMock))
 
@@ -153,13 +156,13 @@ func TestFindingService_RefreshDetails(t *testing.T) {
 	gs7.Refresh(clockMock.Now())
 	gs7.UpdateDiscoveryStatus(ds.Master | ds.Info | ds.Details | ds.Port)
 
-	gs1, _ = serversRepo.Add(ctx, gs1, repositories.ServerOnConflictIgnore)
-	gs2, _ = serversRepo.Add(ctx, gs2, repositories.ServerOnConflictIgnore)
-	gs3, _ = serversRepo.Add(ctx, gs3, repositories.ServerOnConflictIgnore)
-	gs4, _ = serversRepo.Add(ctx, gs4, repositories.ServerOnConflictIgnore)
-	gs5, _ = serversRepo.Add(ctx, gs5, repositories.ServerOnConflictIgnore)
-	gs6, _ = serversRepo.Add(ctx, gs6, repositories.ServerOnConflictIgnore)
-	gs7, _ = serversRepo.Add(ctx, gs7, repositories.ServerOnConflictIgnore)
+	gs1, _ = serversRepo.Add(ctx, gs1, repos.ServerOnConflictIgnore)
+	gs2, _ = serversRepo.Add(ctx, gs2, repos.ServerOnConflictIgnore)
+	gs3, _ = serversRepo.Add(ctx, gs3, repos.ServerOnConflictIgnore)
+	gs4, _ = serversRepo.Add(ctx, gs4, repos.ServerOnConflictIgnore)
+	gs5, _ = serversRepo.Add(ctx, gs5, repos.ServerOnConflictIgnore)
+	gs6, _ = serversRepo.Add(ctx, gs6, repos.ServerOnConflictIgnore)
+	gs7, _ = serversRepo.Add(ctx, gs7, repos.ServerOnConflictIgnore)
 
 	deadline := clockMock.Now().Add(time.Second * 60)
 
@@ -184,8 +187,8 @@ func TestFindingService_ReviveServers(t *testing.T) {
 	ctx := context.TODO()
 	clockMock := clock.NewMock()
 
-	var serversRepo repositories.ServerRepository
-	var probesRepo repositories.ProbeRepository
+	var serversRepo repos.ServerRepository
+	var probesRepo repos.ProbeRepository
 	var service *finding.Service
 	makeApp(t, fx.Populate(&serversRepo, &probesRepo, &service), provideClock(clockMock))
 
@@ -238,15 +241,15 @@ func TestFindingService_ReviveServers(t *testing.T) {
 	gs9.Refresh(clockMock.Now())
 	gs9.UpdateDiscoveryStatus(ds.Info)
 
-	gs1, _ = serversRepo.Add(ctx, gs1, repositories.ServerOnConflictIgnore)
-	gs2, _ = serversRepo.Add(ctx, gs2, repositories.ServerOnConflictIgnore)
-	gs3, _ = serversRepo.Add(ctx, gs3, repositories.ServerOnConflictIgnore)
-	gs4, _ = serversRepo.Add(ctx, gs4, repositories.ServerOnConflictIgnore)
-	gs5, _ = serversRepo.Add(ctx, gs5, repositories.ServerOnConflictIgnore)
-	gs6, _ = serversRepo.Add(ctx, gs6, repositories.ServerOnConflictIgnore)
-	gs7, _ = serversRepo.Add(ctx, gs7, repositories.ServerOnConflictIgnore)
-	gs8, _ = serversRepo.Add(ctx, gs8, repositories.ServerOnConflictIgnore)
-	gs9, _ = serversRepo.Add(ctx, gs9, repositories.ServerOnConflictIgnore)
+	gs1, _ = serversRepo.Add(ctx, gs1, repos.ServerOnConflictIgnore)
+	gs2, _ = serversRepo.Add(ctx, gs2, repos.ServerOnConflictIgnore)
+	gs3, _ = serversRepo.Add(ctx, gs3, repos.ServerOnConflictIgnore)
+	gs4, _ = serversRepo.Add(ctx, gs4, repos.ServerOnConflictIgnore)
+	gs5, _ = serversRepo.Add(ctx, gs5, repos.ServerOnConflictIgnore)
+	gs6, _ = serversRepo.Add(ctx, gs6, repos.ServerOnConflictIgnore)
+	gs7, _ = serversRepo.Add(ctx, gs7, repos.ServerOnConflictIgnore)
+	gs8, _ = serversRepo.Add(ctx, gs8, repos.ServerOnConflictIgnore)
+	gs9, _ = serversRepo.Add(ctx, gs9, repos.ServerOnConflictIgnore)
 
 	minCountdown := clockMock.Now()
 	maxCountdown := clockMock.Now()

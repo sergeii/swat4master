@@ -12,7 +12,7 @@ import (
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
-	"github.com/sergeii/swat4master/internal/core/repositories"
+	repos "github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
 	sp "github.com/sergeii/swat4master/internal/services/probe"
@@ -25,7 +25,10 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 			logger := zerolog.Nop()
 			return &logger
 		}),
-		fx.Provide(memory.New),
+		fx.Provide(func(c clock.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
+			mem := memory.New(c)
+			return mem.Servers, mem.Instances, mem.Probes
+		}),
 		fx.Provide(
 			monitoring.NewMetricService,
 			sp.NewService,
@@ -40,7 +43,7 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 func TestProbeService_PopMany(t *testing.T) {
 	ctx := context.TODO()
 
-	var repo repositories.ProbeRepository
+	var repo repos.ProbeRepository
 	var service *sp.Service
 	makeApp(t, fx.Populate(&repo, &service))
 

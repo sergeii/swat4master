@@ -15,7 +15,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	"github.com/sergeii/swat4master/internal/core/entities/instance"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
-	"github.com/sergeii/swat4master/internal/core/repositories"
+	repos "github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/services/cleaning"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
@@ -23,7 +23,10 @@ import (
 
 func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts := []fx.Option{
-		fx.Provide(memory.New),
+		fx.Provide(func(c clock.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
+			mem := memory.New(c)
+			return mem.Servers, mem.Instances, mem.Probes
+		}),
 		fx.Provide(func() *zerolog.Logger {
 			logger := zerolog.Nop()
 			return &logger
@@ -49,8 +52,8 @@ func provideClock(c clock.Clock) fx.Option {
 
 func TestCleaningService_Clean(t *testing.T) {
 	var service *cleaning.Service
-	var serversRepo repositories.ServerRepository
-	var instancesRepo repositories.InstanceRepository
+	var serversRepo repos.ServerRepository
+	var instancesRepo repos.InstanceRepository
 
 	ctx := context.TODO()
 	clockMock := clock.NewMock()
@@ -72,18 +75,18 @@ func TestCleaningService_Clean(t *testing.T) {
 
 	beforeAll := clockMock.Now()
 
-	serversRepo.Add(ctx, server1, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	serversRepo.Add(ctx, server1, repos.ServerOnConflictIgnore) // nolint: errcheck
 	clockMock.Add(time.Microsecond)
 
 	before2 := clockMock.Now()
 
-	serversRepo.Add(ctx, server2, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	serversRepo.Add(ctx, server2, repos.ServerOnConflictIgnore) // nolint: errcheck
 	clockMock.Add(time.Microsecond)
 
-	serversRepo.Add(ctx, server3, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	serversRepo.Add(ctx, server3, repos.ServerOnConflictIgnore) // nolint: errcheck
 	clockMock.Add(time.Microsecond)
 
-	serversRepo.Add(ctx, server4, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	serversRepo.Add(ctx, server4, repos.ServerOnConflictIgnore) // nolint: errcheck
 	clockMock.Add(time.Microsecond)
 
 	afterAll := clockMock.Now()
@@ -108,12 +111,12 @@ func TestCleaningService_Clean(t *testing.T) {
 	insCount, _ = instancesRepo.Count(ctx)
 	assert.Equal(t, 2, insCount)
 	_, getSvrErr := serversRepo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
-	assert.ErrorIs(t, getSvrErr, repositories.ErrServerNotFound)
+	assert.ErrorIs(t, getSvrErr, repos.ErrServerNotFound)
 	_, getInsErr := instancesRepo.GetByID(ctx, "foo")
-	assert.ErrorIs(t, getInsErr, repositories.ErrInstanceNotFound)
+	assert.ErrorIs(t, getInsErr, repos.ErrInstanceNotFound)
 
 	clockMock.Add(time.Microsecond)
-	serversRepo.Update(ctx, server3, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	serversRepo.Update(ctx, server3, repos.ServerOnConflictIgnore) // nolint: errcheck
 
 	err = service.Clean(context.TODO(), afterAll)
 	assert.NoError(t, err)

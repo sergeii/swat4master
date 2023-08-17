@@ -11,7 +11,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	"github.com/sergeii/swat4master/internal/core/entities/instance"
 	"github.com/sergeii/swat4master/internal/core/repositories"
-	"github.com/sergeii/swat4master/internal/data/memory/instances"
+	"github.com/sergeii/swat4master/internal/persistence/memory/instances"
 )
 
 func TestInstanceMemoryRepo_Add_NewInstance(t *testing.T) {
