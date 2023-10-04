@@ -45,15 +45,14 @@ func (mr *Repository) Add(
 
 	var item *serverItem
 
-	key := svr.GetAddr()
-	elem, exists := mr.servers[key]
+	elem, exists := mr.servers[svr.Addr]
 	if !exists {
 		item = &serverItem{
 			Server:    svr,
 			UpdatedAt: mr.clock.Now(),
 		}
 		elem = mr.history.PushFront(item)
-		mr.servers[key] = elem
+		mr.servers[svr.Addr] = elem
 		return svr, nil
 	}
 
@@ -77,8 +76,7 @@ func (mr *Repository) Update(
 	mr.mutex.Lock()
 	defer mr.mutex.Unlock()
 
-	key := svr.GetAddr()
-	elem, exists := mr.servers[key]
+	elem, exists := mr.servers[svr.Addr]
 	if !exists {
 		return server.Blank, repositories.ErrServerNotFound
 	}
@@ -87,7 +85,7 @@ func (mr *Repository) Update(
 
 	// only allow writes when the updated server's version
 	// does not exceed the version of current saved version in the repository
-	if item.Server.GetVersion() > svr.GetVersion() {
+	if item.Server.Version > svr.Version {
 		resolved := item.Server
 		// let the caller resolve the conflict
 		if !onConflict(&resolved) {
@@ -111,7 +109,7 @@ func (mr *Repository) update(
 	// so this version of the server instance
 	// maybe be only rewritten when other writers
 	// are acknowledged with the changes
-	svr.IncVersion()
+	svr.Version++
 
 	item.Server = svr
 	item.UpdatedAt = mr.clock.Now()
@@ -129,22 +127,21 @@ func (mr *Repository) Remove(
 	mr.mutex.Lock()
 	defer mr.mutex.Unlock()
 
-	key := svr.GetAddr()
-	elem, exists := mr.servers[key]
+	elem, exists := mr.servers[svr.Addr]
 	if !exists {
 		return nil
 	}
 
 	item := elem.Value.(*serverItem) // nolint: forcetypeassert
 	// don't allow to remove servers with version greater than provided
-	if item.Server.GetVersion() > svr.GetVersion() {
+	if item.Server.Version > svr.Version {
 		// let the caller resolve the conflict
 		if !onConflict(&item.Server) {
 			return nil
 		}
 	}
 
-	delete(mr.servers, key)
+	delete(mr.servers, svr.Addr)
 	mr.history.Remove(elem)
 
 	return nil
@@ -180,7 +177,7 @@ func (mr *Repository) Filter( // nolint: cyclop
 	for item := mr.history.Front(); item != nil; item = item.Next() {
 		rep := item.Value.(*serverItem) // nolint: forcetypeassert
 		updatedAt := rep.UpdatedAt
-		refreshedAt := rep.Server.GetRefreshedAt()
+		refreshedAt := rep.Server.RefreshedAt
 		if byUpdatedAfter && updatedAt.Before(updatedAfter) {
 			// because servers in the list are sorted by update date
 			// we can safely break here, as no more items would satisfy this condition
@@ -219,7 +216,7 @@ func (mr *Repository) CountByStatus(_ context.Context) (map[ds.DiscoveryStatus]i
 
 	for item := mr.history.Front(); item != nil; item = item.Next() {
 		rep := item.Value.(*serverItem) // nolint: forcetypeassert
-		status := rep.Server.GetDiscoveryStatus()
+		status := rep.Server.DiscoveryStatus
 		for bit = 1; bit <= status; bit <<= 1 {
 			if status&bit == bit {
 				counter[bit]++

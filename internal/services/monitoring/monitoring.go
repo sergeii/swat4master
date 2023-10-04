@@ -147,15 +147,15 @@ func NewMetricService(
 		}),
 		DiscoveryQueueProduced: promauto.With(registry).NewCounter(prometheus.CounterOpts{
 			Name: "discovery_queue_produced_total",
-			Help: "The total number of discovery targets put in discovery queue",
+			Help: "The total number of discovery probes put in discovery queue",
 		}),
 		DiscoveryQueueConsumed: promauto.With(registry).NewCounter(prometheus.CounterOpts{
 			Name: "discovery_queue_consumed_total",
-			Help: "The total number of discovery targets consumed from discovery queue",
+			Help: "The total number of discovery probes consumed from discovery queue",
 		}),
 		DiscoveryQueueExpired: promauto.With(registry).NewCounter(prometheus.CounterOpts{
 			Name: "discovery_queue_expired_total",
-			Help: "The total number of expired targets in discovery queue",
+			Help: "The total number of expired probes in discovery queue",
 		}),
 		DiscoveryProbeDurations: promauto.With(registry).NewHistogramVec(prometheus.HistogramOpts{
 			Name: "discovery_probe_duration_seconds",
@@ -275,12 +275,11 @@ func (ms *MetricService) observeActiveServers(
 		return
 	}
 
-	for _, server := range activeServers {
-		info := server.GetInfo()
-		allServers[info.GameType]++
-		if info.NumPlayers > 0 {
-			players[info.GameType] += info.NumPlayers
-			playedServers[info.GameType]++
+	for _, s := range activeServers {
+		allServers[s.Info.GameType]++
+		if s.Info.NumPlayers > 0 {
+			players[s.Info.GameType] += s.Info.NumPlayers
+			playedServers[s.Info.GameType]++
 		}
 	}
 

@@ -102,11 +102,11 @@ func TestServer_New(t *testing.T) {
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 			} else {
-				require.Equal(t, tt.want, got.GetAddr())
-				require.Equal(t, tt.qPort, got.GetQueryPort())
-				require.Equal(t, tt.ip, got.GetDottedIP())
-				require.Equal(t, net.ParseIP(tt.ip).To4(), got.GetIP())
-				require.Equal(t, ds.New, got.GetDiscoveryStatus())
+				require.Equal(t, tt.want, got.Addr)
+				require.Equal(t, tt.qPort, got.QueryPort)
+				require.Equal(t, tt.ip, got.Addr.GetDottedIP())
+				require.Equal(t, net.ParseIP(tt.ip).To4(), got.Addr.GetIP())
+				require.Equal(t, ds.New, got.DiscoveryStatus)
 			}
 		})
 	}
@@ -183,15 +183,13 @@ func TestServer_New_ValidIPAddress(t *testing.T) {
 
 func TestServer_DefaultInfo(t *testing.T) {
 	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
-	defaultDetails := svr.GetInfo()
-	assert.Equal(t, "", defaultDetails.Hostname)
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
+	assert.Equal(t, "", svr.Info.Hostname)
 }
 
 func TestServer_InfoIsUpdated(t *testing.T) {
 	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	basicDetails := svr.GetInfo()
-	assert.Equal(t, "", basicDetails.Hostname)
+	assert.Equal(t, "", svr.Info.Hostname)
 
 	newInfo := details.MustNewInfoFromParams(map[string]string{
 		"hostname":    "Swat4 Server",
@@ -203,12 +201,12 @@ func TestServer_InfoIsUpdated(t *testing.T) {
 	})
 	svr.UpdateInfo(newInfo, time.Now())
 
-	updatedInfo := svr.GetInfo()
+	updatedInfo := svr.Info
 	assert.Equal(t, "Swat4 Server", updatedInfo.Hostname)
 	assert.Equal(t, 10480, updatedInfo.HostPort)
 	assert.Equal(t, "A-Bomb Nightclub", updatedInfo.MapName)
 
-	defaultDetails := svr.GetDetails()
+	defaultDetails := svr.Details
 	assert.Equal(t, "", defaultDetails.Info.Hostname)
 	assert.Nil(t, defaultDetails.Players)
 	assert.Nil(t, defaultDetails.Objectives)
@@ -216,17 +214,15 @@ func TestServer_InfoIsUpdated(t *testing.T) {
 
 func TestServer_DefaultDetails(t *testing.T) {
 	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
-	defaultDetails := svr.GetDetails()
-	assert.Equal(t, "", defaultDetails.Info.Hostname)
-	assert.Nil(t, defaultDetails.Players)
-	assert.Nil(t, defaultDetails.Objectives)
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
+	assert.Equal(t, "", svr.Details.Info.Hostname)
+	assert.Nil(t, svr.Details.Players)
+	assert.Nil(t, svr.Details.Objectives)
 }
 
 func TestServer_DetailsAreUpdated(t *testing.T) {
 	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	currentDetails := svr.GetDetails()
-	assert.Equal(t, "", currentDetails.Info.Hostname)
+	assert.Equal(t, "", svr.Details.Info.Hostname)
 
 	serverParams := map[string]string{
 		"hostname":       "[c=0099ff]SEF 7.0 EU [c=ffffff]www.swat4.tk",
@@ -288,22 +284,21 @@ func TestServer_DetailsAreUpdated(t *testing.T) {
 	newDetails := details.MustNewDetailsFromParams(serverParams, players, objectives)
 	svr.UpdateDetails(newDetails, time.Now())
 
-	updatedDetails := svr.GetDetails()
+	updatedDetails := svr.Details
 	assert.Equal(t, "[c=0099ff]SEF 7.0 EU [c=ffffff]www.swat4.tk", updatedDetails.Info.Hostname)
 	assert.Equal(t, 10480, updatedDetails.Info.HostPort)
 	assert.Len(t, updatedDetails.Players, 2)
 	assert.Len(t, updatedDetails.Objectives, 5)
 
 	// info is also updated
-	defaultInfo := svr.GetInfo()
-	assert.Equal(t, "[c=0099ff]SEF 7.0 EU [c=ffffff]www.swat4.tk", defaultInfo.Hostname)
+	assert.Equal(t, "[c=0099ff]SEF 7.0 EU [c=ffffff]www.swat4.tk", svr.Info.Hostname)
 }
 
 func TestServer_DiscoveryStatusIsUpdated(t *testing.T) {
 	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 
 	// default status is new
-	assert.Equal(t, ds.New, svr.GetDiscoveryStatus())
+	assert.Equal(t, ds.New, svr.DiscoveryStatus)
 
 	assert.True(t, svr.HasDiscoveryStatus(ds.New))
 	assert.False(t, svr.HasDiscoveryStatus(ds.Master))
@@ -330,10 +325,10 @@ func TestServer_DiscoveryStatusIsUpdated(t *testing.T) {
 func TestServer_DiscoveryStatusIsCleared(t *testing.T) {
 	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 	// default status is new
-	assert.Equal(t, ds.New, svr.GetDiscoveryStatus())
+	assert.Equal(t, ds.New, svr.DiscoveryStatus)
 
 	svr.ClearDiscoveryStatus(ds.New)
-	assert.Equal(t, ds.DiscoveryStatus(0), svr.GetDiscoveryStatus())
+	assert.Equal(t, ds.DiscoveryStatus(0), svr.DiscoveryStatus)
 	assert.False(t, svr.HasDiscoveryStatus(ds.New))
 	assert.False(t, svr.HasDiscoveryStatus(ds.Master))
 
@@ -356,21 +351,21 @@ func TestServer_DiscoveryStatusIsCleared(t *testing.T) {
 	assert.False(t, svr.HasDiscoveryStatus(ds.Master))
 	assert.False(t, svr.HasDiscoveryStatus(ds.Details))
 	assert.False(t, svr.HasDiscoveryStatus(ds.Info))
-	assert.Equal(t, ds.NoStatus, svr.GetDiscoveryStatus())
+	assert.Equal(t, ds.NoStatus, svr.DiscoveryStatus)
 }
 
 func TestServer_HasDiscoveryStatusStatus(t *testing.T) {
 	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
 
 	// default status is "new"
-	assert.Equal(t, ds.New, svr.GetDiscoveryStatus())
+	assert.Equal(t, ds.New, svr.DiscoveryStatus)
 
 	assert.True(t, svr.HasDiscoveryStatus(ds.New))
 	assert.False(t, svr.HasDiscoveryStatus(ds.Master))
 
 	svr.UpdateDiscoveryStatus(ds.Master | ds.Info | ds.Details)
 	assert.False(t, svr.HasDiscoveryStatus(ds.New))
-	assert.Equal(t, ds.Master|ds.Info|ds.Details, svr.GetDiscoveryStatus())
+	assert.Equal(t, ds.Master|ds.Info|ds.Details, svr.DiscoveryStatus)
 
 	assert.True(t, svr.HasDiscoveryStatus(ds.Master))
 	assert.True(t, svr.HasDiscoveryStatus(ds.Info))

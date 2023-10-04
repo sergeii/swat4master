@@ -97,7 +97,7 @@ func TestProber_Run(t *testing.T) {
 			case ch <- packet:
 			}
 		}
-	}(ctx, responses1, svr1.GetGamePort())
+	}(ctx, responses1, svr1.Addr.Port)
 
 	svr2, err := server.NewFromAddr(addr.NewForTesting(addr2.IP, addr2.Port-1), addr2.Port)
 	require.NoError(t, err)
@@ -129,7 +129,7 @@ func TestProber_Run(t *testing.T) {
 			case ch <- packet:
 			}
 		}
-	}(ctx, responses3, svr3.GetGamePort())
+	}(ctx, responses3, svr3.Addr.Port)
 
 	repos.Servers.Add(ctx, svr1, repositories.ServerOnConflictIgnore) // nolint: errcheck
 	clockMock.Add(time.Millisecond)
@@ -173,28 +173,28 @@ func TestProber_Run(t *testing.T) {
 		clockMock.Add(time.Millisecond * 10)
 	}
 
-	updatedSvr1, _ := repos.Servers.Get(ctx, svr1.GetAddr())
-	assert.Equal(t, ds.Master|ds.Details|ds.Info|ds.Port, updatedSvr1.GetDiscoveryStatus())
+	updatedSvr1, _ := repos.Servers.Get(ctx, svr1.Addr)
+	assert.Equal(t, ds.Master|ds.Details|ds.Info|ds.Port, updatedSvr1.DiscoveryStatus)
 
-	svr1Info := updatedSvr1.GetInfo()
+	svr1Info := updatedSvr1.Info
 	assert.Equal(t, "-==MYT Team Svr==-", svr1Info.Hostname)
 	assert.Equal(t, 16, svr1Info.MaxPlayers)
 	assert.Equal(t, int64(6), atomic.LoadInt64(&i1))
 
-	svr1Details := updatedSvr1.GetDetails()
+	svr1Details := updatedSvr1.Details
 	assert.Equal(t, "-==MYT Team Svr==-", svr1Details.Info.Hostname)
 	assert.Equal(t, 16, svr1Details.Info.MaxPlayers)
 	assert.Equal(t, 0, svr1Details.Info.NumPlayers)
 
-	notUpdatedSvr2, _ := repos.Servers.Get(ctx, svr2.GetAddr())
-	assert.Equal(t, ds.DetailsRetry|ds.PortRetry, notUpdatedSvr2.GetDiscoveryStatus())
-	svr2Info := notUpdatedSvr2.GetInfo()
+	notUpdatedSvr2, _ := repos.Servers.Get(ctx, svr2.Addr)
+	assert.Equal(t, ds.DetailsRetry|ds.PortRetry, notUpdatedSvr2.DiscoveryStatus)
+	svr2Info := notUpdatedSvr2.Info
 	assert.Equal(t, "Swat4 Server", svr2Info.Hostname)
 	assert.Equal(t, int64(0), atomic.LoadInt64(&i2))
 
-	updatedSvr3, _ := repos.Servers.Get(ctx, svr3.GetAddr())
-	assert.Equal(t, ds.Master|ds.Info|ds.Details|ds.Port, updatedSvr3.GetDiscoveryStatus())
-	svr3Info := updatedSvr3.GetInfo()
+	updatedSvr3, _ := repos.Servers.Get(ctx, svr3.Addr)
+	assert.Equal(t, ds.Master|ds.Info|ds.Details|ds.Port, updatedSvr3.DiscoveryStatus)
+	svr3Info := updatedSvr3.Info
 	assert.Equal(t, "[c=ffff00]WWW.EPiCS.TOP", svr3Info.Hostname)
 	assert.Equal(t, int64(4), atomic.LoadInt64(&i3)) // 1 port probe + 3 details probes
 }

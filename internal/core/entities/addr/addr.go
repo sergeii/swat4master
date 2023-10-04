@@ -60,10 +60,6 @@ func MustNewFromString(ip string, port int) Addr {
 	return addr
 }
 
-func (a Addr) GetIP4() [4]byte {
-	return a.IP
-}
-
 func (a Addr) GetIP() net.IP {
 	return net.IPv4(a.IP[0], a.IP[1], a.IP[2], a.IP[3]).To4()
 }

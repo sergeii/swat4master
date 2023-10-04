@@ -40,10 +40,10 @@ func TestServerMemoryRepo_Add_New(t *testing.T) {
 	}), clockMock.Now())
 	svr, err := repo.Add(ctx, svr, repositories.ServerOnConflictIgnore)
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
-	assert.Equal(t, 10480, svr.GetGamePort())
-	assert.Equal(t, 10481, svr.GetQueryPort())
-	assert.Equal(t, 0, svr.GetVersion())
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
+	assert.Equal(t, 10480, svr.Addr.Port)
+	assert.Equal(t, 10481, svr.QueryPort)
+	assert.Equal(t, 0, svr.Version)
 
 	other, _ := server.New(net.ParseIP("2.2.2.2"), 10480, 10481)
 	other.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -55,22 +55,20 @@ func TestServerMemoryRepo_Add_New(t *testing.T) {
 		"gametype":    "VIP Escort",
 	}), clockMock.Now())
 	other, otherErr := repo.Add(ctx, other, repositories.ServerOnConflictIgnore)
-	assert.Equal(t, "2.2.2.2", other.GetDottedIP())
-	assert.Equal(t, 10480, other.GetGamePort())
-	assert.Equal(t, 10481, other.GetQueryPort())
-	assert.Equal(t, 0, other.GetVersion())
+	assert.Equal(t, "2.2.2.2", other.Addr.GetDottedIP())
+	assert.Equal(t, 10480, other.Addr.Port)
+	assert.Equal(t, 10481, other.QueryPort)
+	assert.Equal(t, 0, other.Version)
 
 	require.NoError(t, otherErr)
 
 	addedSvr, err := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 	require.NoError(t, err)
-	svrInfo := addedSvr.GetInfo()
-	assert.Equal(t, "Swat4 Server", svrInfo.Hostname)
+	assert.Equal(t, "Swat4 Server", addedSvr.Info.Hostname)
 
 	addedOther, err := repo.Get(ctx, addr.MustNewFromString("2.2.2.2", 10480))
 	require.NoError(t, err)
-	otherInfo := addedOther.GetInfo()
-	assert.Equal(t, "Another Swat4 Server", otherInfo.Hostname)
+	assert.Equal(t, "Another Swat4 Server", addedOther.Info.Hostname)
 }
 
 func TestServerMemoryRepo_Add_UpdateOnConflict(t *testing.T) {
@@ -110,9 +108,8 @@ func TestServerMemoryRepo_Add_UpdateOnConflict(t *testing.T) {
 
 			addedSvr, err := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 			require.NoError(t, err)
-			addedInfo := addedSvr.GetInfo()
-			assert.Equal(t, "A-Bomb Nightclub", addedInfo.MapName)
-			assert.Equal(t, 16, addedInfo.NumPlayers)
+			assert.Equal(t, "A-Bomb Nightclub", addedSvr.Info.MapName)
+			assert.Equal(t, 16, addedSvr.Info.NumPlayers)
 
 			newParams := details.MustNewInfoFromParams(map[string]string{
 				"hostname":    "Swat4 Server",
@@ -129,19 +126,18 @@ func TestServerMemoryRepo_Add_UpdateOnConflict(t *testing.T) {
 				return tt.updated
 			})
 
-			updatedSvr, _ := repo.Get(ctx, addedSvr.GetAddr())
-			updatedInfo := updatedSvr.GetInfo()
+			updatedSvr, _ := repo.Get(ctx, addedSvr.Addr)
 
 			if tt.updated {
 				require.NoError(t, addError)
-				assert.Equal(t, "Food Wall Restaurant", updatedInfo.MapName)
-				assert.Equal(t, 15, updatedInfo.NumPlayers)
-				assert.Equal(t, 1, updatedSvr.GetVersion())
+				assert.Equal(t, "Food Wall Restaurant", updatedSvr.Info.MapName)
+				assert.Equal(t, 15, updatedSvr.Info.NumPlayers)
+				assert.Equal(t, 1, updatedSvr.Version)
 			} else {
 				require.ErrorIs(t, addError, repositories.ErrServerExists)
-				assert.Equal(t, "A-Bomb Nightclub", updatedInfo.MapName)
-				assert.Equal(t, 16, updatedInfo.NumPlayers)
-				assert.Equal(t, 0, updatedSvr.GetVersion())
+				assert.Equal(t, "A-Bomb Nightclub", updatedSvr.Info.MapName)
+				assert.Equal(t, 16, updatedSvr.Info.NumPlayers)
+				assert.Equal(t, 0, updatedSvr.Version)
 			}
 		})
 	}
@@ -172,10 +168,10 @@ func TestServerMemoryRepo_Add_MultipleConflicts(t *testing.T) {
 	go add(svr, ds.Port)
 	wg.Wait()
 
-	svr, err := repo.Get(ctx, svr.GetAddr())
+	svr, err := repo.Get(ctx, svr.Addr)
 	require.NoError(t, err)
-	assert.Equal(t, 3, svr.GetVersion())
-	assert.Equal(t, ds.Info|ds.Master|ds.Details|ds.Port, svr.GetDiscoveryStatus())
+	assert.Equal(t, 3, svr.Version)
+	assert.Equal(t, ds.Info|ds.Master|ds.Details|ds.Port, svr.DiscoveryStatus)
 }
 
 func TestServerMemoryRepo_Update_ResolveConflict(t *testing.T) {
@@ -219,8 +215,8 @@ func TestServerMemoryRepo_Update_ResolveConflict(t *testing.T) {
 				require.NoError(t, err)
 				close(gotOutdated)
 				<-updatedMain
-				assert.Equal(t, 0, other.GetVersion())
-				assert.Equal(t, ds.New, other.GetDiscoveryStatus())
+				assert.Equal(t, 0, other.Version)
+				assert.Equal(t, ds.New, other.DiscoveryStatus)
 				other.UpdateDiscoveryStatus(ds.Master)
 				other, err = repo.Update(ctx, other, func(s *server.Server) bool {
 					s.UpdateDiscoveryStatus(ds.Master)
@@ -228,7 +224,7 @@ func TestServerMemoryRepo_Update_ResolveConflict(t *testing.T) {
 				})
 				require.NoError(t, err)
 				close(updatedParallel)
-			}(svr.GetAddr(), tt.resolved)
+			}(svr.Addr, tt.resolved)
 
 			<-gotOutdated
 			svr.UpdateDiscoveryStatus(ds.Info | ds.Details)
@@ -239,15 +235,15 @@ func TestServerMemoryRepo_Update_ResolveConflict(t *testing.T) {
 			close(updatedMain)
 
 			<-updatedParallel
-			svr, err = repo.Get(ctx, svr.GetAddr())
+			svr, err = repo.Get(ctx, svr.Addr)
 			require.NoError(t, err)
 
 			if tt.resolved {
-				assert.Equal(t, 2, svr.GetVersion())
-				assert.Equal(t, ds.Master|ds.Info|ds.Details, svr.GetDiscoveryStatus())
+				assert.Equal(t, 2, svr.Version)
+				assert.Equal(t, ds.Master|ds.Info|ds.Details, svr.DiscoveryStatus)
 			} else {
-				assert.Equal(t, 1, svr.GetVersion())
-				assert.Equal(t, ds.Info|ds.Details, svr.GetDiscoveryStatus())
+				assert.Equal(t, 1, svr.Version)
+				assert.Equal(t, ds.Info|ds.Details, svr.DiscoveryStatus)
 			}
 		})
 	}
@@ -285,16 +281,16 @@ func TestServerMemoryRepo_Update_MultipleConflicts(t *testing.T) {
 	}
 
 	wg.Add(4)
-	go update(svr.GetAddr(), ds.Master)
-	go update(svr.GetAddr(), ds.Info)
-	go update(svr.GetAddr(), ds.Details)
-	go update(svr.GetAddr(), ds.Port)
+	go update(svr.Addr, ds.Master)
+	go update(svr.Addr, ds.Info)
+	go update(svr.Addr, ds.Details)
+	go update(svr.Addr, ds.Port)
 	wg.Wait()
 
-	svr, err = repo.Get(ctx, svr.GetAddr())
+	svr, err = repo.Get(ctx, svr.Addr)
 	require.NoError(t, err)
-	assert.Equal(t, 4, svr.GetVersion())
-	assert.Equal(t, ds.Info|ds.Master|ds.Details|ds.Port, svr.GetDiscoveryStatus())
+	assert.Equal(t, 4, svr.Version)
+	assert.Equal(t, ds.Info|ds.Master|ds.Details|ds.Port, svr.DiscoveryStatus)
 }
 
 func TestServerMemoryRepo_Remove_NoConflict(t *testing.T) {
@@ -330,7 +326,7 @@ func TestServerMemoryRepo_Remove_NoConflict(t *testing.T) {
 			got, getErr := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 			if !tt.removed {
 				assert.NoError(t, getErr)
-				assert.Equal(t, "1.1.1.1", got.GetDottedIP())
+				assert.Equal(t, "1.1.1.1", got.Addr.GetDottedIP())
 			} else {
 				assert.NoError(t, err)
 				assert.ErrorIs(t, getErr, repositories.ErrServerNotFound)
@@ -368,7 +364,7 @@ func TestServerMemoryRepo_Remove_ResolveConflict(t *testing.T) {
 			go func(a addr.Addr, resolved bool) {
 				outdated, err := repo.Get(ctx, a)
 				require.NoError(t, err)
-				assert.Equal(t, 0, outdated.GetVersion())
+				assert.Equal(t, 0, outdated.Version)
 				close(obtained)
 
 				<-updated
@@ -377,7 +373,7 @@ func TestServerMemoryRepo_Remove_ResolveConflict(t *testing.T) {
 				})
 				require.NoError(t, err)
 				close(removed)
-			}(svr.GetAddr(), tt.resolved)
+			}(svr.Addr, tt.resolved)
 
 			<-obtained
 			svr.Refresh(clockMock.Now())
@@ -391,8 +387,8 @@ func TestServerMemoryRepo_Remove_ResolveConflict(t *testing.T) {
 			got, getErr := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 			if !tt.resolved {
 				assert.NoError(t, getErr)
-				assert.Equal(t, "1.1.1.1", got.GetDottedIP())
-				assert.Equal(t, 1, got.GetVersion())
+				assert.Equal(t, "1.1.1.1", got.Addr.GetDottedIP())
+				assert.Equal(t, 1, got.Version)
 			} else {
 				assert.NoError(t, err)
 				assert.ErrorIs(t, getErr, repositories.ErrServerNotFound)
@@ -444,7 +440,7 @@ func TestServerMemoryRepo_CountByStatus(t *testing.T) {
 	// only server with no status
 	svr0 := server.MustNew(net.ParseIP("1.10.1.10"), 10480, 10481)
 	svr0.ClearDiscoveryStatus(ds.New)
-	assert.Equal(t, ds.DiscoveryStatus(0), svr0.GetDiscoveryStatus())
+	assert.Equal(t, ds.DiscoveryStatus(0), svr0.DiscoveryStatus)
 	_, err = repo.Add(ctx, svr0, repositories.ServerOnConflictIgnore)
 	require.NoError(t, err)
 	count, err = repo.CountByStatus(ctx)

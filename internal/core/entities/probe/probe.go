@@ -24,46 +24,26 @@ func (goal Goal) String() string {
 }
 
 type Probe struct {
-	addr    addr.Addr
-	port    int
-	goal    Goal
-	retries int
+	Addr    addr.Addr
+	Port    int
+	Goal    Goal
+	Retries int
 }
 
 var Blank Probe // nolint: gochecknoglobals
 
 func New(addr addr.Addr, port int, goal Goal) Probe {
 	return Probe{
-		addr: addr,
-		port: port,
-		goal: goal,
+		Addr: addr,
+		Port: port,
+		Goal: goal,
 	}
-}
-
-func (t *Probe) GetDottedIP() string {
-	return t.addr.GetDottedIP()
-}
-
-func (t *Probe) GetPort() int {
-	return t.port
-}
-
-func (t *Probe) GetAddr() addr.Addr {
-	return t.addr
-}
-
-func (t *Probe) GetGoal() Goal {
-	return t.goal
-}
-
-func (t *Probe) GetRetries() int {
-	return t.retries
 }
 
 func (t *Probe) IncRetries(maxRetries int) (int, bool) {
-	if t.retries >= maxRetries {
-		return t.retries, false
+	if t.Retries >= maxRetries {
+		return t.Retries, false
 	}
-	t.retries++
-	return t.retries, true
+	t.Retries++
+	return t.Retries, true
 }

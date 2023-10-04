@@ -47,7 +47,7 @@ func (a *API) ViewServer(c *gin.Context) {
 
 	if !svr.HasDiscoveryStatus(ds.Details) {
 		a.logger.Debug().
-			Stringer("addr", address).Stringer("status", svr.GetDiscoveryStatus()).
+			Stringer("addr", address).Stringer("status", svr.DiscoveryStatus).
 			Msg("Requested server has no details")
 		c.Status(http.StatusNoContent)
 		return

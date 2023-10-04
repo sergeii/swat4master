@@ -68,8 +68,8 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 func TestProbingService_Probe_UnknownGoalType(t *testing.T) {
 	var service *probing.Service
 	makeApp(t, fx.Populate(&service))
-	target := probe.New(addr.MustNewFromString("1.1.1.1", 10480), 10481, probe.Goal(10))
-	err := service.Probe(context.TODO(), target)
+	prb := probe.New(addr.MustNewFromString("1.1.1.1", 10480), 10481, probe.Goal(10))
+	err := service.Probe(context.TODO(), prb)
 	assert.ErrorContains(t, err, "no associated prober for goal '10'")
 }
 
@@ -138,7 +138,7 @@ func TestProbingService_ProbeDetails_OK(t *testing.T) {
 						port,
 					),
 				)
-			}(svr.GetGamePort())
+			}(svr.Addr.Port)
 
 			if tt.initStatus.HasStatus() {
 				svr.UpdateDiscoveryStatus(tt.initStatus)
@@ -146,22 +146,22 @@ func TestProbingService_ProbeDetails_OK(t *testing.T) {
 
 			serversRepo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 
-			target := probe.New(svr.GetAddr(), svrAddr.Port, probe.GoalDetails)
+			prb := probe.New(svr.Addr, svrAddr.Port, probe.GoalDetails)
 
-			probeErr := service.Probe(ctx, target)
+			probeErr := service.Probe(ctx, prb)
 			require.NoError(t, probeErr)
 
 			queueSize, _ := probesRepo.Count(ctx)
 			assert.Equal(t, 0, queueSize)
 
-			updatedSvr, _ := serversRepo.Get(ctx, svr.GetAddr())
-			assert.Equal(t, tt.wantStatus, updatedSvr.GetDiscoveryStatus())
+			updatedSvr, _ := serversRepo.Get(ctx, svr.Addr)
+			assert.Equal(t, tt.wantStatus, updatedSvr.DiscoveryStatus)
 
-			updatedInfo := updatedSvr.GetInfo()
+			updatedInfo := updatedSvr.Info
 			assert.Equal(t, "-==MYT Co-op Svr==-", updatedInfo.Hostname)
 			assert.Equal(t, "4/6", updatedInfo.WeaponsSecured)
 
-			updatedDetails := updatedSvr.GetDetails()
+			updatedDetails := updatedSvr.Details
 			assert.Equal(t, "-==MYT Co-op Svr==-", updatedDetails.Info.Hostname)
 			assert.Equal(t, "4/6", updatedDetails.Info.WeaponsSecured)
 			assert.Len(t, updatedDetails.Objectives, 6)
@@ -308,13 +308,12 @@ func TestProbingService_ProbeDetails_RetryOnError(t *testing.T) {
 				serversRepo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 			}
 
-			target := probe.New(svr.GetAddr(), svrAddr.Port, probe.GoalDetails)
-			probeErr := service.Probe(ctx, target)
+			prb := probe.New(svr.Addr, svrAddr.Port, probe.GoalDetails)
+			probeErr := service.Probe(ctx, prb)
 
 			queueSize, _ := probesRepo.Count(ctx)
 
-			updatedSvr, getErr := serversRepo.Get(ctx, svr.GetAddr())
-			updatedInfo := updatedSvr.GetInfo()
+			updatedSvr, getErr := serversRepo.Get(ctx, svr.Addr)
 
 			if tt.wantErr != nil {
 				require.ErrorIs(t, probeErr, tt.wantErr)
@@ -326,17 +325,17 @@ func TestProbingService_ProbeDetails_RetryOnError(t *testing.T) {
 				require.ErrorIs(t, getErr, repos.ErrServerNotFound)
 				assert.Equal(t, 0, queueSize)
 			} else if tt.wantErr != nil {
-				assert.Equal(t, tt.wantStatus, updatedSvr.GetDiscoveryStatus())
+				assert.Equal(t, tt.wantStatus, updatedSvr.DiscoveryStatus)
 				require.Equal(t, 1, queueSize)
 				require.NoError(t, getErr)
 				retry, _ := probesRepo.PopAny(ctx)
-				assert.Equal(t, 1, retry.GetRetries())
-				assert.Equal(t, target.GetAddr(), retry.GetAddr())
-				assert.Equal(t, target.GetPort(), retry.GetPort())
+				assert.Equal(t, 1, retry.Retries)
+				assert.Equal(t, prb.Addr, retry.Addr)
+				assert.Equal(t, prb.Port, retry.Port)
 			} else {
 				require.NoError(t, getErr)
 				assert.Equal(t, 0, queueSize)
-				assert.Equal(t, "-==MYT Team Svr==-", updatedInfo.Hostname)
+				assert.Equal(t, "-==MYT Team Svr==-", updatedSvr.Info.Hostname)
 			}
 		})
 	}
@@ -385,8 +384,8 @@ func TestProbingService_ProbeDetails_OutOfRetries(t *testing.T) {
 			udp, cancel := gs1.ServerFactory(func(context.Context, *net.UDPConn, *net.UDPAddr, []byte) {})
 			defer cancel()
 
-			svrAddr := udp.LocalAddr()
-			svr, err := server.NewFromAddr(addr.NewForTesting(svrAddr.IP, svrAddr.Port-1), svrAddr.Port)
+			udpAddr := udp.LocalAddr()
+			svr, err := server.NewFromAddr(addr.NewForTesting(udpAddr.IP, udpAddr.Port-1), udpAddr.Port)
 			require.NoError(t, err)
 
 			if tt.initStatus.HasStatus() {
@@ -397,23 +396,23 @@ func TestProbingService_ProbeDetails_OutOfRetries(t *testing.T) {
 				serversRepo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 			}
 
-			target := probe.New(svr.GetAddr(), svrAddr.Port, probe.GoalDetails)
+			prb := probe.New(svr.Addr, udpAddr.Port, probe.GoalDetails)
 
 			// pre-increment retry count
-			_, incremented := target.IncRetries(1)
+			_, incremented := prb.IncRetries(1)
 			require.True(t, incremented)
 
-			probeErr := service.Probe(ctx, target)
+			probeErr := service.Probe(ctx, prb)
 
 			queueSize, _ := probesRepo.Count(ctx)
 			require.Equal(t, 0, queueSize)
 
-			maybeUpdatedServer, getErr := serversRepo.Get(ctx, svr.GetAddr())
+			maybeUpdatedServer, getErr := serversRepo.Get(ctx, svr.Addr)
 
 			if tt.serverExists {
 				require.ErrorIs(t, probeErr, probing.ErrOutOfRetries)
 				require.NoError(t, getErr)
-				assert.Equal(t, tt.wantStatus, maybeUpdatedServer.GetDiscoveryStatus())
+				assert.Equal(t, tt.wantStatus, maybeUpdatedServer.DiscoveryStatus)
 			} else {
 				require.ErrorIs(t, probeErr, repos.ErrServerNotFound)
 				require.ErrorIs(t, getErr, repos.ErrServerNotFound)
@@ -493,7 +492,7 @@ func TestService_ProbePort_OK(t *testing.T) {
 						port,
 					),
 				)
-			}(svr.GetGamePort())
+			}(svr.Addr.Port)
 
 			if tt.initStatus.HasStatus() {
 				svr.UpdateDiscoveryStatus(tt.initStatus)
@@ -501,24 +500,24 @@ func TestService_ProbePort_OK(t *testing.T) {
 
 			serversRepo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 
-			target := probe.New(svr.GetAddr(), svrAddr.Port, probe.GoalPort)
+			prb := probe.New(svr.Addr, svrAddr.Port, probe.GoalPort)
 
-			probeErr := service.Probe(ctx, target)
+			probeErr := service.Probe(ctx, prb)
 			require.NoError(t, probeErr)
 
 			queueSize, _ := probesRepo.Count(ctx)
 			assert.Equal(t, 0, queueSize)
 
-			updatedSvr, _ := serversRepo.Get(ctx, svr.GetAddr())
-			assert.Equal(t, tt.wantStatus, updatedSvr.GetDiscoveryStatus())
+			updatedSvr, _ := serversRepo.Get(ctx, svr.Addr)
+			assert.Equal(t, tt.wantStatus, updatedSvr.DiscoveryStatus)
 
-			assert.Equal(t, svrAddr.Port, updatedSvr.GetQueryPort())
+			assert.Equal(t, svrAddr.Port, updatedSvr.QueryPort)
 
-			updatedInfo := updatedSvr.GetInfo()
+			updatedInfo := updatedSvr.Info
 			assert.Equal(t, "-==MYT Co-op Svr==-", updatedInfo.Hostname)
 			assert.Equal(t, "4/6", updatedInfo.WeaponsSecured)
 
-			updatedDetails := updatedSvr.GetDetails()
+			updatedDetails := updatedSvr.Details
 			assert.Equal(t, "-==MYT Co-op Svr==-", updatedDetails.Info.Hostname)
 			assert.Equal(t, "4/6", updatedDetails.Info.WeaponsSecured)
 			assert.Len(t, updatedDetails.Objectives, 6)
@@ -663,7 +662,7 @@ func TestService_ProbePort_RetryOnError(t *testing.T) {
 			go func(ch chan []byte, port int, factory func(int) []byte) {
 				packet := factory(port)
 				ch <- packet
-			}(responses, svr.GetGamePort(), tt.respFactory)
+			}(responses, svr.Addr.Port, tt.respFactory)
 
 			if tt.initStatus.HasStatus() {
 				svr.UpdateDiscoveryStatus(tt.initStatus)
@@ -673,13 +672,10 @@ func TestService_ProbePort_RetryOnError(t *testing.T) {
 				serversRepo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 			}
 
-			target := probe.New(svr.GetAddr(), svrAddr.Port-4, probe.GoalPort)
-			probeErr := service.Probe(ctx, target)
-
+			prb := probe.New(svr.Addr, svrAddr.Port-4, probe.GoalPort)
+			probeErr := service.Probe(ctx, prb)
 			queueSize, _ := probesRepo.Count(ctx)
-
-			updatedSvr, getErr := serversRepo.Get(ctx, svr.GetAddr())
-			updatedInfo := updatedSvr.GetInfo()
+			updatedSvr, getErr := serversRepo.Get(ctx, svr.Addr)
 
 			if tt.wantErr != nil {
 				require.ErrorIs(t, probeErr, tt.wantErr)
@@ -691,19 +687,19 @@ func TestService_ProbePort_RetryOnError(t *testing.T) {
 				require.ErrorIs(t, getErr, repos.ErrServerNotFound)
 				assert.Equal(t, 0, queueSize)
 			} else if tt.wantErr != nil {
-				assert.Equal(t, svrAddr.Port-1, updatedSvr.GetQueryPort())
-				assert.Equal(t, tt.wantStatus, updatedSvr.GetDiscoveryStatus())
+				assert.Equal(t, svrAddr.Port-1, updatedSvr.QueryPort)
+				assert.Equal(t, tt.wantStatus, updatedSvr.DiscoveryStatus)
 				require.Equal(t, 1, queueSize)
 				require.NoError(t, getErr)
 				retry, _ := probesRepo.PopAny(ctx)
-				assert.Equal(t, 1, retry.GetRetries())
-				assert.Equal(t, target.GetAddr(), retry.GetAddr())
-				assert.Equal(t, target.GetPort(), retry.GetPort())
+				assert.Equal(t, 1, retry.Retries)
+				assert.Equal(t, prb.Addr, retry.Addr)
+				assert.Equal(t, prb.Port, retry.Port)
 			} else {
 				require.NoError(t, getErr)
 				assert.Equal(t, 0, queueSize)
-				assert.Equal(t, svrAddr.Port, updatedSvr.GetQueryPort())
-				assert.Equal(t, "-==MYT Team Svr==-", updatedInfo.Hostname)
+				assert.Equal(t, svrAddr.Port, updatedSvr.QueryPort)
+				assert.Equal(t, "-==MYT Team Svr==-", updatedSvr.Info.Hostname)
 			}
 		})
 	}
@@ -791,32 +787,31 @@ func TestService_ProbePort_SelectedPortsAreTried(t *testing.T) {
 						port,
 					),
 				)
-			}(responses, svr.GetGamePort())
+			}(responses, svr.Addr.Port)
 
-			target := probe.New(svr.GetAddr(), 12345, probe.GoalPort)
-			probeErr := service.Probe(ctx, target)
+			prb := probe.New(svr.Addr, 12345, probe.GoalPort)
+			probeErr := service.Probe(ctx, prb)
 
-			updatedSvr, getErr := serversRepo.Get(ctx, svr.GetAddr())
+			updatedSvr, getErr := serversRepo.Get(ctx, svr.Addr)
 			require.NoError(t, getErr)
 
 			if tt.ok {
 				require.NoError(t, probeErr)
-				updatedInfo := updatedSvr.GetInfo()
-				assert.Equal(t, svrAddr.Port, updatedSvr.GetQueryPort())
-				assert.Equal(t, "-==MYT Co-op Svr==-", updatedInfo.Hostname)
-				assert.Equal(t, ds.Info|ds.Details|ds.Port, updatedSvr.GetDiscoveryStatus())
+				assert.Equal(t, svrAddr.Port, updatedSvr.QueryPort)
+				assert.Equal(t, "-==MYT Co-op Svr==-", updatedSvr.Info.Hostname)
+				assert.Equal(t, ds.Info|ds.Details|ds.Port, updatedSvr.DiscoveryStatus)
 
 				_, popErr := probesRepo.PopAny(ctx)
 				assert.ErrorIs(t, popErr, repos.ErrProbeQueueIsEmpty)
 			} else {
 				require.ErrorIs(t, probeErr, probing.ErrProbeRetried)
-				assert.Equal(t, 12345, updatedSvr.GetQueryPort())
-				assert.Equal(t, ds.PortRetry, updatedSvr.GetDiscoveryStatus())
+				assert.Equal(t, 12345, updatedSvr.QueryPort)
+				assert.Equal(t, ds.PortRetry, updatedSvr.DiscoveryStatus)
 
 				retry, _ := probesRepo.PopAny(ctx)
-				assert.Equal(t, 1, retry.GetRetries())
-				assert.Equal(t, target.GetAddr(), retry.GetAddr())
-				assert.Equal(t, target.GetPort(), retry.GetPort())
+				assert.Equal(t, 1, retry.Retries)
+				assert.Equal(t, prb.Addr, retry.Addr)
+				assert.Equal(t, prb.Port, retry.Port)
 			}
 		})
 	}
@@ -862,7 +857,6 @@ func TestService_ProbePort_MultiplePortsAreProbed(t *testing.T) {
 	)
 
 	svr, err := server.NewFromAddr(addr.NewForTesting(udpAddr1.IP, udpAddr1.Port), 12345)
-	gamePort := svr.GetGamePort()
 	require.NoError(t, err)
 	serversRepo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 
@@ -876,7 +870,7 @@ func TestService_ProbePort_MultiplePortsAreProbed(t *testing.T) {
 			),
 		)
 		ch <- packet
-	}(responses1, gamePort)
+	}(responses1, svr.Addr.Port)
 
 	go func(ch chan []byte, port int) {
 		packet := []byte(
@@ -889,7 +883,7 @@ func TestService_ProbePort_MultiplePortsAreProbed(t *testing.T) {
 			),
 		)
 		ch <- packet
-	}(responses2, gamePort)
+	}(responses2, svr.Addr.Port)
 
 	go func(ch chan []byte, port int) {
 		// same response as udp1
@@ -902,20 +896,20 @@ func TestService_ProbePort_MultiplePortsAreProbed(t *testing.T) {
 			),
 		)
 		ch <- packet
-	}(responses3, gamePort)
+	}(responses3, svr.Addr.Port)
 
-	target := probe.New(svr.GetAddr(), 12345, probe.GoalPort)
-	probeErr := service.Probe(ctx, target)
+	prb := probe.New(svr.Addr, 12345, probe.GoalPort)
+	probeErr := service.Probe(ctx, prb)
+	require.NoError(t, probeErr)
 
-	updatedSvr, getErr := serversRepo.Get(ctx, svr.GetAddr())
+	updatedSvr, getErr := serversRepo.Get(ctx, svr.Addr)
 	require.NoError(t, getErr)
 
-	require.NoError(t, probeErr)
-	updatedInfo := updatedSvr.GetInfo()
-	assert.Equal(t, udpAddr2.Port, updatedSvr.GetQueryPort())
+	updatedInfo := updatedSvr.Info
+	assert.Equal(t, udpAddr2.Port, updatedSvr.QueryPort)
 	assert.Equal(t, "-==MYT Team Svr==-", updatedInfo.Hostname)
 	assert.Equal(t, 1, updatedInfo.SwatWon)
-	assert.Equal(t, ds.Info|ds.Details|ds.Port, updatedSvr.GetDiscoveryStatus())
+	assert.Equal(t, ds.Info|ds.Details|ds.Port, updatedSvr.DiscoveryStatus)
 
 	_, popErr := probesRepo.PopAny(ctx)
 	assert.ErrorIs(t, popErr, repos.ErrProbeQueueIsEmpty)
@@ -981,23 +975,23 @@ func TestService_ProbePort_OutOfRetries(t *testing.T) {
 				serversRepo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 			}
 
-			target := probe.New(svr.GetAddr(), svrAddr.Port, probe.GoalPort)
+			prb := probe.New(svr.Addr, svrAddr.Port, probe.GoalPort)
 			// pre-increment retry count
-			_, incremented := target.IncRetries(1)
+			_, incremented := prb.IncRetries(1)
 			require.True(t, incremented)
 
-			probeErr := service.Probe(ctx, target)
+			probeErr := service.Probe(ctx, prb)
 
 			queueSize, _ := probesRepo.Count(ctx)
 			require.Equal(t, 0, queueSize)
 
-			maybeUpdatedServer, getErr := serversRepo.Get(ctx, svr.GetAddr())
+			maybeUpdatedServer, getErr := serversRepo.Get(ctx, svr.Addr)
 
 			if tt.serverExists {
 				require.ErrorIs(t, probeErr, probing.ErrOutOfRetries)
 				require.NoError(t, getErr)
-				assert.Equal(t, tt.wantStatus, maybeUpdatedServer.GetDiscoveryStatus())
-				assert.Equal(t, svrAddr.Port-4, maybeUpdatedServer.GetQueryPort())
+				assert.Equal(t, tt.wantStatus, maybeUpdatedServer.DiscoveryStatus)
+				assert.Equal(t, svrAddr.Port-4, maybeUpdatedServer.QueryPort)
 			} else {
 				require.ErrorIs(t, probeErr, repos.ErrServerNotFound)
 				require.ErrorIs(t, getErr, repos.ErrServerNotFound)

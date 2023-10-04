@@ -37,26 +37,26 @@ func TestFinder_Run_OK(t *testing.T) {
 		}
 	}
 
-	assertTargets := func(wantCount, wantExpired int, wantDetails, wantPorts []string) {
+	assertProbes := func(wantCount, wantExpired int, wantDetails, wantPorts []string) {
 		count, err := repos.Probes.Count(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, wantCount, count)
 
-		targets, expired, err := repos.Probes.PopMany(ctx, count)
+		probes, expired, err := repos.Probes.PopMany(ctx, count)
 		require.NoError(t, err)
-		detailsTargets := make([]string, 0, len(wantDetails))
-		portTargets := make([]string, 0, len(wantPorts))
-		for _, tgt := range targets {
-			switch tgt.GetGoal() {
+		detailsProbes := make([]string, 0, len(wantDetails))
+		portProbes := make([]string, 0, len(wantPorts))
+		for _, prb := range probes {
+			switch prb.Goal {
 			case probe.GoalDetails:
-				detailsTargets = append(detailsTargets, tgt.GetAddr().String())
+				detailsProbes = append(detailsProbes, prb.Addr.String())
 			case probe.GoalPort:
-				portTargets = append(portTargets, tgt.GetAddr().String())
+				portProbes = append(portProbes, prb.Addr.String())
 			}
 		}
 		assert.Equal(t, wantExpired, expired)
-		assert.Equal(t, wantDetails, detailsTargets)
-		assert.Equal(t, wantPorts, portTargets)
+		assert.Equal(t, wantDetails, detailsProbes)
+		assert.Equal(t, wantPorts, portProbes)
 	}
 
 	info := details.MustNewInfoFromParams(map[string]string{
@@ -136,13 +136,13 @@ func TestFinder_Run_OK(t *testing.T) {
 
 	tickTimes(15) // 150ms
 	// only details timer triggered
-	assertTargets(3, 0,
+	assertProbes(3, 0,
 		[]string{"9.9.9.9:10480", "3.3.3.3:10480", "2.2.2.2:10480"}, []string{},
 	)
 
 	tickTimes(10) // 250ms
 	// details and port timer triggered
-	assertTargets(7, 0,
+	assertProbes(7, 0,
 		[]string{"9.9.9.9:10480", "3.3.3.3:10480", "2.2.2.2:10480"},
 		[]string{"7.7.7.7:10480", "5.5.5.5:10480", "4.4.4.4:10480", "1.1.1.1:10480"},
 	)
@@ -154,7 +154,7 @@ func TestFinder_Run_OK(t *testing.T) {
 
 	tickTimes(20) // 450ms
 	// port timer triggered, details triggered twice
-	assertTargets(11,
+	assertProbes(11,
 		3,
 		[]string{
 			"6.6.6.6:10480", "9.9.9.9:10480", "2.2.2.2:10480",
@@ -171,7 +171,7 @@ func TestFinder_Run_OK(t *testing.T) {
 
 	tickTimes(20) // 650ms
 	// port timer triggered, details never triggered
-	assertTargets(7,
+	assertProbes(7,
 		0,
 		[]string{},
 		[]string{
@@ -186,7 +186,7 @@ func TestFinder_Run_OK(t *testing.T) {
 	tickTimes(40) // 700ms
 
 	// all other servers are out of scope
-	assertTargets(1, 0, []string{}, []string{"6.6.6.6:10480"})
+	assertProbes(1, 0, []string{}, []string{"6.6.6.6:10480"})
 }
 
 func TestFinder_Run_Expiry(t *testing.T) {
@@ -239,8 +239,8 @@ func TestFinder_Run_Expiry(t *testing.T) {
 	countAfterManyTicks, _ := repos.Probes.Count(ctx)
 	assert.Equal(t, 6, countAfterManyTicks)
 
-	actualTargetsAfterManyTicks, _, _ := repos.Probes.PopMany(ctx, 6)
-	assert.Len(t, actualTargetsAfterManyTicks, 2)
+	actualProbesAfterManyTicks, _, _ := repos.Probes.PopMany(ctx, 6)
+	assert.Len(t, actualProbesAfterManyTicks, 2)
 
 	countAfterPop, _ := repos.Probes.Count(ctx)
 	assert.Equal(t, 0, countAfterPop)

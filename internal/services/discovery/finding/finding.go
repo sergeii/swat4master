@@ -46,7 +46,7 @@ func (s *Service) RefreshDetails(
 
 	cnt := 0
 	for _, svr := range serversWithDetails {
-		if err := s.DiscoverDetails(ctx, svr.GetAddr(), svr.GetQueryPort(), deadline); err != nil {
+		if err := s.DiscoverDetails(ctx, svr.Addr, svr.QueryPort, deadline); err != nil {
 			s.logger.Warn().
 				Err(err).Stringer("server", svr).
 				Msg("Failed to add server to details discovery queue")
@@ -76,7 +76,7 @@ func (s *Service) ReviveServers(
 	cnt := 0
 	for _, svr := range serversWithoutPort {
 		countdown := selectCountdown(minCountdown, maxCountdown)
-		if err := s.DiscoverPort(ctx, svr.GetAddr(), countdown, deadline); err != nil {
+		if err := s.DiscoverPort(ctx, svr.Addr, countdown, deadline); err != nil {
 			s.logger.Warn().
 				Err(err).
 				Stringer("server", svr).Time("countdown", countdown).Time("deadline", deadline).

@@ -43,37 +43,36 @@ type Server struct {
 	WeaponsSecured string `json:"coop_weapons"` // 17/19
 }
 
-func NewServerFromRepo(svr server.Server) Server {
-	status := svr.GetInfo()
-	hostname := status.Hostname
+func NewServerFromRepo(s server.Server) Server {
+	hostname := s.Info.Hostname
 	return Server{
-		Address:        svr.GetAddr().String(),
-		IP:             svr.GetDottedIP(),
-		Port:           svr.GetGamePort(),
+		Address:        s.Addr.String(),
+		IP:             s.Addr.GetDottedIP(),
+		Port:           s.Addr.Port,
 		Hostname:       hostname,
 		HostnamePlain:  styles.Clean(hostname),
 		HostnameHTML:   styles.ToHTML(hostname),
-		Passworded:     status.Password,
-		GameName:       status.GameVariant,
-		GameVer:        status.GameVersion,
-		GameType:       status.GameType,
-		GameTypeSlug:   slug.Make(status.GameType),
-		MapName:        status.MapName,
-		MapNameSlug:    slug.Make(status.MapName),
-		PlayerNum:      status.NumPlayers,
-		PlayerMax:      status.MaxPlayers,
-		RoundNum:       status.Round,
-		RoundMax:       status.NumRounds,
-		TimeLeft:       status.TimeLeft,
-		TimeSpecial:    status.TimeSpecial,
-		SwatScore:      status.SwatScore,
-		SuspectsScore:  status.SuspectsScore,
-		SwatWon:        status.SwatWon,
-		SuspectsWon:    status.SuspectsWon,
-		BombsDefused:   status.BombsDefused,
-		BombsTotal:     status.BombsTotal,
-		TocReports:     status.TocReports,
-		WeaponsSecured: status.WeaponsSecured,
+		Passworded:     s.Info.Password,
+		GameName:       s.Info.GameVariant,
+		GameVer:        s.Info.GameVersion,
+		GameType:       s.Info.GameType,
+		GameTypeSlug:   slug.Make(s.Info.GameType),
+		MapName:        s.Info.MapName,
+		MapNameSlug:    slug.Make(s.Info.MapName),
+		PlayerNum:      s.Info.NumPlayers,
+		PlayerMax:      s.Info.MaxPlayers,
+		RoundNum:       s.Info.Round,
+		RoundMax:       s.Info.NumRounds,
+		TimeLeft:       s.Info.TimeLeft,
+		TimeSpecial:    s.Info.TimeSpecial,
+		SwatScore:      s.Info.SwatScore,
+		SuspectsScore:  s.Info.SuspectsScore,
+		SwatWon:        s.Info.SwatWon,
+		SuspectsWon:    s.Info.SuspectsWon,
+		BombsDefused:   s.Info.BombsDefused,
+		BombsTotal:     s.Info.BombsTotal,
+		TocReports:     s.Info.TocReports,
+		WeaponsSecured: s.Info.WeaponsSecured,
 	}
 }
 
@@ -155,18 +154,16 @@ func NewServerDetailFromRepo(svr server.Server) ServerDetail {
 	var objectives []ServerObjective
 	var players []ServerPlayer
 
-	det := svr.GetDetails()
-
-	if len(det.Players) > 0 {
-		players = make([]ServerPlayer, 0, len(det.Players))
-		for _, player := range det.Players {
+	if len(svr.Details.Players) > 0 {
+		players = make([]ServerPlayer, 0, len(svr.Details.Players))
+		for _, player := range svr.Details.Players {
 			players = append(players, NewServerPlayerFromRepo(player))
 		}
 	}
 
-	if len(det.Objectives) > 0 {
-		objectives = make([]ServerObjective, 0, len(det.Objectives))
-		for _, obj := range det.Objectives {
+	if len(svr.Details.Objectives) > 0 {
+		objectives = make([]ServerObjective, 0, len(svr.Details.Objectives))
+		for _, obj := range svr.Details.Objectives {
 			objectives = append(objectives, NewServerObjectiveFromRepo(obj))
 		}
 	}

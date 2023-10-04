@@ -11,6 +11,6 @@ var (
 	ErrInstanceNotFound = errors.New("the requested instance was not found")
 
 	ErrProbeQueueIsEmpty = errors.New("queue is empty")
-	ErrProbeIsNotReady   = errors.New("queue has waiting targets")
-	ErrProbeHasExpired   = errors.New("target item has expired")
+	ErrProbeIsNotReady   = errors.New("queue has waiting probes")
+	ErrProbeHasExpired   = errors.New("probe has expired")
 )

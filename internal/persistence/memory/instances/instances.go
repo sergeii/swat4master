@@ -27,13 +27,13 @@ func (r *Repository) Add(_ context.Context, instance instance.Instance) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	// check whether a server with this address has been reported under different instance id
-	prev, exists := r.addrs[instance.GetAddr()]
+	prev, exists := r.addrs[instance.Addr]
 	// if so, remove the older instance
 	if exists {
-		delete(r.ids, prev.GetID())
+		delete(r.ids, prev.ID)
 	}
-	r.ids[instance.GetID()] = instance
-	r.addrs[instance.GetAddr()] = instance
+	r.ids[instance.ID] = instance
+	r.addrs[instance.Addr] = instance
 	return nil
 }
 
@@ -44,7 +44,7 @@ func (r *Repository) RemoveByID(_ context.Context, id string) error {
 	if !exists {
 		return nil
 	}
-	delete(r.addrs, instance.GetAddr())
+	delete(r.addrs, instance.Addr)
 	delete(r.ids, id)
 	return nil
 }
@@ -56,7 +56,7 @@ func (r *Repository) RemoveByAddr(_ context.Context, insAddr addr.Addr) error {
 	if !exists {
 		return nil
 	}
-	delete(r.ids, instance.GetID())
+	delete(r.ids, instance.ID)
 	delete(r.addrs, insAddr)
 	return nil
 }

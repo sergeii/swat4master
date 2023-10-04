@@ -55,7 +55,7 @@ func (s *Service) CreateOrUpdate(
 		// we never want to fail an update
 		return true
 	}
-	if _, err := s.servers.Get(ctx, svr.GetAddr()); err != nil {
+	if _, err := s.servers.Get(ctx, svr.Addr); err != nil {
 		switch {
 		case errors.Is(err, repositories.ErrServerNotFound):
 			return s.servers.Add(ctx, svr, repoOnConflict)
@@ -85,8 +85,8 @@ func (s *Service) FilterRecent(
 
 	filtered := make([]server.Server, 0, len(recent))
 	for _, svr := range recent {
-		details := svr.GetInfo()
-		if q.Match(&details) {
+		info := svr.Info
+		if q.Match(&info) {
 			filtered = append(filtered, svr)
 		}
 	}

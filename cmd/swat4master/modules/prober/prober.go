@@ -120,7 +120,7 @@ func feed(
 	if err != nil {
 		logger.Warn().
 			Err(err).Int("availability", availability).
-			Msg("Unable to fetch new targets")
+			Msg("Unable to fetch new probes")
 		return
 	}
 
@@ -130,7 +130,7 @@ func feed(
 
 	logger.Debug().
 		Int("availability", availability).Int("probes", len(probes)).
-		Msg("Obtained targets")
+		Msg("Obtained probes")
 
 	for _, prb := range probes {
 		pool <- prb
@@ -138,7 +138,7 @@ func feed(
 
 	logger.Debug().
 		Int("availability", availability).Int("probes", len(probes)).
-		Msg("Sent targets to work pool")
+		Msg("Sent probes to work pool")
 }
 
 var Module = fx.Module("prober",

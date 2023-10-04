@@ -174,14 +174,14 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsAddedAndUpdated(t *testing.T)
 	svr, err := repo.Get(ctx, addr.MustNewFromString("55.55.55.55", 10580))
 	require.NoError(t, err)
 
-	details := svr.GetInfo()
-	assert.Equal(t, 16, details.NumPlayers)
-	assert.Equal(t, "VIP Escort", details.GameType)
-	assert.Equal(t, "A-Bomb Nightclub", details.MapName)
-	assert.Equal(t, "55.55.55.55", svr.GetDottedIP())
-	assert.Equal(t, 10580, svr.GetGamePort())
-	assert.Equal(t, 10584, svr.GetQueryPort())
-	assert.Equal(t, ds.Master|ds.Info|ds.PortRetry, svr.GetDiscoveryStatus())
+	info := svr.Info
+	assert.Equal(t, 16, info.NumPlayers)
+	assert.Equal(t, "VIP Escort", info.GameType)
+	assert.Equal(t, "A-Bomb Nightclub", info.MapName)
+	assert.Equal(t, "55.55.55.55", svr.Addr.GetDottedIP())
+	assert.Equal(t, 10580, svr.Addr.Port)
+	assert.Equal(t, 10584, svr.QueryPort)
+	assert.Equal(t, ds.Master|ds.Info|ds.PortRetry, svr.DiscoveryStatus)
 
 	paramsAfter := testutils.GenExtraServerParams(map[string]string{
 		"gametype":   "VIP Escort",
@@ -195,11 +195,11 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsAddedAndUpdated(t *testing.T)
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
 	)
 	svr, _ = repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
-	details = svr.GetInfo()
-	assert.Equal(t, 15, details.NumPlayers)
-	assert.Equal(t, "VIP Escort", details.GameType)
-	assert.Equal(t, "Food Wall Restaurant", details.MapName)
-	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
+	info = svr.Info
+	assert.Equal(t, 15, info.NumPlayers)
+	assert.Equal(t, "VIP Escort", info.GameType)
+	assert.Equal(t, "Food Wall Restaurant", info.MapName)
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
 }
 
 func TestReporter_DispatchHeartbeatRequest_ServerIsUpdated(t *testing.T) {
@@ -257,14 +257,14 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdated(t *testing.T) {
 			reportedSvr, err := repo.Get(ctx, addr.MustNewFromString("55.55.55.55", 10580))
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.wantStatus, reportedSvr.GetDiscoveryStatus())
-			assert.Equal(t, "55.55.55.55", reportedSvr.GetDottedIP())
-			assert.Equal(t, 10580, reportedSvr.GetGamePort())
+			assert.Equal(t, tt.wantStatus, reportedSvr.DiscoveryStatus)
+			assert.Equal(t, "55.55.55.55", reportedSvr.Addr.GetDottedIP())
+			assert.Equal(t, 10580, reportedSvr.Addr.Port)
 
 			if tt.isNew {
-				assert.Equal(t, 10581, reportedSvr.GetQueryPort())
+				assert.Equal(t, 10581, reportedSvr.QueryPort)
 			} else {
-				assert.Equal(t, 10584, reportedSvr.GetQueryPort())
+				assert.Equal(t, 10584, reportedSvr.QueryPort)
 			}
 		})
 	}
@@ -350,18 +350,18 @@ func TestReporter_DispatchHeartbeatRequest_ServerPortIsDiscovered(t *testing.T) 
 			reportedSvr, err := serversRepo.Get(ctx, addr.MustNewFromString("55.55.55.55", 10580))
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.wantStatus, reportedSvr.GetDiscoveryStatus())
+			assert.Equal(t, tt.wantStatus, reportedSvr.DiscoveryStatus)
 
 			queueCount, err := probesRepo.Count(ctx)
 			require.NoError(t, err)
 
 			if tt.isDiscovered {
 				assert.Equal(t, 1, queueCount)
-				tgt, err := probesRepo.Pop(ctx)
+				prb, err := probesRepo.Pop(ctx)
 				require.NoError(t, err)
-				assert.Equal(t, probe.GoalPort, tgt.GetGoal())
-				assert.Equal(t, "55.55.55.55:10580", tgt.GetAddr().String())
-				assert.Equal(t, 10580, tgt.GetPort())
+				assert.Equal(t, probe.GoalPort, prb.Goal)
+				assert.Equal(t, "55.55.55.55:10580", prb.Addr.String())
+				assert.Equal(t, 10580, prb.Port)
 			} else {
 				assert.Equal(t, 0, queueCount)
 			}
@@ -395,13 +395,14 @@ func TestReporter_DispatchHeartbeatRequest_HandleServerBehindNAT(t *testing.T) {
 	)
 	assert.NoError(t, err)
 	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
+
 	svr, _ := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
-	details := svr.GetInfo()
-	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
-	assert.Equal(t, 16, details.NumPlayers)
-	assert.Equal(t, 10480, details.HostPort)
-	assert.Equal(t, 10480, svr.GetGamePort())
-	assert.Equal(t, 10484, svr.GetQueryPort())
+	info := svr.Info
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
+	assert.Equal(t, 16, info.NumPlayers)
+	assert.Equal(t, 10480, info.HostPort)
+	assert.Equal(t, 10480, svr.Addr.Port)
+	assert.Equal(t, 10484, svr.QueryPort)
 	assert.True(t, svr.HasDiscoveryStatus(ds.Master))
 	assert.False(t, svr.HasDiscoveryStatus(ds.Details))
 
@@ -417,13 +418,14 @@ func TestReporter_DispatchHeartbeatRequest_HandleServerBehindNAT(t *testing.T) {
 		testutils.WithServerParams(paramsAfter),
 		testutils.WithCustomAddr("1.1.1.1", 37122),
 	)
+
 	svr, _ = repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
-	details = svr.GetInfo()
-	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
-	assert.Equal(t, 15, details.NumPlayers)
-	assert.Equal(t, 10480, details.HostPort)
-	assert.Equal(t, 10480, svr.GetGamePort())
-	assert.Equal(t, 10484, svr.GetQueryPort())
+	info = svr.Info
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
+	assert.Equal(t, 15, info.NumPlayers)
+	assert.Equal(t, 10480, info.HostPort)
+	assert.Equal(t, 10480, svr.Addr.Port)
+	assert.Equal(t, 10484, svr.QueryPort)
 
 	svrs, _ := repo.Filter(ctx, repos.NewServerFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, svrs, 1)
@@ -454,12 +456,12 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdatedWithNewInstanceID(t *t
 
 	instance, err := instancesRepo.GetByID(ctx, string(oldInstanceID))
 	require.NoError(t, err)
-	svr, _ := serversRepo.Get(ctx, instance.GetAddr())
-	details := svr.GetInfo()
-	assert.Equal(t, 16, details.NumPlayers)
-	assert.Equal(t, "VIP Escort", details.GameType)
-	assert.Equal(t, "A-Bomb Nightclub", details.MapName)
-	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
+	svr, _ := serversRepo.Get(ctx, instance.Addr)
+	info := svr.Info
+	assert.Equal(t, 16, info.NumPlayers)
+	assert.Equal(t, "VIP Escort", info.GameType)
+	assert.Equal(t, "A-Bomb Nightclub", info.MapName)
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
 
 	newParams := testutils.GenExtraServerParams(map[string]string{
 		"gametype":   "Barricaded Suspects",
@@ -474,11 +476,11 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdatedWithNewInstanceID(t *t
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
 	)
 	svr, _ = serversRepo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
-	details = svr.GetInfo()
-	assert.Equal(t, 15, details.NumPlayers)
-	assert.Equal(t, "Barricaded Suspects", details.GameType)
-	assert.Equal(t, "Food Wall Restaurant", details.MapName)
-	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
+	info = svr.Info
+	assert.Equal(t, 15, info.NumPlayers)
+	assert.Equal(t, "Barricaded Suspects", info.GameType)
+	assert.Equal(t, "Food Wall Restaurant", info.MapName)
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
 
 	// at the same time the server is no longer accessible by the former instance key
 	_, getErr := instancesRepo.GetByID(ctx, string(oldInstanceID))

@@ -56,16 +56,16 @@ func TestProbeService_PopMany(t *testing.T) {
 		repo.Add(ctx, probe.New(addr.MustNewFromString(ipaddr, 10480), 10480, probe.GoalDetails)) // nolint: errcheck
 	}
 
-	targets, _ := service.PopMany(ctx, 2)
-	assert.Len(t, targets, 2)
-	assert.Equal(t, "1.1.1.1", targets[0].GetDottedIP())
-	assert.Equal(t, "2.2.2.2", targets[1].GetDottedIP())
+	probes, _ := service.PopMany(ctx, 2)
+	assert.Len(t, probes, 2)
+	assert.Equal(t, "1.1.1.1", probes[0].Addr.GetDottedIP())
+	assert.Equal(t, "2.2.2.2", probes[1].Addr.GetDottedIP())
 
-	targets, _ = service.PopMany(ctx, 2)
-	assert.Len(t, targets, 1)
-	assert.Equal(t, "3.3.3.3", targets[0].GetDottedIP())
+	probes, _ = service.PopMany(ctx, 2)
+	assert.Len(t, probes, 1)
+	assert.Equal(t, "3.3.3.3", probes[0].Addr.GetDottedIP())
 
 	// exhausted
-	targets, _ = service.PopMany(ctx, 2)
-	assert.Len(t, targets, 0)
+	probes, _ = service.PopMany(ctx, 2)
+	assert.Len(t, probes, 0)
 }

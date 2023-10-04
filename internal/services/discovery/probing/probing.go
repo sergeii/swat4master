@@ -66,30 +66,26 @@ func (s *Service) Register(pg probe.Goal, prober Prober) error {
 }
 
 func (s *Service) Probe(ctx context.Context, prb probe.Probe) error {
-	goal := prb.GetGoal()
-	addr := prb.GetAddr()
-	queryPort := prb.GetPort()
-
-	prober, err := s.selectProber(goal)
+	prober, err := s.selectProber(prb.Goal)
 	if err != nil {
 		return err
 	}
 
-	svr, err := s.servers.Get(ctx, addr)
+	svr, err := s.servers.Get(ctx, prb.Addr)
 	if err != nil {
 		s.logger.Error().
 			Err(err).
-			Stringer("addr", addr).Stringer("goal", goal).Int("port", queryPort).
+			Stringer("addr", prb.Addr).Stringer("goal", prb.Goal).Int("port", prb.Port).
 			Msg("Failed to obtain server for probing")
 		return err
 	}
 
-	result, probeErr := prober.Probe(ctx, svr, queryPort, s.opts.ProbeTimeout)
+	result, probeErr := prober.Probe(ctx, svr, prb.Port, s.opts.ProbeTimeout)
 
 	if probeErr != nil {
 		s.logger.Warn().
 			Err(probeErr).
-			Stringer("addr", addr).Stringer("goal", goal).Int("port", queryPort).
+			Stringer("addr", prb.Addr).Stringer("goal", prb.Goal).Int("port", prb.Port).
 			Msg("Probe failed")
 		return s.retry(ctx, prober, prb, svr)
 	}
@@ -102,14 +98,14 @@ func (s *Service) Probe(ctx context.Context, prb probe.Probe) error {
 	}); updateErr != nil {
 		s.logger.Error().
 			Err(updateErr).
-			Stringer("addr", addr).Int("port", queryPort).Stringer("goal", goal).
+			Stringer("addr", prb.Addr).Int("port", prb.Port).Stringer("goal", prb.Goal).
 			Msg("Unable to update probed server")
 		return updateErr
 	}
 
 	s.logger.Debug().
-		Stringer("server", svr).Int("port", queryPort).
-		Stringer("goal", goal).Int("retries", prb.GetRetries()).
+		Stringer("server", svr).Int("port", prb.Port).
+		Stringer("goal", prb.Goal).Int("retries", prb.Retries).
 		Msg("Successfully probed server")
 
 	return nil
@@ -125,19 +121,16 @@ func (s *Service) selectProber(goal probe.Goal) (Prober, error) {
 func (s *Service) retry(
 	ctx context.Context,
 	prober Prober,
-	tgt probe.Probe,
+	prb probe.Probe,
 	svr server.Server,
 ) error {
-	goal := tgt.GetGoal()
-	addr := tgt.GetAddr()
-
-	retries, ok := tgt.IncRetries(s.opts.MaxRetries)
+	retries, ok := prb.IncRetries(s.opts.MaxRetries)
 	if !ok {
 		s.logger.Info().
 			Stringer("server", svr).
-			Stringer("goal", goal).Int("retries", retries).Int("max", s.opts.MaxRetries).
+			Stringer("goal", prb.Goal).Int("retries", retries).Int("max", s.opts.MaxRetries).
 			Msg("Max retries reached")
-		if failErr := s.fail(ctx, prober, tgt, svr); failErr != nil {
+		if failErr := s.fail(ctx, prober, prb, svr); failErr != nil {
 			return failErr
 		}
 		return ErrOutOfRetries
@@ -145,11 +138,11 @@ func (s *Service) retry(
 
 	retryDelay := time.Second * time.Duration(math.Exp(float64(retries)))
 	retryAfter := s.clock.Now().Add(retryDelay)
-	if err := s.queue.AddAfter(ctx, tgt, retryAfter); err != nil {
+	if err := s.queue.AddAfter(ctx, prb, retryAfter); err != nil {
 		s.logger.Error().
 			Err(err).
-			Stringer("addr", addr).Int("port", tgt.GetPort()).
-			Stringer("goal", goal).Int("retries", retries).Dur("delay", retryDelay).
+			Stringer("addr", prb.Addr).Int("port", prb.Port).
+			Stringer("goal", prb.Goal).Int("retries", retries).Dur("delay", retryDelay).
 			Msg("Failed to add retry for failed probe")
 		return err
 	}
@@ -162,14 +155,14 @@ func (s *Service) retry(
 	}); updateErr != nil {
 		s.logger.Error().
 			Err(updateErr).
-			Stringer("server", svr).Int("port", tgt.GetPort()).Stringer("goal", tgt.GetGoal()).
+			Stringer("server", svr).Int("port", prb.Port).Stringer("goal", prb.Goal).
 			Msg("Unable to update retried server")
 		return updateErr
 	}
 
 	s.logger.Info().
-		Stringer("addr", addr).Int("port", tgt.GetPort()).
-		Stringer("goal", goal).Int("retries", retries).Dur("delay", retryDelay).
+		Stringer("addr", prb.Addr).Int("port", prb.Port).
+		Stringer("goal", prb.Goal).Int("retries", retries).Dur("delay", retryDelay).
 		Msg("Added retry for failed probe")
 
 	return ErrProbeRetried
@@ -178,7 +171,7 @@ func (s *Service) retry(
 func (s *Service) fail(
 	ctx context.Context,
 	prober Prober,
-	tgt probe.Probe,
+	prb probe.Probe,
 	svr server.Server,
 ) error {
 	svr = prober.HandleFailure(svr)
@@ -189,7 +182,7 @@ func (s *Service) fail(
 	}); updateErr != nil {
 		s.logger.Error().
 			Err(updateErr).
-			Stringer("server", svr).Int("port", tgt.GetPort()).Stringer("goal", tgt.GetGoal()).
+			Stringer("server", svr).Int("port", prb.Port).Stringer("goal", prb.Goal).
 			Msg("Unable to update failed server")
 		return updateErr
 	}

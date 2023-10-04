@@ -64,18 +64,18 @@ func (a *API) addServer(c *gin.Context, svr server.Server) {
 	switch {
 	case svr.HasDiscoveryStatus(ds.Details):
 		a.logger.Debug().
-			Stringer("server", svr).Stringer("status", svr.GetDiscoveryStatus()).
+			Stringer("server", svr).Stringer("status", svr.DiscoveryStatus).
 			Msg("Server already has details")
 		c.JSON(http.StatusOK, model.NewServerFromRepo(svr))
 	// server discovery is still pending
 	case svr.HasAnyDiscoveryStatus(ds.PortRetry | ds.DetailsRetry):
 		a.logger.Debug().
-			Stringer("server", svr).Stringer("status", svr.GetDiscoveryStatus()).
+			Stringer("server", svr).Stringer("status", svr.DiscoveryStatus).
 			Msg("Server discovery is in progress")
 		c.Status(http.StatusAccepted)
 	case svr.HasDiscoveryStatus(ds.NoPort):
 		a.logger.Debug().
-			Stringer("server", svr).Stringer("status", svr.GetDiscoveryStatus()).
+			Stringer("server", svr).Stringer("status", svr.DiscoveryStatus).
 			Msg("No port has been discovered for server")
 		c.Status(http.StatusGone)
 	// other status - send the server for port discovery
@@ -153,5 +153,5 @@ func discoverServer(
 		return err
 	}
 
-	return finder.DiscoverPort(ctx, svr.GetAddr(), repositories.NC, repositories.NC)
+	return finder.DiscoverPort(ctx, svr.Addr, repositories.NC, repositories.NC)
 }

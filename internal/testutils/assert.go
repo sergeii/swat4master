@@ -11,7 +11,7 @@ import (
 func AssertServers(t testing.TB, expected []string, actual []server.Server) {
 	addresses := make([]string, 0, len(actual))
 	for _, s := range actual {
-		addresses = append(addresses, s.GetAddr().String())
+		addresses = append(addresses, s.Addr.String())
 	}
 	assert.Equal(t, expected, addresses)
 }

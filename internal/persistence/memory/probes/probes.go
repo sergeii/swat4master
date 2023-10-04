@@ -14,7 +14,7 @@ import (
 )
 
 type enqueued struct {
-	target probe.Probe
+	probe  probe.Probe
 	before time.Time
 	after  time.Time
 }
@@ -34,13 +34,13 @@ func New(c clock.Clock) *Repository {
 	return repo
 }
 
-func (r *Repository) Add(_ context.Context, target probe.Probe) error {
-	r.enqueue(target, repositories.NC, repositories.NC)
+func (r *Repository) Add(_ context.Context, prb probe.Probe) error {
+	r.enqueue(prb, repositories.NC, repositories.NC)
 	return nil
 }
 
-func (r *Repository) AddBetween(_ context.Context, target probe.Probe, after time.Time, before time.Time) error {
-	r.enqueue(target, before, after)
+func (r *Repository) AddBetween(_ context.Context, prb probe.Probe, after time.Time, before time.Time) error {
+	r.enqueue(prb, before, after)
 	return nil
 }
 
@@ -53,7 +53,7 @@ func (r *Repository) Pop(_ context.Context) (probe.Probe, error) {
 		if err == nil {
 			r.queue.Remove(next)
 			r.length--
-			return next.Value.(enqueued).target, nil // nolint: forcetypeassert
+			return next.Value.(enqueued).probe, nil // nolint: forcetypeassert
 		}
 		passes--
 		if passes > 0 {
@@ -78,7 +78,7 @@ func (r *Repository) PopAny(_ context.Context) (probe.Probe, error) {
 	}
 	r.queue.Remove(last)
 	r.length--
-	return last.Value.(enqueued).target, nil // nolint: forcetypeassert
+	return last.Value.(enqueued).probe, nil // nolint: forcetypeassert
 }
 
 func (r *Repository) PopMany(_ context.Context, count int) ([]probe.Probe, int, error) {
@@ -90,14 +90,14 @@ func (r *Repository) PopMany(_ context.Context, count int) ([]probe.Probe, int, 
 		return nil, 0, nil
 	}
 
-	targets := make([]probe.Probe, 0, count)
+	probes := make([]probe.Probe, 0, count)
 	seenItems := make([]*list.Element, 0, count)
 	futureItems := make([]*list.Element, 0)
 	expiredCount := 0
 
 	now := r.clock.Now()
 
-	for next := r.queue.Front(); next != nil && len(targets) < count; next = next.Next() {
+	for next := r.queue.Front(); next != nil && len(probes) < count; next = next.Next() {
 		item := next.Value.(enqueued) // nolint: forcetypeassert
 		// target's time hasn't come yet
 		if !item.after.IsZero() && item.after.After(now) {
@@ -107,7 +107,7 @@ func (r *Repository) PopMany(_ context.Context, count int) ([]probe.Probe, int, 
 		seenItems = append(seenItems, next)
 		// target's time has not expired, or the expiration time hasn't been set
 		if item.before.IsZero() || item.before.After(now) {
-			targets = append(targets, item.target)
+			probes = append(probes, item.probe)
 		} else {
 			expiredCount++
 		}
@@ -124,7 +124,7 @@ func (r *Repository) PopMany(_ context.Context, count int) ([]probe.Probe, int, 
 		r.queue.MoveToBack(future)
 	}
 
-	return targets, expiredCount, nil
+	return probes, expiredCount, nil
 }
 
 func (r *Repository) Count(context.Context) (int, error) {
@@ -134,11 +134,11 @@ func (r *Repository) Count(context.Context) (int, error) {
 }
 
 func (r *Repository) enqueue(
-	target probe.Probe, before time.Time, after time.Time,
+	prb probe.Probe, before time.Time, after time.Time,
 ) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-	item := enqueued{target, before, after}
+	item := enqueued{prb, before, after}
 	r.queue.PushBack(item)
 	r.length++
 }

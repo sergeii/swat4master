@@ -61,10 +61,10 @@ func TestServerService_Create_OK(t *testing.T) {
 		return false
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
-	assert.Equal(t, 10480, svr.GetGamePort())
-	assert.Equal(t, 10481, svr.GetQueryPort())
-	assert.Equal(t, 0, svr.GetVersion())
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
+	assert.Equal(t, 10480, svr.Addr.Port)
+	assert.Equal(t, 10481, svr.QueryPort)
+	assert.Equal(t, 0, svr.Version)
 }
 
 func TestServerService_Create_IgnoreConflict(t *testing.T) {
@@ -91,15 +91,15 @@ func TestServerService_Create_IgnoreConflict(t *testing.T) {
 		return false
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
-	assert.Equal(t, 0, svr.GetVersion())
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
+	assert.Equal(t, 0, svr.Version)
 	close(inserted)
 
 	<-ignored
-	svr, err = repo.Get(ctx, svr.GetAddr())
+	svr, err = repo.Get(ctx, svr.Addr)
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
-	assert.Equal(t, 0, svr.GetVersion())
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
+	assert.Equal(t, 0, svr.Version)
 }
 
 func TestServerService_Create_ResolveConflict(t *testing.T) {
@@ -120,8 +120,8 @@ func TestServerService_Create_ResolveConflict(t *testing.T) {
 			return true
 		})
 		require.NoError(t, err)
-		assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
-		assert.Equal(t, 1, svr.GetVersion())
+		assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
+		assert.Equal(t, 1, svr.Version)
 		close(resolved)
 	}(svr)
 
@@ -129,15 +129,15 @@ func TestServerService_Create_ResolveConflict(t *testing.T) {
 		return false
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
-	assert.Equal(t, 0, svr.GetVersion())
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
+	assert.Equal(t, 0, svr.Version)
 	close(inserted)
 
 	<-resolved
-	svr, err = repo.Get(ctx, svr.GetAddr())
+	svr, err = repo.Get(ctx, svr.Addr)
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
-	assert.Equal(t, 1, svr.GetVersion())
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
+	assert.Equal(t, 1, svr.Version)
 	assert.True(t, svr.HasDiscoveryStatus(ds.Master))
 }
 
@@ -150,15 +150,15 @@ func TestServerService_Update_OK(t *testing.T) {
 
 	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 	repo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
-	assert.Equal(t, ds.New, svr.GetDiscoveryStatus())
+	assert.Equal(t, ds.New, svr.DiscoveryStatus)
 
 	svr.UpdateDiscoveryStatus(ds.Master)
 	svr, err := service.Update(ctx, svr, func(s *server.Server) bool {
 		return false
 	})
 	require.NoError(t, err)
-	assert.Equal(t, 1, svr.GetVersion())
-	assert.Equal(t, ds.Master, svr.GetDiscoveryStatus())
+	assert.Equal(t, 1, svr.Version)
+	assert.Equal(t, ds.Master, svr.DiscoveryStatus)
 }
 
 func TestServerService_Update_IgnoreConflict(t *testing.T) {
@@ -170,7 +170,7 @@ func TestServerService_Update_IgnoreConflict(t *testing.T) {
 
 	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 	repo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
-	assert.Equal(t, ds.New, svr.GetDiscoveryStatus())
+	assert.Equal(t, ds.New, svr.DiscoveryStatus)
 
 	ignored := make(chan struct{})
 	updated := make(chan struct{})
@@ -182,8 +182,8 @@ func TestServerService_Update_IgnoreConflict(t *testing.T) {
 			return false
 		})
 		require.NoError(t, err)
-		assert.Equal(t, ds.Details, svr.GetDiscoveryStatus())
-		assert.Equal(t, 1, svr.GetVersion())
+		assert.Equal(t, ds.Details, svr.DiscoveryStatus)
+		assert.Equal(t, 1, svr.Version)
 		close(ignored)
 	}(svr)
 
@@ -192,15 +192,15 @@ func TestServerService_Update_IgnoreConflict(t *testing.T) {
 		return false
 	})
 	require.NoError(t, err)
-	assert.Equal(t, 1, svr.GetVersion())
-	assert.Equal(t, ds.Details, svr.GetDiscoveryStatus())
+	assert.Equal(t, 1, svr.Version)
+	assert.Equal(t, ds.Details, svr.DiscoveryStatus)
 	close(updated)
 
 	<-ignored
-	svr, err = repo.Get(ctx, svr.GetAddr())
+	svr, err = repo.Get(ctx, svr.Addr)
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
-	assert.Equal(t, 1, svr.GetVersion())
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
+	assert.Equal(t, 1, svr.Version)
 	assert.True(t, svr.HasDiscoveryStatus(ds.Details))
 }
 
@@ -213,7 +213,7 @@ func TestServerService_Update_ResolveConflict(t *testing.T) {
 
 	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 	repo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
-	assert.Equal(t, ds.New, svr.GetDiscoveryStatus())
+	assert.Equal(t, ds.New, svr.DiscoveryStatus)
 
 	resolved := make(chan struct{})
 	updated := make(chan struct{})
@@ -226,8 +226,8 @@ func TestServerService_Update_ResolveConflict(t *testing.T) {
 			return true
 		})
 		require.NoError(t, err)
-		assert.Equal(t, ds.Details|ds.Port, svr.GetDiscoveryStatus())
-		assert.Equal(t, 2, svr.GetVersion())
+		assert.Equal(t, ds.Details|ds.Port, svr.DiscoveryStatus)
+		assert.Equal(t, 2, svr.Version)
 		close(resolved)
 	}(svr)
 
@@ -236,16 +236,16 @@ func TestServerService_Update_ResolveConflict(t *testing.T) {
 		return false
 	})
 	require.NoError(t, err)
-	assert.Equal(t, 1, svr.GetVersion())
-	assert.Equal(t, ds.Details, svr.GetDiscoveryStatus())
+	assert.Equal(t, 1, svr.Version)
+	assert.Equal(t, ds.Details, svr.DiscoveryStatus)
 	close(updated)
 
 	<-resolved
-	svr, err = repo.Get(ctx, svr.GetAddr())
+	svr, err = repo.Get(ctx, svr.Addr)
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
-	assert.Equal(t, 2, svr.GetVersion())
-	assert.Equal(t, ds.Details|ds.Port, svr.GetDiscoveryStatus())
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
+	assert.Equal(t, 2, svr.Version)
+	assert.Equal(t, ds.Details|ds.Port, svr.DiscoveryStatus)
 }
 
 func TestServerService_CreateOrUpdate_Created(t *testing.T) {
@@ -261,11 +261,11 @@ func TestServerService_CreateOrUpdate_Created(t *testing.T) {
 		panic("should not be called")
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
-	assert.Equal(t, 10480, svr.GetGamePort())
-	assert.Equal(t, 10481, svr.GetQueryPort())
-	assert.Equal(t, 0, svr.GetVersion())
-	assert.Equal(t, ds.Master, svr.GetDiscoveryStatus())
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
+	assert.Equal(t, 10480, svr.Addr.Port)
+	assert.Equal(t, 10481, svr.QueryPort)
+	assert.Equal(t, 0, svr.Version)
+	assert.Equal(t, ds.Master, svr.DiscoveryStatus)
 }
 
 func TestServerService_CreateOrUpdate_Updated(t *testing.T) {
@@ -284,11 +284,11 @@ func TestServerService_CreateOrUpdate_Updated(t *testing.T) {
 		panic("should not be called")
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
-	assert.Equal(t, 10480, svr.GetGamePort())
-	assert.Equal(t, 10481, svr.GetQueryPort())
-	assert.Equal(t, 1, svr.GetVersion())
-	assert.Equal(t, ds.Master|ds.Details, svr.GetDiscoveryStatus())
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
+	assert.Equal(t, 10480, svr.Addr.Port)
+	assert.Equal(t, 10481, svr.QueryPort)
+	assert.Equal(t, 1, svr.Version)
+	assert.Equal(t, ds.Master|ds.Details, svr.DiscoveryStatus)
 }
 
 func TestServerService_CreateOrUpdate_Race(t *testing.T) {
@@ -319,9 +319,9 @@ func TestServerService_CreateOrUpdate_Race(t *testing.T) {
 	go update(t, svr, ds.Port)
 	wg.Wait()
 
-	svr, _ = repo.Get(ctx, svr.GetAddr())
-	assert.Equal(t, ds.Master|ds.Info|ds.Details|ds.Port, svr.GetDiscoveryStatus())
-	assert.Equal(t, 4, svr.GetVersion())
+	svr, _ = repo.Get(ctx, svr.Addr)
+	assert.Equal(t, ds.Master|ds.Info|ds.Details|ds.Port, svr.DiscoveryStatus)
+	assert.Equal(t, 4, svr.Version)
 }
 
 func TestServerService_Get(t *testing.T) {
@@ -334,11 +334,11 @@ func TestServerService_Get(t *testing.T) {
 	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 	repo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 
-	svr, err := service.Get(ctx, svr.GetAddr())
+	svr, err := service.Get(ctx, svr.Addr)
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", svr.GetDottedIP())
-	assert.Equal(t, 10480, svr.GetGamePort())
-	assert.Equal(t, 10481, svr.GetQueryPort())
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
+	assert.Equal(t, 10480, svr.Addr.Port)
+	assert.Equal(t, 10481, svr.QueryPort)
 }
 
 func TestServerService_FilterRecent(t *testing.T) {

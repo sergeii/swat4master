@@ -146,12 +146,12 @@ func (s *Service) handleKeepalive(
 	}
 
 	// the addressed must match, otherwise it could be a spoofing attempt
-	if !instance.GetIP().Equal(addr.IP.To4()) {
+	if !instance.Addr.GetIP().Equal(addr.IP.To4()) {
 		return nil, ErrUnknownInstanceID
 	}
 
 	// make sure no other concurrent update is possible
-	svr, err := s.servers.Get(ctx, instance.GetAddr())
+	svr, err := s.servers.Get(ctx, instance.Addr)
 	if err != nil {
 		return nil, err
 	}
@@ -243,7 +243,7 @@ func (s *Service) removeServer(
 		}
 	}
 	// make sure to verify the "owner" of the provided instance id
-	if instance.GetDottedIP() != svr.GetDottedIP() {
+	if instance.Addr.GetDottedIP() != svr.Addr.GetDottedIP() {
 		return nil, ErrUnknownInstanceID
 	}
 
@@ -273,7 +273,7 @@ func (s *Service) reportServer(
 	instanceID string,
 	fields map[string]string,
 ) ([]byte, error) {
-	instance, err := instance.New(instanceID, svr.GetIP(), svr.GetGamePort())
+	inst, err := instance.New(instanceID, svr.Addr.GetIP(), svr.Addr.Port)
 	if err != nil {
 		s.logger.Error().
 			Err(err).
@@ -314,7 +314,7 @@ func (s *Service) reportServer(
 		return nil, err
 	}
 
-	if err := s.instances.Add(ctx, instance); err != nil {
+	if err := s.instances.Add(ctx, inst); err != nil {
 		s.logger.Error().
 			Err(err).
 			Stringer("src", connAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
@@ -360,7 +360,7 @@ func (s *Service) maybeDiscoverPort(ctx context.Context, pending server.Server) 
 		return nil
 	}
 
-	if err = s.findingService.DiscoverPort(ctx, pending.GetAddr(), repositories.NC, repositories.NC); err != nil {
+	if err = s.findingService.DiscoverPort(ctx, pending.Addr, repositories.NC, repositories.NC); err != nil {
 		return err
 	}
 

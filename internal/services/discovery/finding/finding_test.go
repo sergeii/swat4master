@@ -69,10 +69,10 @@ func TestFindingService_DiscoverDetails(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	t1, _ := queue.Pop(ctx)
-	assert.Equal(t, "1.1.1.1", t1.GetDottedIP())
-	assert.Equal(t, probe.GoalDetails, t1.GetGoal())
-	assert.Equal(t, 10481, t1.GetPort())
+	p1, _ := queue.Pop(ctx)
+	assert.Equal(t, "1.1.1.1", p1.Addr.GetDottedIP())
+	assert.Equal(t, probe.GoalDetails, p1.Goal)
+	assert.Equal(t, 10481, p1.Port)
 
 	clockMock.Add(time.Millisecond * 15)
 
@@ -101,17 +101,17 @@ func TestFindingService_DiscoverPort(t *testing.T) {
 
 	clockMock.Add(time.Millisecond * 5)
 
-	t1, _ := queue.Pop(ctx)
-	assert.Equal(t, "1.1.1.1", t1.GetDottedIP())
-	assert.Equal(t, probe.GoalPort, t1.GetGoal())
-	assert.Equal(t, 10480, t1.GetPort())
+	p1, _ := queue.Pop(ctx)
+	assert.Equal(t, "1.1.1.1", p1.Addr.GetDottedIP())
+	assert.Equal(t, probe.GoalPort, p1.Goal)
+	assert.Equal(t, 10480, p1.Port)
 
 	clockMock.Add(time.Millisecond * 5)
 
-	t2, _ := queue.Pop(ctx)
-	assert.Equal(t, "2.2.2.2", t2.GetDottedIP())
-	assert.Equal(t, probe.GoalPort, t2.GetGoal())
-	assert.Equal(t, 10480, t2.GetPort())
+	p2, _ := queue.Pop(ctx)
+	assert.Equal(t, "2.2.2.2", p2.Addr.GetDottedIP())
+	assert.Equal(t, probe.GoalPort, p2.Goal)
+	assert.Equal(t, 10480, p2.Port)
 
 	clockMock.Add(time.Millisecond * 10)
 
@@ -175,10 +175,10 @@ func TestFindingService_RefreshDetails(t *testing.T) {
 
 	refreshedServers := make([]string, 0, 3)
 	for i := 0; i < 3; i++ {
-		tgt, err := probesRepo.PopAny(ctx)
+		prb, err := probesRepo.PopAny(ctx)
 		require.NoError(t, err)
-		require.Equal(t, probe.GoalDetails, tgt.GetGoal())
-		refreshedServers = append(refreshedServers, tgt.GetDottedIP())
+		require.Equal(t, probe.GoalDetails, prb.Goal)
+		refreshedServers = append(refreshedServers, prb.Addr.GetDottedIP())
 	}
 	assert.Equal(t, []string{"7.7.7.7", "3.3.3.3", "2.2.2.2"}, refreshedServers)
 }
@@ -264,10 +264,10 @@ func TestFindingService_ReviveServers(t *testing.T) {
 
 	revivedServers := make([]string, 0, 3)
 	for i := 0; i < 3; i++ {
-		tgt, err := probesRepo.PopAny(ctx)
+		prb, err := probesRepo.PopAny(ctx)
 		require.NoError(t, err)
-		require.Equal(t, probe.GoalPort, tgt.GetGoal())
-		revivedServers = append(revivedServers, tgt.GetDottedIP())
+		require.Equal(t, probe.GoalPort, prb.Goal)
+		revivedServers = append(revivedServers, prb.Addr.GetDottedIP())
 	}
 	assert.Equal(t, []string{"7.7.7.7", "5.5.5.5", "4.4.4.4"}, revivedServers)
 }

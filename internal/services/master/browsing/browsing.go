@@ -89,19 +89,19 @@ func (s *Service) packServers(servers []server.Server, addr *net.TCPAddr, fields
 		payload = append(payload, 0x00, 0x00)
 	}
 	for _, svr := range servers {
-		svrDetails := svr.GetInfo()
-		svrParams, err := params.Marshal(&svrDetails)
+		svrInfo := svr.Info
+		svrParams, err := params.Marshal(&svrInfo)
 		if err != nil {
 			s.logger.Warn().
-				Err(err).Stringer("addr", svr.GetAddr()).
+				Err(err).Stringer("addr", svr.Addr).
 				Msg("Unable to obtain params for server")
 			continue
 		}
 		// first 7 bytes is the server address
 		serverAddr := make([]byte, 7)
 		serverAddr[0] = 0x51
-		copy(serverAddr[1:5], svr.GetIP())
-		binary.BigEndian.PutUint16(serverAddr[5:7], uint16(svr.GetQueryPort()))
+		copy(serverAddr[1:5], svr.Addr.GetIP())
+		binary.BigEndian.PutUint16(serverAddr[5:7], uint16(svr.QueryPort))
 		payload = append(payload, serverAddr...)
 		// insert field values' in the same order as in the field declaration
 		for _, field := range fields {
@@ -109,7 +109,7 @@ func (s *Service) packServers(servers []server.Server, addr *net.TCPAddr, fields
 			val, exists := svrParams[field]
 			if !exists {
 				s.logger.Warn().
-					Str("field", field).Stringer("server", svr.GetAddr()).Stringer("src", addr).
+					Str("field", field).Stringer("server", svr.Addr).Stringer("src", addr).
 					Msg("Requested field is missing")
 			} else {
 				payload = append(payload, []byte(val)...)

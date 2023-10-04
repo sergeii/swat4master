@@ -89,18 +89,18 @@ func TestAPI_AddServer_SubmitNew(t *testing.T) {
 
 	addedSvr, err := repos.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", addedSvr.GetDottedIP())
-	assert.Equal(t, 10480, addedSvr.GetGamePort())
-	assert.Equal(t, 10481, addedSvr.GetQueryPort())
-	assert.Equal(t, ds.PortRetry, addedSvr.GetDiscoveryStatus())
+	assert.Equal(t, "1.1.1.1", addedSvr.Addr.GetDottedIP())
+	assert.Equal(t, 10480, addedSvr.Addr.Port)
+	assert.Equal(t, 10481, addedSvr.QueryPort)
+	assert.Equal(t, ds.PortRetry, addedSvr.DiscoveryStatus)
 
-	tgtCount, _ := repos.Probes.Count(ctx)
-	assert.Equal(t, 1, tgtCount)
-	addedTgt, err := repos.Probes.PopAny(ctx)
+	prbCount, _ := repos.Probes.Count(ctx)
+	assert.Equal(t, 1, prbCount)
+	addedPrb, err := repos.Probes.PopAny(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, probe.GoalPort, addedTgt.GetGoal())
-	assert.Equal(t, "1.1.1.1:10480", addedTgt.GetAddr().String())
-	assert.Equal(t, 10480, addedTgt.GetPort())
+	assert.Equal(t, probe.GoalPort, addedPrb.Goal)
+	assert.Equal(t, "1.1.1.1:10480", addedPrb.Addr.String())
+	assert.Equal(t, 10480, addedPrb.Port)
 }
 
 func TestAPI_AddServer_SubmitExisting(t *testing.T) {
@@ -200,22 +200,22 @@ func TestAPI_AddServer_SubmitExisting(t *testing.T) {
 
 			updatedSvr, err := repos.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
 			require.NoError(t, err)
-			assert.Equal(t, "1.1.1.1", updatedSvr.GetDottedIP())
-			assert.Equal(t, 10480, updatedSvr.GetGamePort())
-			assert.Equal(t, 10484, updatedSvr.GetQueryPort())
-			assert.Equal(t, tt.wantStatus, updatedSvr.GetDiscoveryStatus())
+			assert.Equal(t, "1.1.1.1", updatedSvr.Addr.GetDottedIP())
+			assert.Equal(t, 10480, updatedSvr.Addr.Port)
+			assert.Equal(t, 10484, updatedSvr.QueryPort)
+			assert.Equal(t, tt.wantStatus, updatedSvr.DiscoveryStatus)
 
-			tgtCount, err := repos.Probes.Count(ctx)
+			prbCount, err := repos.Probes.Count(ctx)
 			require.NoError(t, err)
 			if tt.queued {
-				assert.Equal(t, 1, tgtCount)
-				addedTgt, err := repos.Probes.PopAny(ctx)
+				assert.Equal(t, 1, prbCount)
+				addedPrb, err := repos.Probes.PopAny(ctx)
 				require.NoError(t, err)
-				assert.Equal(t, probe.GoalPort, addedTgt.GetGoal())
-				assert.Equal(t, "1.1.1.1:10480", addedTgt.GetAddr().String())
-				assert.Equal(t, 10480, addedTgt.GetPort())
+				assert.Equal(t, probe.GoalPort, addedPrb.Goal)
+				assert.Equal(t, "1.1.1.1:10480", addedPrb.Addr.String())
+				assert.Equal(t, 10480, addedPrb.Port)
 			} else {
-				assert.Equal(t, 0, tgtCount)
+				assert.Equal(t, 0, prbCount)
 			}
 		})
 	}
@@ -286,13 +286,13 @@ func TestAPI_AddServer_AlreadyDiscovered(t *testing.T) {
 	assert.Equal(t, "a-bomb-nightclub", obj.MapNameSlug)
 
 	// no probe is added
-	tgtCount, err := repos.Probes.Count(ctx)
+	prbCount, err := repos.Probes.Count(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, 0, tgtCount)
+	assert.Equal(t, 0, prbCount)
 
 	// server status is not affected
 	notUpdatedSvr, _ := repos.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
-	assert.Equal(t, ds.Details, notUpdatedSvr.GetDiscoveryStatus())
+	assert.Equal(t, ds.Details, notUpdatedSvr.DiscoveryStatus)
 }
 
 func TestAPI_AddServer_ValidateAddress(t *testing.T) {
@@ -387,15 +387,15 @@ func TestAPI_AddServer_ValidateAddress(t *testing.T) {
 
 			svrCount, err := repos.Servers.Count(ctx)
 			require.NoError(t, err)
-			tgtCount, err := repos.Probes.Count(ctx)
+			prbCount, err := repos.Probes.Count(ctx)
 			require.NoError(t, err)
 
 			if tt.want {
 				assert.Equal(t, 1, svrCount)
-				assert.Equal(t, 1, tgtCount)
+				assert.Equal(t, 1, prbCount)
 			} else {
 				assert.Equal(t, 0, svrCount)
-				assert.Equal(t, 0, tgtCount)
+				assert.Equal(t, 0, prbCount)
 			}
 		})
 	}

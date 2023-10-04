@@ -302,8 +302,8 @@ func TestExporter_ReposMetrics(t *testing.T) {
 	instancesRepo.Add(ctx, ins1) // nolint: errcheck
 	instancesRepo.Add(ctx, ins2) // nolint: errcheck
 
-	probe1 := probe.New(svr1.GetAddr(), svr1.GetQueryPort(), probe.GoalDetails)
-	probe2 := probe.New(svr2.GetAddr(), svr2.GetQueryPort(), probe.GoalDetails)
+	probe1 := probe.New(svr1.Addr, svr1.QueryPort, probe.GoalDetails)
+	probe2 := probe.New(svr2.Addr, svr2.QueryPort, probe.GoalDetails)
 	probesRepo.AddBetween(ctx, probe1, clockMock.Now().Add(time.Hour), repositories.NC) // nolint: errcheck
 	probesRepo.Add(ctx, probe2)                                                         // nolint: errcheck
 

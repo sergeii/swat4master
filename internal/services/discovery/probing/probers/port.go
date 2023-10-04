@@ -89,11 +89,10 @@ func (s *PortProber) Probe(
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	svrAddr := svr.GetAddr()
-	ip := netip.AddrFrom4(svrAddr.GetIP4())
+	ip := netip.AddrFrom4(svr.Addr.IP)
 	for _, pIdx := range s.opts.Offsets {
 		wg.Add(1)
-		go s.probePort(ctx, wg, results, ip, svrAddr.Port, svrAddr.Port+pIdx, timeout)
+		go s.probePort(ctx, wg, results, ip, svr.Addr.Port, svr.Addr.Port+pIdx, timeout)
 	}
 
 	go func() {
@@ -221,7 +220,7 @@ func (s *PortProber) HandleSuccess(res any, svr server.Server) server.Server {
 	if !ok {
 		panic(fmt.Errorf("unexpected result type %T, %v", result, result))
 	}
-	svr.UpdateQueryPort(result.port)
+	svr.QueryPort = result.port
 	svr.UpdateDetails(result.details, s.clock.Now())
 	svr.UpdateDiscoveryStatus(ds.Info | ds.Details | ds.Port)
 	svr.ClearDiscoveryStatus(ds.NoDetails | ds.DetailsRetry | ds.PortRetry | ds.NoPort)

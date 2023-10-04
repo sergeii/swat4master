@@ -55,8 +55,7 @@ func (s *DetailsProber) Probe(
 	queryPort int,
 	timeout time.Duration,
 ) (any, error) {
-	addr := svr.GetAddr()
-	qAddr := netip.AddrPortFrom(netip.AddrFrom4(addr.GetIP4()), uint16(queryPort))
+	qAddr := netip.AddrPortFrom(netip.AddrFrom4(svr.Addr.IP), uint16(queryPort))
 
 	queryStarted := s.clock.Now()
 
@@ -64,7 +63,7 @@ func (s *DetailsProber) Probe(
 	if err != nil {
 		s.logger.Info().
 			Err(err).
-			Dur("timeout", timeout).Stringer("addr", addr).Int("port", queryPort).
+			Dur("timeout", timeout).Stringer("addr", svr.Addr).Int("port", queryPort).
 			Msg("Failed to probe details")
 		return details.Blank, err
 	}
@@ -72,20 +71,20 @@ func (s *DetailsProber) Probe(
 	queryDur := s.clock.Since(queryStarted).Seconds()
 	s.metrics.DiscoveryQueryDurations.Observe(queryDur)
 	s.logger.Debug().
-		Stringer("addr", addr).Int("port", queryPort).
+		Stringer("addr", svr.Addr).Int("port", queryPort).
 		Float64("duration", queryDur).Stringer("version", resp.Version).
 		Msg("Successfully queried server")
 
 	svrDetails, err := details.NewDetailsFromParams(resp.Fields, resp.Players, resp.Objectives)
 	if err != nil {
 		s.logger.Error().
-			Err(err).Stringer("addr", addr).Int("port", queryPort).
+			Err(err).Stringer("addr", svr.Addr).Int("port", queryPort).
 			Msg("Failed to parse query response")
 		return details.Blank, err
 	}
 	if validateErr := svrDetails.Validate(s.validate); validateErr != nil {
 		s.logger.Error().
-			Err(validateErr).Stringer("addr", addr).Int("port", queryPort).
+			Err(validateErr).Stringer("addr", svr.Addr).Int("port", queryPort).
 			Msg("Failed to validate query response")
 		return details.Blank, validateErr
 	}
