@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/benbjohnson/clock"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
@@ -22,15 +22,15 @@ type serverItem struct {
 type Repository struct {
 	servers map[addr.Addr]*list.Element // ip:port -> instance item mapping (wrapped in a linked list element)
 	history *list.List                  // history of reported servers with the most recent servers being in the front
-	clock   clock.Clock
+	clock   clockwork.Clock
 	mutex   sync.RWMutex
 }
 
-func New(c clock.Clock) *Repository {
+func New(clock clockwork.Clock) *Repository {
 	repo := &Repository{
 		servers: make(map[addr.Addr]*list.Element),
 		history: list.New(),
-		clock:   c,
+		clock:   clock,
 	}
 	return repo
 }
@@ -193,7 +193,9 @@ func (mr *Repository) Filter( // nolint: cyclop
 		case byWithStatus && !rep.Server.HasDiscoveryStatus(withStatus):
 			continue
 		case byNoStatus && !rep.Server.HasNoDiscoveryStatus(noStatus):
-			continue
+			{
+				continue
+			}
 		}
 		recent = append(recent, rep.Server)
 	}

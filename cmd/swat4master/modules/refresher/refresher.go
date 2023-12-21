@@ -1,9 +1,9 @@
-package finder
+package refresher
 
 import (
 	"context"
 
-	"github.com/benbjohnson/clock"
+	"github.com/jonboulle/clockwork"
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
@@ -11,50 +11,43 @@ import (
 	"github.com/sergeii/swat4master/internal/services/discovery/finding"
 )
 
-type Finder struct{}
+type Refresher struct{}
 
 func Run(
 	stop chan struct{},
 	stopped chan struct{},
-	clock clock.Clock,
+	clock clockwork.Clock,
 	logger *zerolog.Logger,
 	service *finding.Service,
 	cfg config.Config,
 ) {
-	refresher := clock.Ticker(cfg.DiscoveryRefreshInterval)
+	refresher := clock.NewTicker(cfg.DiscoveryRefreshInterval)
 	defer refresher.Stop()
-
-	reviver := clock.Ticker(cfg.DiscoveryRevivalInterval)
-	defer reviver.Stop()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	logger.Info().
-		Dur("refresh", cfg.DiscoveryRefreshInterval).Dur("revival", cfg.DiscoveryRevivalInterval).
-		Msg("Starting finder")
+	logger.Info().Dur("interval", cfg.DiscoveryRefreshInterval).Msg("Starting refresher")
 
 	for {
 		select {
 		case <-stop:
-			logger.Info().Msg("Stopping finder")
+			logger.Info().Msg("Stopping refresher")
 			close(stopped)
 			return
-		case <-refresher.C:
+		case <-refresher.Chan():
 			refresh(ctx, clock, logger, service, cfg)
-		case <-reviver.C:
-			revive(ctx, clock, logger, service, cfg)
 		}
 	}
 }
 
-func NewFinder(
+func NewRefresher(
 	lc fx.Lifecycle,
 	cfg config.Config,
-	clock clock.Clock,
+	clock clockwork.Clock,
 	service *finding.Service,
 	logger *zerolog.Logger,
-) *Finder {
+) *Refresher {
 	stopped := make(chan struct{})
 	stop := make(chan struct{})
 
@@ -70,12 +63,12 @@ func NewFinder(
 		},
 	})
 
-	return &Finder{}
+	return &Refresher{}
 }
 
 func refresh(
 	ctx context.Context,
-	clock clock.Clock,
+	clock clockwork.Clock,
 	logger *zerolog.Logger,
 	service *finding.Service,
 	cfg config.Config,
@@ -94,37 +87,6 @@ func refresh(
 	}
 }
 
-func revive(
-	ctx context.Context,
-	clock clock.Clock,
-	logger *zerolog.Logger,
-	service *finding.Service,
-	cfg config.Config,
-) {
-	now := clock.Now()
-
-	// make sure the probes don't run beyond the next cycle of discovery
-	deadline := now.Add(cfg.DiscoveryRevivalInterval)
-
-	cnt, err := service.ReviveServers(
-		ctx,
-		now.Add(-cfg.DiscoveryRevivalScope),    // min scope
-		now.Add(-cfg.DiscoveryRevivalInterval), // max scope
-		now,                                    // min countdown
-		now.Add(cfg.DiscoveryRevivalCountdown), // max countdown
-		deadline,
-	)
-	if err != nil {
-		logger.Warn().Err(err).Msg("Unable to refresh revive outdated servers")
-		return
-	}
-	if cnt > 0 {
-		logger.Info().Int("count", cnt).Msg("Added servers to port discovery queue")
-	} else {
-		logger.Debug().Msg("Added no servers to port discovery queue")
-	}
-}
-
-var Module = fx.Module("finder",
-	fx.Provide(NewFinder),
+var Module = fx.Module("refresher",
+	fx.Provide(NewRefresher),
 )

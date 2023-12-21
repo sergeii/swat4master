@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
+	"github.com/jonboulle/clockwork"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,8 +32,8 @@ import (
 
 func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts := []fx.Option{
-		fx.Provide(clock.New),
-		fx.Provide(func(c clock.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
+		fx.Provide(clockwork.NewRealClock),
+		fx.Provide(func(c clockwork.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
 			mem := memory.New(c)
 			return mem.Servers, mem.Instances, mem.Probes
 		}),
@@ -62,9 +62,9 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	app.RequireStart().RequireStop()
 }
 
-func overrideClock(c clock.Clock) fx.Option {
+func overrideClock(c clockwork.Clock) fx.Option {
 	return fx.Decorate(
-		func() clock.Clock {
+		func() clockwork.Clock {
 			return c
 		},
 	)
@@ -388,8 +388,8 @@ func TestMasterBrowserService_HandleRequest_ServerList(t *testing.T) {
 	var reporter *reporting.Service
 	var browser *browsing.Service
 
-	clockMock := clock.NewMock()
-	makeApp(t, fx.Populate(&reporter, &browser), overrideClock(clockMock))
+	c := clockwork.NewFakeClock()
+	makeApp(t, fx.Populate(&reporter, &browser), overrideClock(c))
 
 	for _, filter := range []string{"", "gametype='VIP Escort'"} {
 		resp, err := testutils.SendBrowserRequest(browser, filter, testutils.WithRandomAddr())
@@ -411,7 +411,7 @@ func TestMasterBrowserService_HandleRequest_ServerList(t *testing.T) {
 		assert.Equal(t, "Swat4 Server", list[0]["hostname"])
 	}
 
-	clockMock.Add(time.Millisecond * 20)
+	c.Advance(time.Millisecond * 20)
 
 	testutils.SendHeartbeat( // nolint: errcheck
 		reporter,

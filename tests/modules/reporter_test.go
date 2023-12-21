@@ -1,4 +1,4 @@
-package reporter_test
+package modules_test
 
 import (
 	"context"

@@ -6,20 +6,18 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	"github.com/sergeii/swat4master/internal/core/entities/details"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
-	"github.com/sergeii/swat4master/internal/core/repositories"
-	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/testutils"
+	"github.com/sergeii/swat4master/internal/testutils/factories"
 )
 
 type serverAddReqSchema struct {
@@ -63,15 +61,7 @@ type serverAddErrorSchema struct {
 
 func TestAPI_AddServer_SubmitNew(t *testing.T) {
 	ctx := context.TODO()
-	clockMock := clock.NewMock()
-	repos := memory.New(clockMock)
-	ts, cancel := testutils.PrepareTestServer(
-		t,
-		fx.Decorate(func() clock.Clock { return clockMock }),
-		fx.Decorate(func() (repositories.ServerRepository, repositories.ProbeRepository) {
-			return repos.Servers, repos.Probes
-		}),
-	)
+	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 	defer cancel()
 
 	payload, _ := json.Marshal(serverAddReqSchema{ // nolint: errchkjson
@@ -87,10 +77,8 @@ func TestAPI_AddServer_SubmitNew(t *testing.T) {
 	svrCount, _ := repos.Servers.Count(ctx)
 	require.Equal(t, 1, svrCount)
 
-	addedSvr, err := repos.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	addedSvr, err := repos.Servers.Get(ctx, addr.MustNewFromDotted("1.1.1.1", 10480))
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", addedSvr.Addr.GetDottedIP())
-	assert.Equal(t, 10480, addedSvr.Addr.Port)
 	assert.Equal(t, 10481, addedSvr.QueryPort)
 	assert.Equal(t, ds.PortRetry, addedSvr.DiscoveryStatus)
 
@@ -172,21 +160,13 @@ func TestAPI_AddServer_SubmitExisting(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.TODO()
-			clockMock := clock.NewMock()
-			repos := memory.New(clockMock)
-			ts, cancel := testutils.PrepareTestServer(
-				t,
-				fx.Decorate(func() clock.Clock { return clockMock }),
-				fx.Decorate(func() (repositories.ServerRepository, repositories.ProbeRepository) {
-					return repos.Servers, repos.Probes
-				}),
-			)
+			ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 			defer cancel()
 
-			svr, err := server.NewFromAddr(addr.MustNewFromString("1.1.1.1", 10480), 10484)
+			svr, err := server.NewFromAddr(addr.MustNewFromDotted("1.1.1.1", 10480), 10484)
 			require.NoError(t, err)
 			svr.UpdateDiscoveryStatus(tt.initStatus)
-			repos.Servers.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
+			factories.SaveServer(ctx, repos.Servers, svr)
 
 			payload, _ := json.Marshal(serverAddReqSchema{
 				IP:   "1.1.1.1",
@@ -198,7 +178,7 @@ func TestAPI_AddServer_SubmitExisting(t *testing.T) {
 			)
 			assert.Equal(t, tt.wantCode, resp.StatusCode)
 
-			updatedSvr, err := repos.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+			updatedSvr, err := repos.Servers.Get(ctx, addr.MustNewFromDotted("1.1.1.1", 10480))
 			require.NoError(t, err)
 			assert.Equal(t, "1.1.1.1", updatedSvr.Addr.GetDottedIP())
 			assert.Equal(t, 10480, updatedSvr.Addr.Port)
@@ -223,15 +203,7 @@ func TestAPI_AddServer_SubmitExisting(t *testing.T) {
 
 func TestAPI_AddServer_AlreadyDiscovered(t *testing.T) {
 	ctx := context.TODO()
-	clockMock := clock.NewMock()
-	repos := memory.New(clockMock)
-	ts, cancel := testutils.PrepareTestServer(
-		t,
-		fx.Decorate(func() clock.Clock { return clockMock }),
-		fx.Decorate(func() (repositories.ServerRepository, repositories.ProbeRepository) {
-			return repos.Servers, repos.Probes
-		}),
-	)
+	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 	defer cancel()
 
 	fields := map[string]string{
@@ -254,11 +226,11 @@ func TestAPI_AddServer_AlreadyDiscovered(t *testing.T) {
 	}
 	det := details.MustNewDetailsFromParams(fields, nil, nil)
 
-	svr, err := server.NewFromAddr(addr.MustNewFromString("1.1.1.1", 10480), 10484)
+	svr, err := server.NewFromAddr(addr.MustNewFromDotted("1.1.1.1", 10480), 10484)
 	require.NoError(t, err)
 	svr.UpdateDiscoveryStatus(ds.Details)
-	svr.UpdateDetails(det, clockMock.Now())
-	repos.Servers.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	svr.UpdateDetails(det, time.Now())
+	factories.SaveServer(ctx, repos.Servers, svr)
 
 	payload, _ := json.Marshal(serverAddReqSchema{ // nolint: errchkjson
 		IP:   "1.1.1.1",
@@ -291,7 +263,7 @@ func TestAPI_AddServer_AlreadyDiscovered(t *testing.T) {
 	assert.Equal(t, 0, prbCount)
 
 	// server status is not affected
-	notUpdatedSvr, _ := repos.Servers.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	notUpdatedSvr, _ := repos.Servers.Get(ctx, addr.MustNewFromDotted("1.1.1.1", 10480))
 	assert.Equal(t, ds.Details, notUpdatedSvr.DiscoveryStatus)
 }
 
@@ -355,15 +327,7 @@ func TestAPI_AddServer_ValidateAddress(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.TODO()
-			clockMock := clock.NewMock()
-			repos := memory.New(clockMock)
-			ts, cancel := testutils.PrepareTestServer(
-				t,
-				fx.Decorate(func() clock.Clock { return clockMock }),
-				fx.Decorate(func() (repositories.ServerRepository, repositories.ProbeRepository) {
-					return repos.Servers, repos.Probes
-				}),
-			)
+			ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 			defer cancel()
 
 			payload, _ := json.Marshal(serverAddReqSchema{

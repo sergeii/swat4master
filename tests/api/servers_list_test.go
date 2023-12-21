@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
@@ -17,9 +16,8 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/details"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
-	"github.com/sergeii/swat4master/internal/core/repositories"
-	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/testutils"
+	"github.com/sergeii/swat4master/internal/testutils/factories"
 )
 
 type serverListSchema struct {
@@ -54,14 +52,8 @@ type serverListSchema struct {
 
 func TestAPI_ListServers_OK(t *testing.T) {
 	ctx := context.TODO()
-	clockMock := clock.NewMock()
-	repos := memory.New(clockMock)
-	ts, cancel := testutils.PrepareTestServer(
+	ts, repos, cancel := testutils.PrepareTestServerWithRepos(
 		t,
-		fx.Decorate(func() clock.Clock { return clockMock }),
-		fx.Decorate(func() repositories.ServerRepository {
-			return repos.Servers
-		}),
 		fx.Decorate(func(cfg config.Config) config.Config {
 			cfg.BrowserServerLiveness = time.Second * 15
 			return cfg
@@ -69,7 +61,7 @@ func TestAPI_ListServers_OK(t *testing.T) {
 	)
 	defer cancel()
 
-	outdated, _ := server.New(net.ParseIP("3.3.3.3"), 10480, 10481)
+	outdated := server.MustNew(net.ParseIP("3.3.3.3"), 10480, 10481)
 	outdated.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 		"hostname":    "Swat4 Server",
 		"hostport":    "10480",
@@ -82,13 +74,11 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"maxplayers":  "16",
 		"round":       "1",
 		"numrounds":   "5",
-	}), clockMock.Now())
+	}), time.Now())
 	outdated.UpdateDiscoveryStatus(ds.Master)
-	repos.Servers.Add(ctx, outdated, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	factories.SaveServer(ctx, repos.Servers, outdated)
 
-	clockMock.Add(time.Millisecond * 15)
-
-	noStatus, _ := server.New(net.ParseIP("4.4.4.4"), 10480, 10481)
+	noStatus := server.MustNew(net.ParseIP("4.4.4.4"), 10480, 10481)
 	noStatus.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 		"hostname":    "Cool Swat4 Server",
 		"hostport":    "10480",
@@ -96,12 +86,10 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gamever":     "1.0",
 		"gamevariant": "SWAT 4",
 		"gametype":    "Barricaded Suspects",
-	}), clockMock.Now())
-	repos.Servers.Add(ctx, noStatus, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	}), time.Now())
+	factories.SaveServer(ctx, repos.Servers, noStatus)
 
-	clockMock.Add(time.Millisecond)
-
-	delisted, _ := server.New(net.ParseIP("5.5.5.5"), 10480, 10481)
+	delisted := server.MustNew(net.ParseIP("5.5.5.5"), 10480, 10481)
 	delisted.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 		"hostname":    "COOP Server",
 		"hostport":    "10480",
@@ -109,13 +97,11 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gamever":     "1.1",
 		"gamevariant": "SWAT 4",
 		"gametype":    "CO-OP",
-	}), clockMock.Now())
+	}), time.Now())
 	delisted.UpdateDiscoveryStatus(ds.NoDetails)
-	repos.Servers.Add(ctx, delisted, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	factories.SaveServer(ctx, repos.Servers, delisted)
 
-	clockMock.Add(time.Millisecond)
-
-	noInfo, _ := server.New(net.ParseIP("6.6.6.6"), 10480, 10481)
+	noInfo := server.MustNew(net.ParseIP("6.6.6.6"), 10480, 10481)
 	noInfo.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 		"hostname":    "Awesome Server",
 		"hostport":    "10580",
@@ -123,17 +109,15 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gamever":     "1.1",
 		"gamevariant": "SWAT 4",
 		"gametype":    "CO-OP",
-	}), clockMock.Now())
+	}), time.Now())
 	noInfo.UpdateDiscoveryStatus(ds.Master | ds.Details)
-	repos.Servers.Add(ctx, noInfo, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	factories.SaveServer(ctx, repos.Servers, noInfo)
 
-	clockMock.Add(time.Millisecond)
-
-	noRefresh, _ := server.New(net.ParseIP("7.7.7.7"), 10580, 10581)
+	noRefresh := server.MustNew(net.ParseIP("7.7.7.7"), 10580, 10581)
 	noRefresh.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-	repos.Servers.Add(ctx, noRefresh, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	factories.SaveServer(ctx, repos.Servers, noRefresh)
 
-	gs1, _ := server.New(net.ParseIP("1.1.1.1"), 10580, 10581)
+	gs1 := server.MustNew(net.ParseIP("1.1.1.1"), 10580, 10581)
 	gs1.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 		"hostname":      `[C=FFFFFF]Swat4[\c] [b]Server`,
 		"hostport":      "10480",
@@ -151,13 +135,11 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"suspectsscore": "76",
 		"swatwon":       "1",
 		"suspectswon":   "2",
-	}), clockMock.Now())
+	}), time.Now())
 	gs1.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-	repos.Servers.Add(ctx, gs1, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	factories.SaveServer(ctx, repos.Servers, gs1)
 
-	clockMock.Add(time.Millisecond * 5)
-
-	gs2, _ := server.New(net.ParseIP("2.2.2.2"), 10480, 10481)
+	gs2 := server.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
 	gs2.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 		"hostname":    "Another Swat4 Server",
 		"hostport":    "10480",
@@ -167,9 +149,9 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gametype":    "CO-OP",
 		"numplayers":  "4",
 		"maxplayers":  "5",
-	}), clockMock.Now())
+	}), time.Now())
 	gs2.UpdateDiscoveryStatus(ds.Master | ds.Info)
-	repos.Servers.Add(ctx, gs2, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	factories.SaveServer(ctx, repos.Servers, gs2)
 
 	respJSON := make([]serverListSchema, 0)
 	resp := testutils.DoTestRequest(
@@ -394,15 +376,9 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			clockMock := clock.NewMock()
-			repos := memory.New(clockMock)
 			ctx := context.TODO()
-			ts, cancel := testutils.PrepareTestServer(
+			ts, repos, cancel := testutils.PrepareTestServerWithRepos(
 				t,
-				fx.Decorate(func() clock.Clock { return clockMock }),
-				fx.Decorate(func() repositories.ServerRepository {
-					return repos.Servers
-				}),
 				fx.Decorate(func(cfg config.Config) config.Config {
 					cfg.BrowserServerLiveness = time.Second * 10
 					return cfg
@@ -410,7 +386,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 			)
 			defer cancel()
 
-			vip, _ := server.New(net.ParseIP("1.1.1.1"), 10580, 10581)
+			vip := server.MustNew(net.ParseIP("1.1.1.1"), 10580, 10581)
 			vip.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 				"hostname":    "VIP Escort Swat4 Server",
 				"hostport":    "10480",
@@ -421,11 +397,11 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"password":    "0",
 				"numplayers":  "16",
 				"maxplayers":  "16",
-			}), clockMock.Now())
+			}), time.Now())
 			vip.UpdateDiscoveryStatus(ds.Master | ds.Info)
-			repos.Servers.Add(ctx, vip, repositories.ServerOnConflictIgnore) // nolint: errcheck
+			factories.SaveServer(ctx, repos.Servers, vip)
 
-			vip10, _ := server.New(net.ParseIP("2.2.2.2"), 10480, 10481)
+			vip10 := server.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
 			vip10.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 				"hostname":    "VIP 1.0 Swat4 Server",
 				"hostport":    "10480",
@@ -436,11 +412,11 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"password":    "0",
 				"numplayers":  "16",
 				"maxplayers":  "18",
-			}), clockMock.Now())
+			}), time.Now())
 			vip10.UpdateDiscoveryStatus(ds.Master | ds.Info)
-			repos.Servers.Add(ctx, vip10, repositories.ServerOnConflictIgnore) // nolint: errcheck
+			factories.SaveServer(ctx, repos.Servers, vip10)
 
-			bs, _ := server.New(net.ParseIP("3.3.3.3"), 10480, 10481)
+			bs := server.MustNew(net.ParseIP("3.3.3.3"), 10480, 10481)
 			bs.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 				"hostname":    "BS Swat4 Server",
 				"hostport":    "10480",
@@ -451,11 +427,11 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"password":    "0",
 				"numplayers":  "0",
 				"maxplayers":  "16",
-			}), clockMock.Now())
+			}), time.Now())
 			bs.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-			repos.Servers.Add(ctx, bs, repositories.ServerOnConflictIgnore) // nolint: errcheck
+			factories.SaveServer(ctx, repos.Servers, bs)
 
-			coop, _ := server.New(net.ParseIP("4.4.4.4"), 10480, 10481)
+			coop := server.MustNew(net.ParseIP("4.4.4.4"), 10480, 10481)
 			coop.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 				"hostname":    "COOP Swat4 Server",
 				"hostport":    "10480",
@@ -466,11 +442,11 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"password":    "0",
 				"numplayers":  "0",
 				"maxplayers":  "5",
-			}), clockMock.Now())
+			}), time.Now())
 			coop.UpdateDiscoveryStatus(ds.Details | ds.Info)
-			repos.Servers.Add(ctx, coop, repositories.ServerOnConflictIgnore) // nolint: errcheck
+			factories.SaveServer(ctx, repos.Servers, coop)
 
-			sg, _ := server.New(net.ParseIP("5.5.5.5"), 10480, 10481)
+			sg := server.MustNew(net.ParseIP("5.5.5.5"), 10480, 10481)
 			sg.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 				"hostname":    "S&G Swat4 Server",
 				"hostport":    "10480",
@@ -481,11 +457,11 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"password":    "0",
 				"numplayers":  "0",
 				"maxplayers":  "16",
-			}), clockMock.Now())
+			}), time.Now())
 			sg.UpdateDiscoveryStatus(ds.Master | ds.Info | ds.NoDetails)
-			repos.Servers.Add(ctx, sg, repositories.ServerOnConflictIgnore) // nolint: errcheck
+			factories.SaveServer(ctx, repos.Servers, sg)
 
-			coopx, _ := server.New(net.ParseIP("6.6.6.6"), 10480, 10481)
+			coopx := server.MustNew(net.ParseIP("6.6.6.6"), 10480, 10481)
 			coopx.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 				"hostname":    "TSS COOP Swat4 Server",
 				"hostport":    "10480",
@@ -496,11 +472,11 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"password":    "0",
 				"numplayers":  "1",
 				"maxplayers":  "10",
-			}), clockMock.Now())
+			}), time.Now())
 			coopx.UpdateDiscoveryStatus(ds.Master | ds.Info)
-			repos.Servers.Add(ctx, coopx, repositories.ServerOnConflictIgnore) // nolint: errcheck
+			factories.SaveServer(ctx, repos.Servers, coopx)
 
-			passworded, _ := server.New(net.ParseIP("7.7.7.7"), 10480, 10481)
+			passworded := server.MustNew(net.ParseIP("7.7.7.7"), 10480, 10481)
 			passworded.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 				"hostname":    "Private Swat4 Server",
 				"hostport":    "10480",
@@ -511,9 +487,9 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"password":    "1",
 				"numplayers":  "0",
 				"maxplayers":  "16",
-			}), clockMock.Now())
+			}), time.Now())
 			passworded.UpdateDiscoveryStatus(ds.Details | ds.Info)
-			repos.Servers.Add(ctx, passworded, repositories.ServerOnConflictIgnore) // nolint: errcheck
+			factories.SaveServer(ctx, repos.Servers, passworded)
 
 			respJSON := make([]serverListSchema, 0)
 			uri := "/api/servers"

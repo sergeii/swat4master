@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
+	"github.com/jonboulle/clockwork"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,12 +33,12 @@ type ResponseFunc func(context.Context, *net.UDPConn, *net.UDPAddr, []byte)
 
 func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts := []fx.Option{
-		fx.Provide(func(c clock.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
+		fx.Provide(clockwork.NewRealClock),
+		fx.Provide(func(c clockwork.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
 			mem := memory.New(c)
 			return mem.Servers, mem.Instances, mem.Probes
 		}),
 		fx.Provide(validation.New),
-		fx.Provide(clock.New),
 		fx.Provide(func() *zerolog.Logger {
 			logger := zerolog.Nop()
 			return &logger
@@ -68,7 +68,7 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 func TestProbingService_Probe_UnknownGoalType(t *testing.T) {
 	var service *probing.Service
 	makeApp(t, fx.Populate(&service))
-	prb := probe.New(addr.MustNewFromString("1.1.1.1", 10480), 10481, probe.Goal(10))
+	prb := probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10481, probe.Goal(10))
 	err := service.Probe(context.TODO(), prb)
 	assert.ErrorContains(t, err, "no associated prober for goal '10'")
 }

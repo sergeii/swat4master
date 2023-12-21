@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
+	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -33,8 +33,8 @@ import (
 
 func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts := []fx.Option{
-		fx.Provide(clock.New),
-		fx.Provide(func(c clock.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
+		fx.Provide(clockwork.NewRealClock),
+		fx.Provide(func(c clockwork.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
 			mem := memory.New(c)
 			return mem.Servers, mem.Instances, mem.Probes
 		}),
@@ -55,14 +55,6 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts = append(fxopts, extra...)
 	app := fxtest.New(tb, fxopts...)
 	app.RequireStart().RequireStop()
-}
-
-func overrideClock(c clock.Clock) fx.Option {
-	return fx.Decorate(
-		func() clock.Clock {
-			return c
-		},
-	)
 }
 
 func TestReporter_DispatchAvailableRequest_OK(t *testing.T) {
@@ -171,7 +163,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsAddedAndUpdated(t *testing.T)
 	assert.NoError(t, err)
 	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
 
-	svr, err := repo.Get(ctx, addr.MustNewFromString("55.55.55.55", 10580))
+	svr, err := repo.Get(ctx, addr.MustNewFromDotted("55.55.55.55", 10580))
 	require.NoError(t, err)
 
 	info := svr.Info
@@ -194,7 +186,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsAddedAndUpdated(t *testing.T)
 		testutils.PackHeartbeatRequest(instanceID, paramsAfter),
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
 	)
-	svr, _ = repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	svr, _ = repo.Get(ctx, addr.MustNewFromDotted("1.1.1.1", 10480))
 	info = svr.Info
 	assert.Equal(t, 15, info.NumPlayers)
 	assert.Equal(t, "VIP Escort", info.GameType)
@@ -254,7 +246,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdated(t *testing.T) {
 			)
 			assert.NoError(t, err)
 
-			reportedSvr, err := repo.Get(ctx, addr.MustNewFromString("55.55.55.55", 10580))
+			reportedSvr, err := repo.Get(ctx, addr.MustNewFromDotted("55.55.55.55", 10580))
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantStatus, reportedSvr.DiscoveryStatus)
@@ -347,7 +339,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerPortIsDiscovered(t *testing.T) 
 			)
 			assert.NoError(t, err)
 
-			reportedSvr, err := serversRepo.Get(ctx, addr.MustNewFromString("55.55.55.55", 10580))
+			reportedSvr, err := serversRepo.Get(ctx, addr.MustNewFromDotted("55.55.55.55", 10580))
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantStatus, reportedSvr.DiscoveryStatus)
@@ -374,11 +366,9 @@ func TestReporter_DispatchHeartbeatRequest_HandleServerBehindNAT(t *testing.T) {
 	var repo repos.ServerRepository
 
 	ctx := context.TODO()
-	clockMock := clock.NewMock()
+	makeApp(t, fx.Populate(&service, &repo))
 
-	makeApp(t, fx.Populate(&service, &repo), overrideClock(clockMock))
-
-	before := clockMock.Now()
+	before := time.Now()
 	instanceID := []byte{0xfe, 0xed, 0xf0, 0x0d}
 	paramsBefore := testutils.GenExtraServerParams(map[string]string{
 		"gametype":   "VIP Escort",
@@ -396,7 +386,7 @@ func TestReporter_DispatchHeartbeatRequest_HandleServerBehindNAT(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
 
-	svr, _ := repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	svr, _ := repo.Get(ctx, addr.MustNewFromDotted("1.1.1.1", 10480))
 	info := svr.Info
 	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
 	assert.Equal(t, 16, info.NumPlayers)
@@ -419,7 +409,7 @@ func TestReporter_DispatchHeartbeatRequest_HandleServerBehindNAT(t *testing.T) {
 		testutils.WithCustomAddr("1.1.1.1", 37122),
 	)
 
-	svr, _ = repo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	svr, _ = repo.Get(ctx, addr.MustNewFromDotted("1.1.1.1", 10480))
 	info = svr.Info
 	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
 	assert.Equal(t, 15, info.NumPlayers)
@@ -475,7 +465,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsUpdatedWithNewInstanceID(t *t
 		testutils.PackHeartbeatRequest(newInstanceID, newParams),
 		&net.UDPAddr{IP: net.ParseIP("1.1.1.1"), Port: 10481},
 	)
-	svr, _ = serversRepo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	svr, _ = serversRepo.Get(ctx, addr.MustNewFromDotted("1.1.1.1", 10480))
 	info = svr.Info
 	assert.Equal(t, 15, info.NumPlayers)
 	assert.Equal(t, "Barricaded Suspects", info.GameType)
@@ -579,7 +569,7 @@ func TestReporter_DispatchHeartbeatRequest_OnlyIPv4IsSupported(t *testing.T) {
 		{
 			name:    "IPv6 is not supported",
 			ipaddr:  "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
-			wantErr: addr.ErrInvalidServerIP,
+			wantErr: addr.ErrInvalidIP,
 		},
 	}
 	for _, tt := range tests {
@@ -605,9 +595,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerLivenessIsRefreshed(t *testing.
 	var repo repos.ServerRepository
 
 	ctx := context.TODO()
-	clockMock := clock.NewMock()
-
-	makeApp(t, fx.Populate(&service, &repo), overrideClock(clockMock))
+	makeApp(t, fx.Populate(&service, &repo))
 
 	// initial report
 	resp, err := testutils.SendHeartbeat(
@@ -617,9 +605,7 @@ func TestReporter_DispatchHeartbeatRequest_ServerLivenessIsRefreshed(t *testing.
 	assert.NoError(t, err)
 	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
 
-	clockMock.Add(time.Millisecond)
-
-	before := clockMock.Now()
+	before := time.Now()
 	reportedSinceBefore, _ := repo.Filter(ctx, repos.NewServerFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceBefore, 0)
 
@@ -639,11 +625,9 @@ func TestReporter_DispatchHeartbeatRequest_ServerIsRemoved(t *testing.T) {
 	var repo repos.ServerRepository
 
 	ctx := context.TODO()
-	clockMock := clock.NewMock()
+	makeApp(t, fx.Populate(&service, &repo))
 
-	makeApp(t, fx.Populate(&service, &repo), overrideClock(clockMock))
-
-	before := clockMock.Now()
+	before := time.Now()
 	resp, err := testutils.SendHeartbeat(
 		service, []byte{0xfe, 0xed, 0xf0, 0x0d},
 		testutils.GenServerParams, testutils.StandardAddr,
@@ -737,11 +721,9 @@ func TestReporter_DispatchHeartbeatRequest_ServerRemovalIsValidated(t *testing.T
 			var repo repos.ServerRepository
 
 			ctx := context.TODO()
-			clockMock := clock.NewMock()
+			makeApp(t, fx.Populate(&service, &metrics, &repo))
 
-			makeApp(t, fx.Populate(&service, &metrics, &repo), overrideClock(clockMock))
-
-			before := clockMock.Now()
+			before := time.Now()
 
 			// initial report
 			_, _, err := service.DispatchRequest(
@@ -778,10 +760,9 @@ func TestReporter_DispatchKeepaliveRequest_RefreshesServerLiveness(t *testing.T)
 	var repo repos.ServerRepository
 
 	ctx := context.TODO()
-	clockMock := clock.NewMock()
-	makeApp(t, fx.Populate(&service, &repo), overrideClock(clockMock))
+	makeApp(t, fx.Populate(&service, &repo))
 
-	before := clockMock.Now()
+	before := time.Now()
 	// initial report
 	_, _, err := service.DispatchRequest(
 		context.TODO(),
@@ -792,9 +773,7 @@ func TestReporter_DispatchKeepaliveRequest_RefreshesServerLiveness(t *testing.T)
 	reportedSinceBefore, _ := repo.Filter(ctx, repos.NewServerFilterSet().ActiveAfter(before).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceBefore, 1)
 
-	clockMock.Add(time.Millisecond)
-
-	after := clockMock.Now()
+	after := time.Now()
 	reportedSinceAfter, _ := repo.Filter(ctx, repos.NewServerFilterSet().ActiveAfter(after).WithStatus(ds.Master))
 	assert.Len(t, reportedSinceAfter, 0)
 
@@ -861,9 +840,7 @@ func TestReporter_DispatchKeepaliveRequest_Errors(t *testing.T) {
 			var repo repos.ServerRepository
 
 			ctx := context.TODO()
-			clockMock := clock.NewMock()
-
-			makeApp(t, fx.Populate(&service, &repo), overrideClock(clockMock))
+			makeApp(t, fx.Populate(&service, &repo))
 
 			// initial heartbeat report
 			service.DispatchRequest( // nolint: errcheck
@@ -872,10 +849,8 @@ func TestReporter_DispatchKeepaliveRequest_Errors(t *testing.T) {
 				&net.UDPAddr{IP: net.ParseIP(reportedServerIP), Port: 10481},
 			)
 
-			clockMock.Add(time.Millisecond)
-
 			// keepalive request in a while
-			since := clockMock.Now()
+			since := time.Now()
 			_, _, err := service.DispatchRequest(
 				context.TODO(),
 				tt.payload,

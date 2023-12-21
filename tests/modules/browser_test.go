@@ -1,4 +1,4 @@
-package browser_test
+package modules_test
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -28,8 +27,6 @@ func TestBrowser_Run(t *testing.T) {
 
 	var repo repositories.ServerRepository
 
-	clockMock := clock.NewMock()
-
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
@@ -42,18 +39,18 @@ func TestBrowser_Run(t *testing.T) {
 				BrowserClientTimeout:  time.Millisecond * 100,
 			}
 		}),
-		fx.Decorate(func() clock.Clock { return clockMock }),
 		browser.Module,
 		fx.NopLogger,
 		fx.Invoke(func(*browser.Browser) {}),
 		fx.Populate(&repo),
 	)
+
 	app.Start(context.TODO()) // nolint: errcheck
 	defer func() {
 		app.Stop(context.TODO()) // nolint: errcheck
 	}()
 
-	gs1, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	gs1 := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 	gs1.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 		"hostname":    "Swat4 Server",
 		"hostport":    "10480",
@@ -61,11 +58,11 @@ func TestBrowser_Run(t *testing.T) {
 		"gamever":     "1.1",
 		"gamevariant": "SWAT 4",
 		"gametype":    "VIP Escort",
-	}), clockMock.Now())
+	}), time.Now())
 	gs1.UpdateDiscoveryStatus(ds.Master)
 	repo.Add(ctx, gs1, repositories.ServerOnConflictIgnore) // nolint: errcheck
 
-	gs2, _ := server.New(net.ParseIP("2.2.2.2"), 10480, 10481)
+	gs2 := server.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
 	gs2.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 		"hostname":    "Another Swat4 Server",
 		"hostport":    "10480",
@@ -73,7 +70,7 @@ func TestBrowser_Run(t *testing.T) {
 		"gamever":     "1.0",
 		"gamevariant": "SWAT 4",
 		"gametype":    "Barricaded Suspects",
-	}), clockMock.Now())
+	}), time.Now())
 	gs2.UpdateDiscoveryStatus(ds.Details)
 	repo.Add(ctx, gs2, repositories.ServerOnConflictIgnore) // nolint: errcheck
 

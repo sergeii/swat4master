@@ -2,10 +2,16 @@ package repositories
 
 import (
 	"context"
+	"errors"
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
+)
+
+var (
+	ErrServerNotFound = errors.New("the requested server was not found")
+	ErrServerExists   = errors.New("server already exists")
 )
 
 func ServerOnConflictIgnore(_ *server.Server) bool {

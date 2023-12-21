@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
+	"github.com/jonboulle/clockwork"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
@@ -23,7 +23,8 @@ import (
 
 func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts := []fx.Option{
-		fx.Provide(func(c clock.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
+		fx.Provide(clockwork.NewRealClock),
+		fx.Provide(func(c clockwork.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
 			mem := memory.New(c)
 			return mem.Servers, mem.Instances, mem.Probes
 		}),
@@ -42,23 +43,14 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	app.RequireStart().RequireStop()
 }
 
-func provideClock(c clock.Clock) fx.Option {
-	return fx.Provide(
-		func() clock.Clock {
-			return c
-		},
-	)
-}
-
 func TestCleaningService_Clean(t *testing.T) {
 	var service *cleaning.Service
 	var serversRepo repos.ServerRepository
 	var instancesRepo repos.InstanceRepository
 
 	ctx := context.TODO()
-	clockMock := clock.NewMock()
 
-	makeApp(t, fx.Populate(&service, &serversRepo, &instancesRepo), provideClock(clockMock))
+	makeApp(t, fx.Populate(&service, &serversRepo, &instancesRepo))
 
 	instance1 := instance.MustNew("foo", net.ParseIP("1.1.1.1"), 10480)
 	instance3 := instance.MustNew("bar", net.ParseIP("3.3.3.3"), 10480)
@@ -73,23 +65,17 @@ func TestCleaningService_Clean(t *testing.T) {
 	server3 := server.MustNew(net.ParseIP("3.3.3.3"), 10480, 10481)
 	server4 := server.MustNew(net.ParseIP("4.4.4.4"), 10480, 10481)
 
-	beforeAll := clockMock.Now()
+	beforeAll := time.Now()
 
 	serversRepo.Add(ctx, server1, repos.ServerOnConflictIgnore) // nolint: errcheck
-	clockMock.Add(time.Microsecond)
 
-	before2 := clockMock.Now()
+	before2 := time.Now()
 
 	serversRepo.Add(ctx, server2, repos.ServerOnConflictIgnore) // nolint: errcheck
-	clockMock.Add(time.Microsecond)
-
 	serversRepo.Add(ctx, server3, repos.ServerOnConflictIgnore) // nolint: errcheck
-	clockMock.Add(time.Microsecond)
-
 	serversRepo.Add(ctx, server4, repos.ServerOnConflictIgnore) // nolint: errcheck
-	clockMock.Add(time.Microsecond)
 
-	afterAll := clockMock.Now()
+	afterAll := time.Now()
 
 	svrCount, _ := serversRepo.Count(ctx)
 	insCount, _ := instancesRepo.Count(ctx)
@@ -110,12 +96,11 @@ func TestCleaningService_Clean(t *testing.T) {
 	assert.Equal(t, 3, svrCount)
 	insCount, _ = instancesRepo.Count(ctx)
 	assert.Equal(t, 2, insCount)
-	_, getSvrErr := serversRepo.Get(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	_, getSvrErr := serversRepo.Get(ctx, addr.MustNewFromDotted("1.1.1.1", 10480))
 	assert.ErrorIs(t, getSvrErr, repos.ErrServerNotFound)
 	_, getInsErr := instancesRepo.GetByID(ctx, "foo")
 	assert.ErrorIs(t, getInsErr, repos.ErrInstanceNotFound)
 
-	clockMock.Add(time.Microsecond)
 	serversRepo.Update(ctx, server3, repos.ServerOnConflictIgnore) // nolint: errcheck
 
 	err = service.Clean(context.TODO(), afterAll)
@@ -124,14 +109,12 @@ func TestCleaningService_Clean(t *testing.T) {
 	assert.Equal(t, 1, svrCount)
 	insCount, _ = instancesRepo.Count(ctx)
 	assert.Equal(t, 1, insCount)
-	_, getSvrErr = serversRepo.Get(ctx, addr.MustNewFromString("3.3.3.3", 10480))
+	_, getSvrErr = serversRepo.Get(ctx, addr.MustNewFromDotted("3.3.3.3", 10480))
 	assert.NoError(t, getSvrErr)
 	_, getInsErr = instancesRepo.GetByID(ctx, "bar")
 	assert.NoError(t, getInsErr)
 
-	clockMock.Add(time.Microsecond)
-
-	err = service.Clean(context.TODO(), clockMock.Now())
+	err = service.Clean(context.TODO(), time.Now())
 	assert.NoError(t, err)
 	svrCount, _ = serversRepo.Count(ctx)
 	assert.Equal(t, 0, svrCount)
@@ -141,8 +124,7 @@ func TestCleaningService_Clean(t *testing.T) {
 
 func TestCleaningService_Clean_EmptyNoError(t *testing.T) {
 	var service *cleaning.Service
-	clockMock := clock.NewMock()
-	makeApp(t, fx.Populate(&service), provideClock(clockMock))
-	err := service.Clean(context.TODO(), clockMock.Now())
+	makeApp(t, fx.Populate(&service))
+	err := service.Clean(context.TODO(), time.Now())
 	assert.NoError(t, err)
 }

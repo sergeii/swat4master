@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -26,8 +26,8 @@ import (
 
 func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts := []fx.Option{
-		fx.Provide(clock.New),
-		fx.Provide(func(c clock.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
+		fx.Provide(clockwork.NewRealClock),
+		fx.Provide(func(c clockwork.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
 			mem := memory.New(c)
 			return mem.Servers, mem.Instances, mem.Probes
 		}),
@@ -41,104 +41,12 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	app.RequireStart().RequireStop()
 }
 
-func overrideClock(c clock.Clock) fx.Option {
+func overrideClock(c clockwork.Clock) fx.Option {
 	return fx.Decorate(
-		func() clock.Clock {
+		func() clockwork.Clock {
 			return c
 		},
 	)
-}
-
-func TestServerService_Create_OK(t *testing.T) {
-	ctx := context.TODO()
-
-	var repo repos.ServerRepository
-	var service *ss.Service
-	makeApp(t, fx.Populate(&repo, &service))
-
-	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	svr, err := service.Create(ctx, svr, func(s *server.Server) bool {
-		return false
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
-	assert.Equal(t, 10480, svr.Addr.Port)
-	assert.Equal(t, 10481, svr.QueryPort)
-	assert.Equal(t, 0, svr.Version)
-}
-
-func TestServerService_Create_IgnoreConflict(t *testing.T) {
-	ctx := context.TODO()
-
-	var repo repos.ServerRepository
-	var service *ss.Service
-	makeApp(t, fx.Populate(&repo, &service))
-
-	inserted := make(chan struct{})
-	ignored := make(chan struct{})
-	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-
-	go func(s server.Server) {
-		<-inserted
-		_, err := service.Create(ctx, s, func(s *server.Server) bool {
-			return false
-		})
-		require.ErrorIs(t, err, repos.ErrServerExists)
-		close(ignored)
-	}(svr)
-
-	svr, err := service.Create(ctx, svr, func(s *server.Server) bool {
-		return false
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
-	assert.Equal(t, 0, svr.Version)
-	close(inserted)
-
-	<-ignored
-	svr, err = repo.Get(ctx, svr.Addr)
-	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
-	assert.Equal(t, 0, svr.Version)
-}
-
-func TestServerService_Create_ResolveConflict(t *testing.T) {
-	ctx := context.TODO()
-
-	var repo repos.ServerRepository
-	var service *ss.Service
-	makeApp(t, fx.Populate(&repo, &service))
-
-	inserted := make(chan struct{})
-	resolved := make(chan struct{})
-	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-
-	go func(s server.Server) {
-		<-inserted
-		svr, err := service.Create(ctx, s, func(s *server.Server) bool {
-			s.UpdateDiscoveryStatus(ds.Master)
-			return true
-		})
-		require.NoError(t, err)
-		assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
-		assert.Equal(t, 1, svr.Version)
-		close(resolved)
-	}(svr)
-
-	svr, err := service.Create(ctx, svr, func(s *server.Server) bool {
-		return false
-	})
-	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
-	assert.Equal(t, 0, svr.Version)
-	close(inserted)
-
-	<-resolved
-	svr, err = repo.Get(ctx, svr.Addr)
-	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
-	assert.Equal(t, 1, svr.Version)
-	assert.True(t, svr.HasDiscoveryStatus(ds.Master))
 }
 
 func TestServerService_Update_OK(t *testing.T) {
@@ -324,23 +232,6 @@ func TestServerService_CreateOrUpdate_Race(t *testing.T) {
 	assert.Equal(t, 4, svr.Version)
 }
 
-func TestServerService_Get(t *testing.T) {
-	ctx := context.TODO()
-
-	var repo repos.ServerRepository
-	var service *ss.Service
-	makeApp(t, fx.Populate(&repo, &service))
-
-	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	repo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
-
-	svr, err := service.Get(ctx, svr.Addr)
-	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
-	assert.Equal(t, 10480, svr.Addr.Port)
-	assert.Equal(t, 10481, svr.QueryPort)
-}
-
 func TestServerService_FilterRecent(t *testing.T) {
 	tests := []struct {
 		recentness  time.Duration
@@ -411,11 +302,10 @@ func TestServerService_FilterRecent(t *testing.T) {
 			var service *ss.Service
 
 			ctx := context.TODO()
-			clockMock := clock.NewMock()
+			c := clockwork.NewFakeClock()
+			makeApp(t, fx.Populate(&repo, &service), overrideClock(c))
 
-			makeApp(t, fx.Populate(&repo, &service), overrideClock(clockMock))
-
-			svr1, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+			svr1 := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 			svr1.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 				"hostname":    "Swat4 Server",
 				"hostport":    "10480",
@@ -423,13 +313,13 @@ func TestServerService_FilterRecent(t *testing.T) {
 				"gamever":     "1.1",
 				"gamevariant": "SWAT 4",
 				"gametype":    "VIP Escort",
-			}), clockMock.Now())
+			}), c.Now())
 			svr1.UpdateDiscoveryStatus(ds.Master | ds.Info)
 			svr1, _ = repo.Add(ctx, svr1, repos.ServerOnConflictIgnore)
 
-			clockMock.Add(time.Millisecond * 10)
+			c.Advance(time.Millisecond * 10)
 
-			svr2, _ := server.New(net.ParseIP("2.2.2.2"), 10480, 10481)
+			svr2 := server.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
 			svr2.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 				"hostname":    "Another Swat4 Server",
 				"hostport":    "10480",
@@ -439,13 +329,13 @@ func TestServerService_FilterRecent(t *testing.T) {
 				"gametype":    "Barricaded Suspects",
 				"numplayers":  "12",
 				"maxplayers":  "16",
-			}), clockMock.Now())
+			}), c.Now())
 			svr2.UpdateDiscoveryStatus(ds.Details | ds.Info)
 			svr2, _ = repo.Add(ctx, svr2, repos.ServerOnConflictIgnore)
 
-			clockMock.Add(time.Millisecond * 10)
+			c.Advance(time.Millisecond * 10)
 
-			svr3, _ := server.New(net.ParseIP("3.3.3.3"), 10480, 10481)
+			svr3 := server.MustNew(net.ParseIP("3.3.3.3"), 10480, 10481)
 			svr3.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 				"hostname":    "Awesome Swat4 Server",
 				"hostport":    "10480",
@@ -455,11 +345,11 @@ func TestServerService_FilterRecent(t *testing.T) {
 				"gametype":    "Smash And Grab",
 				"numplayers":  "1",
 				"maxplayers":  "10",
-			}), clockMock.Now())
+			}), c.Now())
 			svr3.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
 			svr3, _ = repo.Add(ctx, svr3, repos.ServerOnConflictIgnore)
 
-			svr4, _ := server.New(net.ParseIP("4.4.4.4"), 10480, 10481)
+			svr4 := server.MustNew(net.ParseIP("4.4.4.4"), 10480, 10481)
 			svr4.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 				"hostname":    "Other Server",
 				"hostport":    "10480",
@@ -469,11 +359,11 @@ func TestServerService_FilterRecent(t *testing.T) {
 				"gametype":    "VIP Escort",
 				"numplayers":  "14",
 				"maxplayers":  "16",
-			}), clockMock.Now())
+			}), c.Now())
 			svr4.UpdateDiscoveryStatus(ds.Master)
 			svr4, _ = repo.Add(ctx, svr4, repos.ServerOnConflictIgnore)
 
-			clockMock.Add(time.Millisecond * 10)
+			c.Advance(time.Millisecond * 10)
 
 			filtered, err := service.FilterRecent(ctx, tt.recentness, tt.q, tt.status)
 			require.NoError(t, err)

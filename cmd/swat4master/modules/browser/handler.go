@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 )
 
 func (h *Handler) Handle(ctx context.Context, conn *net.TCPConn) {
 	defer conn.Close()
-	reqStarted := h.clock.Now()
+	reqStarted := time.Now()
 
 	buf := make([]byte, 2048)
 	n, err := conn.Read(buf)
@@ -52,5 +53,5 @@ func (h *Handler) Handle(ctx context.Context, conn *net.TCPConn) {
 		}
 	}
 	h.metrics.BrowserRequests.Inc()
-	h.metrics.BrowserDurations.Observe(h.clock.Since(reqStarted).Seconds())
+	h.metrics.BrowserDurations.Observe(time.Since(reqStarted).Seconds())
 }

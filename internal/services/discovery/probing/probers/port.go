@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/go-playground/validator/v10"
+	"github.com/jonboulle/clockwork"
 	"github.com/rs/zerolog"
 
 	"github.com/sergeii/swat4master/internal/core/entities/details"
@@ -46,7 +46,7 @@ type PortProberOpts struct {
 type PortProber struct {
 	metrics  *monitoring.MetricService
 	validate *validator.Validate
-	clock    clock.Clock
+	clock    clockwork.Clock
 	logger   *zerolog.Logger
 	opts     PortProberOpts
 }
@@ -55,7 +55,7 @@ func NewPortProber(
 	service *probing.Service,
 	metrics *monitoring.MetricService,
 	validate *validator.Validate,
-	clock clock.Clock,
+	clock clockwork.Clock,
 	logger *zerolog.Logger,
 	opts PortProberOpts,
 ) (*PortProber, error) {
@@ -147,7 +147,7 @@ func (s *PortProber) probePort(
 	timeout time.Duration,
 ) {
 	defer wg.Done()
-	queryStarted := s.clock.Now()
+	queryStarted := time.Now()
 
 	resp, err := gs1.Query(ctx, netip.AddrPortFrom(ip, uint16(queryPort)), timeout)
 	if err != nil {
@@ -174,7 +174,7 @@ func (s *PortProber) probePort(
 		return
 	}
 
-	queryDur := s.clock.Since(queryStarted).Seconds()
+	queryDur := time.Since(queryStarted).Seconds()
 	s.metrics.DiscoveryQueryDurations.Observe(queryDur)
 	s.logger.Debug().
 		Stringer("ip", ip).Int("port", queryPort).
@@ -193,7 +193,7 @@ func (s *PortProber) collectResponses(
 	// this timeout should never trigger
 	// because we expect query goroutines to stop within configured probe timeout
 	// but in case of unexpected goroutine hangup, add this emergency timeout
-	exitTimeout := s.clock.After(timeout * 2)
+	exitTimeout := time.After(timeout * 2)
 	ok := false
 	for {
 		select {

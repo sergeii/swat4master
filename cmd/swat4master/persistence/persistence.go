@@ -1,7 +1,7 @@
 package persistence
 
 import (
-	"github.com/benbjohnson/clock"
+	"github.com/jonboulle/clockwork"
 	"go.uber.org/fx"
 
 	"github.com/sergeii/swat4master/internal/core/repositories"
@@ -16,8 +16,8 @@ type Repositories struct {
 	Probes    repositories.ProbeRepository
 }
 
-func Provide(c clock.Clock) Repositories {
-	repos := memory.New(c)
+func Provide(clock clockwork.Clock) Repositories {
+	repos := memory.New(clock)
 
 	return Repositories{
 		Servers:   repos.Servers,

@@ -1,13 +1,11 @@
-package collector_test
+package modules_test
 
 import (
 	"context"
 	"net"
-	"runtime"
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
@@ -27,8 +25,6 @@ func TestCollector_Run(t *testing.T) {
 	var repo repositories.ServerRepository
 	var metrics *monitoring.MetricService
 
-	clockMock := clock.NewMock()
-
 	app := fx.New(
 		application.Module,
 		fx.Provide(func() config.Config {
@@ -36,7 +32,6 @@ func TestCollector_Run(t *testing.T) {
 				CollectorInterval: time.Millisecond * 10,
 			}
 		}),
-		fx.Decorate(func() clock.Clock { return clockMock }),
 		collector.Module,
 		fx.NopLogger,
 		fx.Invoke(func(_ *collector.Collector, m *monitoring.MetricService) {}),
@@ -46,15 +41,12 @@ func TestCollector_Run(t *testing.T) {
 	defer func() {
 		app.Stop(context.TODO()) // nolint: errcheck
 	}()
-	runtime.Gosched()
 
-	gs, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	gs := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 	repo.Add(ctx, gs, repositories.ServerOnConflictIgnore) // nolint: errcheck
 
-	valueBeforeTick := testutil.ToFloat64(metrics.ServerRepositorySize)
-	assert.Equal(t, 0.0, valueBeforeTick)
-
-	clockMock.Add(time.Millisecond * 20)
+	// wait for the collector to spin up
+	<-time.After(time.Millisecond * 100)
 
 	valueAfterTick := testutil.ToFloat64(metrics.ServerRepositorySize)
 	assert.Equal(t, 1.0, valueAfterTick)

@@ -30,7 +30,8 @@ type Config struct {
 
 	ExporterListenAddr string
 
-	DiscoveryRefreshInterval  time.Duration
+	DiscoveryRefreshInterval time.Duration
+
 	DiscoveryRevivalInterval  time.Duration
 	DiscoveryRevivalScope     time.Duration
 	DiscoveryRevivalCountdown time.Duration

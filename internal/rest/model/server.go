@@ -43,7 +43,7 @@ type Server struct {
 	WeaponsSecured string `json:"coop_weapons"` // 17/19
 }
 
-func NewServerFromRepo(s server.Server) Server {
+func NewServerFromDomain(s server.Server) Server {
 	hostname := s.Info.Hostname
 	return Server{
 		Address:        s.Addr.String(),
@@ -101,7 +101,7 @@ type ServerPlayer struct {
 	CaseSecured     uint8  `json:"sg_crybaby"` // yes or no
 }
 
-func NewServerPlayerFromRepo(player details.Player) ServerPlayer {
+func NewServerPlayerFromDomain(player details.Player) ServerPlayer {
 	coopStatus := player.CoopStatus.String()
 	return ServerPlayer{
 		Name:            player.Name,
@@ -135,7 +135,7 @@ type ServerObjective struct {
 	StatusSlug string `json:"status_slug"`
 }
 
-func NewServerObjectiveFromRepo(obj details.Objective) ServerObjective {
+func NewServerObjectiveFromDomain(obj details.Objective) ServerObjective {
 	status := obj.Status.String()
 	return ServerObjective{
 		Name:       obj.Name,
@@ -150,26 +150,26 @@ type ServerDetail struct {
 	Objectives []ServerObjective `json:"objectives"`
 }
 
-func NewServerDetailFromRepo(svr server.Server) ServerDetail {
+func NewServerDetailFromDomain(svr server.Server) ServerDetail {
 	var objectives []ServerObjective
 	var players []ServerPlayer
 
 	if len(svr.Details.Players) > 0 {
 		players = make([]ServerPlayer, 0, len(svr.Details.Players))
 		for _, player := range svr.Details.Players {
-			players = append(players, NewServerPlayerFromRepo(player))
+			players = append(players, NewServerPlayerFromDomain(player))
 		}
 	}
 
 	if len(svr.Details.Objectives) > 0 {
 		objectives = make([]ServerObjective, 0, len(svr.Details.Objectives))
 		for _, obj := range svr.Details.Objectives {
-			objectives = append(objectives, NewServerObjectiveFromRepo(obj))
+			objectives = append(objectives, NewServerObjectiveFromDomain(obj))
 		}
 	}
 
 	return ServerDetail{
-		Info:       NewServerFromRepo(svr),
+		Info:       NewServerFromDomain(svr),
 		Players:    players,
 		Objectives: objectives,
 	}

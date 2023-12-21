@@ -1,4 +1,4 @@
-package cleaner_test
+package modules_test
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
@@ -23,17 +22,14 @@ func TestCleaner_Run(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
-	clockMock := clock.NewMock()
-
 	app := fx.New(
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
-				CleanRetention: time.Millisecond * 50,
-				CleanInterval:  time.Millisecond * 100,
+				CleanRetention: time.Millisecond * 200,
+				CleanInterval:  time.Millisecond * 10,
 			}
 		}),
-		fx.Decorate(func() clock.Clock { return clockMock }),
 		cleaner.Module,
 		fx.NopLogger,
 		fx.Invoke(func(*cleaner.Cleaner) {}),
@@ -44,23 +40,23 @@ func TestCleaner_Run(t *testing.T) {
 		app.Stop(context.TODO()) // nolint: errcheck
 	}()
 
-	gs1, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	gs1.Refresh(clockMock.Now())
-	repo.Add(ctx, gs1, nil) // nolint: errcheck
-	gs2, _ := server.New(net.ParseIP("2.2.2.2"), 10480, 10481)
-	gs2.Refresh(clockMock.Now())
+	gs1 := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
+	gs2 := server.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
+	gs3 := server.MustNew(net.ParseIP("3.3.3.3"), 10480, 10481)
+
+	repo.Add(ctx, gs1, nil)                                 // nolint: errcheck
 	repo.Add(ctx, gs2, repositories.ServerOnConflictIgnore) // nolint: errcheck
-
-	cnt, _ := repo.Count(ctx)
-	assert.Equal(t, 2, cnt)
-
-	clockMock.Add(time.Millisecond * 75)
-
-	gs3, _ := server.New(net.ParseIP("3.3.3.3"), 10480, 10481)
-	gs3.Refresh(clockMock.Now())
 	repo.Add(ctx, gs3, repositories.ServerOnConflictIgnore) // nolint: errcheck
 
-	clockMock.Add(time.Millisecond * 30)
+	// wait for cleaner to run some cycles
+	<-time.After(time.Millisecond * 100)
+
+	// refresh server 1 to prevent it from being cleaned
+	gs1.Refresh(time.Now())
+	repo.Update(ctx, gs1, repositories.ServerOnConflictIgnore) // nolint: errcheck
+
+	// wait for cleaner to clean servers 2 and 3
+	<-time.After(time.Millisecond * 150)
 
 	cnt, err := repo.Count(ctx)
 	assert.NoError(t, err)

@@ -5,9 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/benbjohnson/clock"
+	"github.com/jonboulle/clockwork"
 
-	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
@@ -16,25 +15,17 @@ import (
 
 type Service struct {
 	servers repositories.ServerRepository
-	clock   clock.Clock
+	clock   clockwork.Clock
 }
 
 func NewService(
 	repo repositories.ServerRepository,
-	clock clock.Clock,
+	clock clockwork.Clock,
 ) *Service {
 	return &Service{
 		servers: repo,
 		clock:   clock,
 	}
-}
-
-func (s *Service) Create(
-	ctx context.Context,
-	svr server.Server,
-	onConflict func(*server.Server) bool,
-) (server.Server, error) {
-	return s.servers.Add(ctx, svr, onConflict)
 }
 
 func (s *Service) Update(
@@ -64,10 +55,6 @@ func (s *Service) CreateOrUpdate(
 		}
 	}
 	return s.servers.Update(ctx, svr, repoOnConflict)
-}
-
-func (s *Service) Get(ctx context.Context, address addr.Addr) (server.Server, error) {
-	return s.servers.Get(ctx, address)
 }
 
 func (s *Service) FilterRecent(

@@ -2,8 +2,8 @@ package prober
 
 import (
 	"context"
+	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
@@ -21,14 +21,12 @@ func provideWorkerGroup(
 	cfg config.Config,
 	service *probing.Service,
 	metrics *monitoring.MetricService,
-	clock clock.Clock,
 	logger *zerolog.Logger,
 ) *WorkerGroup {
 	return NewWorkerGroup(
 		cfg.ProbeConcurrency,
 		service,
 		metrics,
-		clock,
 		logger,
 	)
 }
@@ -37,12 +35,11 @@ func Run(
 	stop chan struct{},
 	stopped chan struct{},
 	logger *zerolog.Logger,
-	clock clock.Clock,
 	queue *ps.Service,
 	wg *WorkerGroup,
 	cfg config.Config,
 ) {
-	ticker := clock.Ticker(cfg.ProbePollSchedule)
+	ticker := time.NewTicker(cfg.ProbePollSchedule)
 	defer ticker.Stop()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -79,7 +76,6 @@ type Params struct {
 func NewProber(
 	lc fx.Lifecycle,
 	cfg config.Config,
-	clock clock.Clock,
 	queue *ps.Service,
 	wg *WorkerGroup,
 	logger *zerolog.Logger,
@@ -90,7 +86,7 @@ func NewProber(
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			go Run(stop, stopped, logger, clock, queue, wg, cfg) // nolint: contextcheck
+			go Run(stop, stopped, logger, queue, wg, cfg) // nolint: contextcheck
 			return nil
 		},
 		OnStop: func(context.Context) error {

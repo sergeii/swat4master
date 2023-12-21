@@ -23,13 +23,21 @@ func New(filters []filter.Filter) (Query, error) {
 	return Query{filters}, nil
 }
 
+func MustNew(filters []filter.Filter) Query {
+	q, err := New(filters)
+	if err != nil {
+		panic(err)
+	}
+	return q
+}
+
 func NewFromString(query string) (Query, error) {
 	var rawFilter string
 	unscanned := query
 	filters := make([]filter.Filter, 0)
 	for len(unscanned) > 0 {
 		rawFilter, unscanned = scanFilter(unscanned)
-		parsed, err := filter.ParseFilter(rawFilter)
+		parsed, err := filter.Parse(rawFilter)
 		if err != nil {
 			return Blank, fmt.Errorf("invalid filter value %s (%w)", rawFilter, err)
 		}

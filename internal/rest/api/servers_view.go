@@ -3,14 +3,11 @@ package api
 import (
 	"errors"
 	"net/http"
-	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
-	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
-	"github.com/sergeii/swat4master/internal/core/repositories"
+	"github.com/sergeii/swat4master/internal/core/usecases/getserver"
 	"github.com/sergeii/swat4master/internal/rest/model"
 )
 
@@ -22,55 +19,28 @@ import (
 // @Success      200 {object} model.ServerDetail
 // @Router       /servers/:address [get]
 func (a *API) ViewServer(c *gin.Context) {
-	address, ok := parseViewServerAddress(c.Param("address"))
-	if !ok {
+	address, err := addr.NewFromString(c.Param("address"))
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid server address"})
 		return
 	}
 
-	svr, err := a.app.ServerService.Get(c, address)
+	svr, err := a.container.GetServer.Execute(c, address)
 	if err != nil {
 		switch {
-		case errors.Is(err, repositories.ErrServerNotFound):
+		case errors.Is(err, getserver.ErrServerNotFound):
 			a.logger.Debug().
 				Stringer("addr", address).
 				Msg("Requested server not found")
 			c.Status(http.StatusNotFound)
-		default:
-			a.logger.Warn().
-				Err(err).Stringer("addr", address).
-				Msg("Unable to obtain server due to error")
-			c.Status(http.StatusInternalServerError)
+		case errors.Is(err, getserver.ErrServerHasNoDetails):
+			a.logger.Debug().
+				Stringer("addr", address).
+				Msg("Requested server has no details")
+			c.Status(http.StatusNoContent)
 		}
 		return
 	}
 
-	if !svr.HasDiscoveryStatus(ds.Details) {
-		a.logger.Debug().
-			Stringer("addr", address).Stringer("status", svr.DiscoveryStatus).
-			Msg("Requested server has no details")
-		c.Status(http.StatusNoContent)
-		return
-	}
-
-	c.JSON(http.StatusOK, model.NewServerDetailFromRepo(svr))
-}
-
-func parseViewServerAddress(maybeAddress string) (addr.Addr, bool) {
-	maybeIP, maybePort, ok := strings.Cut(maybeAddress, ":")
-	if !ok || maybeIP == "" || maybePort == "" {
-		return addr.Blank, false
-	}
-
-	maybePortNumber, err := strconv.Atoi(maybePort)
-	if err != nil {
-		return addr.Blank, false
-	}
-
-	address, err := addr.NewFromString(maybeIP, maybePortNumber)
-	if err != nil {
-		return addr.Blank, false
-	}
-
-	return address, true
+	c.JSON(http.StatusOK, model.NewServerDetailFromDomain(svr))
 }

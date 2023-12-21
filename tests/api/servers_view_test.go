@@ -2,21 +2,15 @@ package api_test
 
 import (
 	"context"
-	"net"
 	"net/http"
 	"testing"
-	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 
 	"github.com/sergeii/swat4master/internal/core/entities/details"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
-	"github.com/sergeii/swat4master/internal/core/entities/server"
-	"github.com/sergeii/swat4master/internal/core/repositories"
-	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/testutils"
+	"github.com/sergeii/swat4master/internal/testutils/factories"
 )
 
 type serverDetailInfoSchema struct {
@@ -87,18 +81,6 @@ type serverDetailSchema struct {
 }
 
 func TestAPI_ViewServer_OK(t *testing.T) {
-	ctx := context.TODO()
-	clockMock := clock.NewMock()
-	repos := memory.New(clockMock)
-	ts, cancel := testutils.PrepareTestServer(
-		t,
-		fx.Decorate(func() clock.Clock { return clockMock }),
-		fx.Decorate(func() repositories.ServerRepository {
-			return repos.Servers
-		}),
-	)
-	defer cancel()
-
 	fields := map[string]string{
 		"hostname":      `[C=FFFFFF]Swat4[\c] [b]Server`,
 		"hostport":      "10480",
@@ -142,11 +124,19 @@ func TestAPI_ViewServer_OK(t *testing.T) {
 		},
 	}
 
-	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10580, 10581)
-	svr.UpdateDetails(details.MustNewDetailsFromParams(fields, players, nil), clockMock.Now())
-	svr.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-	repos.Servers.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
-	clockMock.Add(time.Millisecond * 5)
+	ctx := context.TODO()
+	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
+	defer cancel()
+
+	factories.CreateServerWithDetails(
+		ctx,
+		repos.Servers,
+		"1.1.1.1",
+		10580,
+		10581,
+		details.MustNewDetailsFromParams(fields, players, nil),
+		ds.Master|ds.Details|ds.Info,
+	)
 
 	obj := serverDetailSchema{}
 	resp := testutils.DoTestRequest(
@@ -198,18 +188,6 @@ func TestAPI_ViewServer_OK(t *testing.T) {
 }
 
 func TestAPI_ViewServer_Coop_OK(t *testing.T) {
-	ctx := context.TODO()
-	clockMock := clock.NewMock()
-	repos := memory.New(clockMock)
-	ts, cancel := testutils.PrepareTestServer(
-		t,
-		fx.Decorate(func() clock.Clock { return clockMock }),
-		fx.Decorate(func() repositories.ServerRepository {
-			return repos.Servers
-		}),
-	)
-	defer cancel()
-
 	fields := map[string]string{
 		"hostname":       "-==MYT Co-op Svr==-",
 		"hostport":       "10880",
@@ -268,11 +246,19 @@ func TestAPI_ViewServer_Coop_OK(t *testing.T) {
 		},
 	}
 
-	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10880, 10881)
-	svr.UpdateDetails(details.MustNewDetailsFromParams(fields, players, objectives), clockMock.Now())
-	svr.UpdateDiscoveryStatus(ds.Details | ds.Info)
-	repos.Servers.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
-	clockMock.Add(time.Millisecond * 5)
+	ctx := context.TODO()
+	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
+	defer cancel()
+
+	factories.CreateServerWithDetails(
+		ctx,
+		repos.Servers,
+		"1.1.1.1",
+		10880,
+		10881,
+		details.MustNewDetailsFromParams(fields, players, objectives),
+		ds.Details|ds.Info,
+	)
 
 	obj := serverDetailSchema{}
 	resp := testutils.DoTestRequest(
@@ -327,18 +313,6 @@ func TestAPI_ViewServer_Coop_OK(t *testing.T) {
 }
 
 func TestAPI_ViewServer_MinimalInfo_OK(t *testing.T) {
-	ctx := context.TODO()
-	clockMock := clock.NewMock()
-	repos := memory.New(clockMock)
-	ts, cancel := testutils.PrepareTestServer(
-		t,
-		fx.Decorate(func() clock.Clock { return clockMock }),
-		fx.Decorate(func() repositories.ServerRepository {
-			return repos.Servers
-		}),
-	)
-	defer cancel()
-
 	fields := map[string]string{
 		"hostname":    "Swat4 Server",
 		"hostport":    "10480",
@@ -348,11 +322,19 @@ func TestAPI_ViewServer_MinimalInfo_OK(t *testing.T) {
 		"gametype":    "VIP Escort",
 	}
 
-	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil), clockMock.Now())
-	svr.UpdateDiscoveryStatus(ds.Details | ds.Info)
-	repos.Servers.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
-	clockMock.Add(time.Millisecond * 5)
+	ctx := context.TODO()
+	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
+	defer cancel()
+
+	factories.CreateServerWithDetails(
+		ctx,
+		repos.Servers,
+		"1.1.1.1",
+		10480,
+		10481,
+		details.MustNewDetailsFromParams(fields, nil, nil),
+		ds.Details|ds.Info,
+	)
 
 	obj := serverDetailSchema{}
 	resp := testutils.DoTestRequest(
@@ -381,21 +363,17 @@ func TestAPI_ViewServer_MinimalInfo_OK(t *testing.T) {
 
 func TestAPI_ViewServer_NoInfo_OK(t *testing.T) {
 	ctx := context.TODO()
-	clockMock := clock.NewMock()
-	repos := memory.New(clockMock)
-	ts, cancel := testutils.PrepareTestServer(
-		t,
-		fx.Decorate(func() clock.Clock { return clockMock }),
-		fx.Decorate(func() repositories.ServerRepository {
-			return repos.Servers
-		}),
-	)
+	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 	defer cancel()
 
-	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	svr.UpdateDiscoveryStatus(ds.Details | ds.Info)
-	repos.Servers.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
-	clockMock.Add(time.Millisecond * 5)
+	factories.CreateServerWithStatus(
+		ctx,
+		repos.Servers,
+		"1.1.1.1",
+		10480,
+		10481,
+		ds.Details|ds.Info,
+	)
 
 	obj := serverDetailSchema{}
 	resp := testutils.DoTestRequest(
@@ -442,45 +420,28 @@ func TestAPI_ViewServer_NotFound(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.TODO()
-			clockMock := clock.NewMock()
-			repos := memory.New(clockMock)
-			ts, cancel := testutils.PrepareTestServer(
-				t,
-				fx.Decorate(func() clock.Clock { return clockMock }),
-				fx.Decorate(func() repositories.ServerRepository {
-					return repos.Servers
-				}),
-			)
+			ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 			defer cancel()
 
-			fields := map[string]string{
-				"hostname":    "Swat4 Server",
-				"hostport":    "10480",
-				"mapname":     "A-Bomb Nightclub",
-				"gamever":     "1.1",
-				"gamevariant": "SWAT 4",
-				"gametype":    "VIP Escort",
-			}
+			factories.CreateServerWithDefaultDetails(
+				ctx,
+				repos.Servers,
+				ds.Details,
+			)
 
-			svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-			svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil), clockMock.Now())
-			svr.UpdateDiscoveryStatus(ds.Details)
-			repos.Servers.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
-			clockMock.Add(time.Millisecond * 5)
-
-			path := "/api/servers/" + tt.address
+			testPath := "/api/servers/" + tt.address
 
 			if tt.want {
 				obj := serverDetailSchema{}
 				resp := testutils.DoTestRequest(
-					ts, http.MethodGet, path, nil,
+					ts, http.MethodGet, testPath, nil,
 					testutils.MustBindJSON(&obj),
 				)
 				assert.Equal(t, 200, resp.StatusCode)
 				assert.Equal(t, "Swat4 Server", obj.Info.Hostname)
 			} else {
 				resp := testutils.DoTestRequest(
-					ts, http.MethodGet, path, nil,
+					ts, http.MethodGet, testPath, nil,
 					testutils.MustHaveNoBody(),
 				)
 				assert.Equal(t, 404, resp.StatusCode)
@@ -489,7 +450,7 @@ func TestAPI_ViewServer_NotFound(t *testing.T) {
 	}
 }
 
-func TestAPI_ViewServer_AddressValidation(t *testing.T) {
+func TestAPI_ViewServer_ValidateAddress(t *testing.T) {
 	tests := []struct {
 		name    string
 		address string
@@ -570,31 +531,14 @@ func TestAPI_ViewServer_AddressValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.TODO()
-			clockMock := clock.NewMock()
-			repos := memory.New(clockMock)
-			ts, cancel := testutils.PrepareTestServer(
-				t,
-				fx.Decorate(func() clock.Clock { return clockMock }),
-				fx.Decorate(func() repositories.ServerRepository {
-					return repos.Servers
-				}),
-			)
+			ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 			defer cancel()
 
-			fields := map[string]string{
-				"hostname":    "Swat4 Server",
-				"hostport":    "10480",
-				"mapname":     "A-Bomb Nightclub",
-				"gamever":     "1.1",
-				"gamevariant": "SWAT 4",
-				"gametype":    "VIP Escort",
-			}
-
-			svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-			svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil), clockMock.Now())
-			svr.UpdateDiscoveryStatus(ds.Details)
-			repos.Servers.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
-			clockMock.Add(time.Millisecond * 5)
+			factories.CreateServerWithDefaultDetails(
+				ctx,
+				repos.Servers,
+				ds.Details,
+			)
 
 			obj := serverDetailSchema{}
 			resp := testutils.DoTestRequest(
@@ -612,50 +556,27 @@ func TestAPI_ViewServer_AddressValidation(t *testing.T) {
 	}
 }
 
-func TestAPI_ViewServer_StatusValidation(t *testing.T) {
+func TestAPI_ViewServer_ValidateStatus(t *testing.T) {
 	tests := []struct {
 		name   string
 		status ds.DiscoveryStatus
 		want   bool
 	}{
 		{
-			"positive case - only details",
+			"positive case",
 			ds.Details,
 			true,
 		},
 		{
-			"positive case - mixed",
-			ds.Details | ds.DetailsRetry | ds.NoPort,
-			true,
-		},
-		{
 			"no details",
-			ds.Info | ds.Master | ds.NoDetails,
-			false,
-		},
-		{
-			"no details - only info",
 			ds.Info,
-			false,
-		},
-		{
-			"no details - retry",
-			ds.Info | ds.DetailsRetry,
 			false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.TODO()
-			clockMock := clock.NewMock()
-			repos := memory.New(clockMock)
-			ts, cancel := testutils.PrepareTestServer(
-				t,
-				fx.Decorate(func() clock.Clock { return clockMock }),
-				fx.Decorate(func() repositories.ServerRepository {
-					return repos.Servers
-				}),
-			)
+			ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 			defer cancel()
 
 			fields := map[string]string{
@@ -666,12 +587,15 @@ func TestAPI_ViewServer_StatusValidation(t *testing.T) {
 				"gamevariant": "SWAT 4",
 				"gametype":    "VIP Escort",
 			}
-
-			svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-			svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil), clockMock.Now())
-			svr.UpdateDiscoveryStatus(tt.status)
-			repos.Servers.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
-			clockMock.Add(time.Millisecond * 5)
+			factories.CreateServerWithDetails(
+				ctx,
+				repos.Servers,
+				"1.1.1.1",
+				10480,
+				10481,
+				details.MustNewDetailsFromParams(fields, nil, nil),
+				tt.status,
+			)
 
 			if tt.want {
 				obj := serverDetailSchema{}

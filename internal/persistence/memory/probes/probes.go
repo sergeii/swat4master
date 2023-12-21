@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/benbjohnson/clock"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/repositories"
@@ -22,11 +22,11 @@ type enqueued struct {
 type Repository struct {
 	queue  *list.List
 	length int
-	clock  clock.Clock
+	clock  clockwork.Clock
 	mutex  sync.RWMutex
 }
 
-func New(c clock.Clock) *Repository {
+func New(c clockwork.Clock) *Repository {
 	repo := &Repository{
 		queue: list.New(),
 		clock: c,

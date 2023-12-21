@@ -6,8 +6,8 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/go-playground/validator/v10"
+	"github.com/jonboulle/clockwork"
 	"github.com/rs/zerolog"
 
 	"github.com/sergeii/swat4master/internal/core/entities/details"
@@ -22,7 +22,7 @@ import (
 type DetailsProber struct {
 	metrics  *monitoring.MetricService
 	validate *validator.Validate
-	clock    clock.Clock
+	clock    clockwork.Clock
 	logger   *zerolog.Logger
 }
 
@@ -30,7 +30,7 @@ func NewDetailsProber(
 	service *probing.Service,
 	metrics *monitoring.MetricService,
 	validate *validator.Validate,
-	clock clock.Clock,
+	clock clockwork.Clock,
 	logger *zerolog.Logger,
 ) (*DetailsProber, error) {
 	dp := &DetailsProber{
@@ -57,7 +57,7 @@ func (s *DetailsProber) Probe(
 ) (any, error) {
 	qAddr := netip.AddrPortFrom(netip.AddrFrom4(svr.Addr.IP), uint16(queryPort))
 
-	queryStarted := s.clock.Now()
+	queryStarted := time.Now()
 
 	resp, err := gs1.Query(ctx, qAddr, timeout)
 	if err != nil {
@@ -68,7 +68,7 @@ func (s *DetailsProber) Probe(
 		return details.Blank, err
 	}
 
-	queryDur := s.clock.Since(queryStarted).Seconds()
+	queryDur := time.Since(queryStarted).Seconds()
 	s.metrics.DiscoveryQueryDurations.Observe(queryDur)
 	s.logger.Debug().
 		Stringer("addr", svr.Addr).Int("port", queryPort).

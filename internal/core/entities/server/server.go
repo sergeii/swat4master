@@ -53,6 +53,14 @@ func MustNew(ip net.IP, port, queryPort int) Server {
 	return svr
 }
 
+func MustNewFromAddr(addr addr.Addr, queryPort int) Server {
+	svr, err := NewFromAddr(addr, queryPort)
+	if err != nil {
+		panic(err)
+	}
+	return svr
+}
+
 func (gs *Server) HasDiscoveryStatus(status ds.DiscoveryStatus) bool {
 	return (gs.DiscoveryStatus & status) == status
 }

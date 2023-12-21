@@ -3,7 +3,7 @@ package collector
 import (
 	"context"
 
-	"github.com/benbjohnson/clock"
+	"github.com/jonboulle/clockwork"
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
@@ -16,12 +16,13 @@ type Collector struct{}
 func Run(
 	stop chan struct{},
 	stopped chan struct{},
-	clock clock.Clock,
+	clock clockwork.Clock,
 	logger *zerolog.Logger,
 	metrics *monitoring.MetricService,
 	cfg config.Config,
 ) {
-	ticker := clock.Ticker(cfg.CollectorInterval)
+	ticker := clock.NewTicker(cfg.CollectorInterval)
+	tickerCh := ticker.Chan()
 	defer ticker.Stop()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -37,7 +38,7 @@ func Run(
 			logger.Info().Msg("Stopping collector")
 			close(stopped)
 			return
-		case <-ticker.C:
+		case <-tickerCh:
 			metrics.Observe(ctx, monitoring.ObserverConfig{
 				ServerLiveness: cfg.BrowserServerLiveness,
 			})
@@ -48,8 +49,8 @@ func Run(
 func NewCollector(
 	lc fx.Lifecycle,
 	cfg config.Config,
+	clock clockwork.Clock,
 	metrics *monitoring.MetricService,
-	clock clock.Clock,
 	logger *zerolog.Logger,
 ) *Collector {
 	stopped := make(chan struct{})

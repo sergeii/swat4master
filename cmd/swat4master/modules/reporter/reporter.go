@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
-	"github.com/benbjohnson/clock"
+	"github.com/jonboulle/clockwork"
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
@@ -20,14 +21,14 @@ type Reporter struct{}
 type Handler struct {
 	service *reporting.Service
 	metrics *monitoring.MetricService
-	clock   clock.Clock
+	clock   clockwork.Clock
 	logger  *zerolog.Logger
 }
 
 func newHandler(
 	mrs *reporting.Service,
 	metrics *monitoring.MetricService,
-	clock clock.Clock,
+	clock clockwork.Clock,
 	logger *zerolog.Logger,
 ) *Handler {
 	return &Handler{mrs, metrics, clock, logger}
@@ -73,7 +74,7 @@ func (h *Handler) Handle(
 	h.metrics.ReporterRequests.WithLabelValues(reqType.String()).Inc()
 	h.metrics.ReporterDurations.
 		WithLabelValues(reqType.String()).
-		Observe(h.clock.Since(reqStarted).Seconds())
+		Observe(time.Since(reqStarted).Seconds())
 }
 
 func NewReporter(

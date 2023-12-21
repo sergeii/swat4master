@@ -3,10 +3,11 @@ module github.com/sergeii/swat4master
 go 1.21
 
 require (
-	github.com/benbjohnson/clock v1.3.5
+	github.com/benbjohnson/clock v1.3.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/go-playground/validator/v10 v10.15.0
 	github.com/gosimple/slug v1.13.1
+	github.com/jonboulle/clockwork v0.4.0
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.4.0
 	github.com/prometheus/common v0.44.0

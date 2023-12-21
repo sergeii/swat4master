@@ -1,4 +1,4 @@
-package exporter_test
+package modules_test
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/stretchr/testify/assert"
@@ -54,11 +53,8 @@ func getMetrics(t *testing.T) map[string]*dto.MetricFamily {
 }
 
 func TestExporter_MasterMetrics(t *testing.T) {
-	clockMock := clock.NewMock()
-
 	app := fx.New(
 		application.Module,
-		fx.Decorate(func() clock.Clock { return clockMock }),
 		fx.Provide(func() config.Config {
 			return config.Config{
 				ExporterListenAddr:   "localhost:11338",
@@ -78,7 +74,9 @@ func TestExporter_MasterMetrics(t *testing.T) {
 	defer func() {
 		app.Stop(context.TODO()) // nolint: errcheck
 	}()
-	runtime.Gosched()
+
+	// give the reporter some time to start
+	<-time.After(time.Millisecond * 50)
 
 	// valid available request
 	sendUDP("127.0.0.1:33811", []byte{0x09})
@@ -120,7 +118,6 @@ func TestExporter_MasterMetrics(t *testing.T) {
 	_, err = conn.Write(req)
 	require.NoError(t, err)
 
-	clockMock.Add(time.Millisecond * 5)
 	mf := getMetrics(t)
 
 	assert.True(t, mf["go_goroutines"].Metric[0].Gauge.GetValue() > 0)
@@ -140,7 +137,6 @@ func TestExporter_MasterMetrics(t *testing.T) {
 }
 
 func TestExporter_ServerMetrics(t *testing.T) {
-	clockMock := clock.NewMock()
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
@@ -155,7 +151,6 @@ func TestExporter_ServerMetrics(t *testing.T) {
 				CollectorInterval:     time.Millisecond,
 			}
 		}),
-		fx.Decorate(func() clock.Clock { return clockMock }),
 		exporter.Module,
 		collector.Module,
 		fx.NopLogger,
@@ -166,9 +161,8 @@ func TestExporter_ServerMetrics(t *testing.T) {
 	defer func() {
 		app.Stop(context.TODO()) // nolint: errcheck
 	}()
-	runtime.Gosched()
 
-	svr1, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr1 := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 	svr1.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 		"hostname":    "Swat4 Server",
 		"hostport":    "10480",
@@ -176,10 +170,10 @@ func TestExporter_ServerMetrics(t *testing.T) {
 		"gamever":     "1.1",
 		"gamevariant": "SWAT 4",
 		"gametype":    "VIP Escort",
-	}), clockMock.Now())
+	}), time.Now())
 	svr1.UpdateDiscoveryStatus(ds.Master | ds.Info)
 
-	svr2, _ := server.New(net.ParseIP("2.2.2.2"), 10480, 10481)
+	svr2 := server.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
 	svr2.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 		"hostname":    "Another Swat4 Server",
 		"hostport":    "10480",
@@ -189,10 +183,10 @@ func TestExporter_ServerMetrics(t *testing.T) {
 		"gametype":    "Barricaded Suspects",
 		"numplayers":  "12",
 		"maxplayers":  "16",
-	}), clockMock.Now())
+	}), time.Now())
 	svr2.UpdateDiscoveryStatus(ds.Details | ds.Info)
 
-	svr3, _ := server.New(net.ParseIP("3.3.3.3"), 10480, 10481)
+	svr3 := server.MustNew(net.ParseIP("3.3.3.3"), 10480, 10481)
 	svr3.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 		"hostname":    "Awesome Swat4 Server",
 		"hostport":    "10480",
@@ -202,10 +196,10 @@ func TestExporter_ServerMetrics(t *testing.T) {
 		"gametype":    "Smash And Grab",
 		"numplayers":  "1",
 		"maxplayers":  "10",
-	}), clockMock.Now())
+	}), time.Now())
 	svr3.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
 
-	svr4, _ := server.New(net.ParseIP("4.4.4.4"), 10480, 10481)
+	svr4 := server.MustNew(net.ParseIP("4.4.4.4"), 10480, 10481)
 	svr4.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
 		"hostname":    "Other Server",
 		"hostport":    "10480",
@@ -215,7 +209,7 @@ func TestExporter_ServerMetrics(t *testing.T) {
 		"gametype":    "VIP Escort",
 		"numplayers":  "14",
 		"maxplayers":  "16",
-	}), clockMock.Now())
+	}), time.Now())
 	svr4.UpdateDiscoveryStatus(ds.NoDetails)
 
 	svr1, _ = repo.Add(ctx, svr1, repositories.ServerOnConflictIgnore)
@@ -223,7 +217,9 @@ func TestExporter_ServerMetrics(t *testing.T) {
 	svr3, _ = repo.Add(ctx, svr3, repositories.ServerOnConflictIgnore)
 	svr4, _ = repo.Add(ctx, svr4, repositories.ServerOnConflictIgnore)
 
-	clockMock.Add(time.Millisecond * 5)
+	// give the collector some time to run
+	<-time.After(time.Millisecond * 50)
+
 	mf := getMetrics(t)
 
 	assert.Len(t, mf["game_players"].Metric, 2)
@@ -261,15 +257,12 @@ func TestExporter_ReposMetrics(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
-	clockMock := clock.NewMock()
-
 	var serversRepo repositories.ServerRepository
 	var instancesRepo repositories.InstanceRepository
 	var probesRepo repositories.ProbeRepository
 
 	app := fx.New(
 		application.Module,
-		fx.Decorate(func() clock.Clock { return clockMock }),
 		fx.Provide(func() config.Config {
 			return config.Config{
 				ExporterListenAddr: "localhost:11338",
@@ -282,16 +275,11 @@ func TestExporter_ReposMetrics(t *testing.T) {
 		fx.Invoke(func(*exporter.Exporter, *collector.Collector) {}),
 		fx.Populate(&serversRepo, &instancesRepo, &probesRepo),
 	)
-	app.Start(context.TODO()) // nolint: errcheck
-	defer func() {
-		app.Stop(context.TODO()) // nolint: errcheck
-	}()
-	runtime.Gosched()
 
 	// servers
-	svr1, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	svr2, _ := server.New(net.ParseIP("2.2.2.2"), 10480, 10481)
-	svr3, _ := server.New(net.ParseIP("3.3.3.3"), 10480, 10481)
+	svr1 := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr2 := server.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
+	svr3 := server.MustNew(net.ParseIP("3.3.3.3"), 10480, 10481)
 	serversRepo.Add(ctx, svr1, repositories.ServerOnConflictIgnore) // nolint: errcheck
 	serversRepo.Add(ctx, svr2, repositories.ServerOnConflictIgnore) // nolint: errcheck
 	serversRepo.Add(ctx, svr3, repositories.ServerOnConflictIgnore) // nolint: errcheck
@@ -304,10 +292,17 @@ func TestExporter_ReposMetrics(t *testing.T) {
 
 	probe1 := probe.New(svr1.Addr, svr1.QueryPort, probe.GoalDetails)
 	probe2 := probe.New(svr2.Addr, svr2.QueryPort, probe.GoalDetails)
-	probesRepo.AddBetween(ctx, probe1, clockMock.Now().Add(time.Hour), repositories.NC) // nolint: errcheck
-	probesRepo.Add(ctx, probe2)                                                         // nolint: errcheck
+	probesRepo.AddBetween(ctx, probe1, time.Now().Add(time.Hour), repositories.NC) // nolint: errcheck
+	probesRepo.Add(ctx, probe2)                                                    // nolint: errcheck
 
-	clockMock.Add(time.Millisecond * 5)
+	app.Start(context.TODO()) // nolint: errcheck
+	defer func() {
+		app.Stop(context.TODO()) // nolint: errcheck
+	}()
+
+	// give the collector some time to run
+	<-time.After(time.Millisecond * 50)
+
 	mf := getMetrics(t)
 
 	assert.Equal(t, 3, int(mf["repo_servers_size"].Metric[0].Gauge.GetValue()))
@@ -321,11 +316,8 @@ func TestExporter_CleanerMetrics(t *testing.T) {
 
 	var repo repositories.ServerRepository
 
-	clockMock := clock.NewMock()
-
 	app := fx.New(
 		application.Module,
-		fx.Decorate(func() clock.Clock { return clockMock }),
 		fx.Provide(func() config.Config {
 			return config.Config{
 				CleanRetention:     time.Millisecond * 10,
@@ -341,18 +333,19 @@ func TestExporter_CleanerMetrics(t *testing.T) {
 		fx.Invoke(func(*exporter.Exporter, *collector.Collector, *cleaner.Cleaner) {}),
 		fx.Populate(&repo),
 	)
+
+	svr1 := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
+	repo.Add(ctx, svr1, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	svr2 := server.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
+	repo.Add(ctx, svr2, repositories.ServerOnConflictIgnore) // nolint: errcheck
+
 	app.Start(context.TODO()) // nolint: errcheck
 	defer func() {
 		app.Stop(context.TODO()) // nolint: errcheck
 	}()
-	runtime.Gosched()
 
-	svr1, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
-	repo.Add(ctx, svr1, repositories.ServerOnConflictIgnore) // nolint: errcheck
-	svr2, _ := server.New(net.ParseIP("2.2.2.2"), 10480, 10481)
-	repo.Add(ctx, svr2, repositories.ServerOnConflictIgnore) // nolint: errcheck
-
-	clockMock.Add(time.Millisecond * 50)
+	// give the cleaner some time to run
+	<-time.After(time.Millisecond * 100)
 
 	resp, err := http.Get("http://localhost:11338/metrics")
 	require.NoError(t, err)

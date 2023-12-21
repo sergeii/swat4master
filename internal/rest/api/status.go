@@ -1,4 +1,4 @@
-package handlers
+package api
 
 import (
 	"net/http"
@@ -8,7 +8,7 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/build"
 )
 
-func Status(c *gin.Context) {
+func (a *API) Status(c *gin.Context) {
 	status := map[string]string{
 		"BuildTime":    build.Time,
 		"BuildCommit":  build.Commit,

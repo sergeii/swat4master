@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/benbjohnson/clock"
+	"github.com/jonboulle/clockwork"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
@@ -20,12 +20,12 @@ import (
 
 func makeApp(tb fxtest.TB, extra ...fx.Option) {
 	fxopts := []fx.Option{
-		fx.Provide(func() clock.Clock { return clock.NewMock() }),
+		fx.Provide(clockwork.NewRealClock),
 		fx.Provide(func() *zerolog.Logger {
 			logger := zerolog.Nop()
 			return &logger
 		}),
-		fx.Provide(func(c clock.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
+		fx.Provide(func(c clockwork.Clock) (repos.ServerRepository, repos.InstanceRepository, repos.ProbeRepository) {
 			mem := memory.New(c)
 			return mem.Servers, mem.Instances, mem.Probes
 		}),
@@ -53,7 +53,7 @@ func TestProbeService_PopMany(t *testing.T) {
 	assert.Len(t, empty, 0)
 
 	for _, ipaddr := range []string{"1.1.1.1", "2.2.2.2", "3.3.3.3"} {
-		repo.Add(ctx, probe.New(addr.MustNewFromString(ipaddr, 10480), 10480, probe.GoalDetails)) // nolint: errcheck
+		repo.Add(ctx, probe.New(addr.MustNewFromDotted(ipaddr, 10480), 10480, probe.GoalDetails)) // nolint: errcheck
 	}
 
 	probes, _ := service.PopMany(ctx, 2)

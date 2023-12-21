@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/benbjohnson/clock"
+	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -20,7 +20,7 @@ type ObserverConfig struct {
 
 type MetricService struct {
 	registry *prometheus.Registry
-	clock    clock.Clock
+	clock    clockwork.Clock
 	logger   *zerolog.Logger
 
 	servers   repositories.ServerRepository
@@ -69,7 +69,7 @@ func NewMetricService(
 	servers repositories.ServerRepository,
 	instances repositories.InstanceRepository,
 	probes repositories.ProbeRepository,
-	clock clock.Clock,
+	clock clockwork.Clock,
 	logger *zerolog.Logger,
 ) *MetricService {
 	registry := prometheus.NewRegistry()

@@ -10,8 +10,8 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/benbjohnson/clock"
 	"github.com/go-playground/validator/v10"
+	"github.com/jonboulle/clockwork"
 	"github.com/rs/zerolog"
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
@@ -68,7 +68,7 @@ type Service struct {
 	serverService  *ss.Service
 	metrics        *monitoring.MetricService
 	validate       *validator.Validate
-	clock          clock.Clock
+	clock          clockwork.Clock
 	logger         *zerolog.Logger
 }
 
@@ -79,7 +79,7 @@ func NewService(
 	findingService *finding.Service,
 	metrics *monitoring.MetricService,
 	validate *validator.Validate,
-	clock clock.Clock,
+	clock clockwork.Clock,
 	logger *zerolog.Logger,
 ) *Service {
 	return &Service{
@@ -299,6 +299,7 @@ func (s *Service) reportServer(
 	}
 
 	now := s.clock.Now()
+
 	svr.UpdateInfo(info, now)
 	svr.UpdateDiscoveryStatus(ds.Master | ds.Info)
 

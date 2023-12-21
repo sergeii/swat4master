@@ -28,7 +28,7 @@ func TestServer_New(t *testing.T) {
 			ip:      "1.1.1.1",
 			port:    10480,
 			qPort:   10481,
-			want:    addr.MustNewFromString("1.1.1.1", 10480),
+			want:    addr.MustNewFromDotted("1.1.1.1", 10480),
 			wantErr: nil,
 		},
 		{
@@ -37,7 +37,7 @@ func TestServer_New(t *testing.T) {
 			port:    10480,
 			qPort:   10481,
 			want:    addr.Blank,
-			wantErr: addr.ErrInvalidServerIP,
+			wantErr: addr.ErrInvalidIP,
 		},
 		{
 			name:    "unacceptable ip address",
@@ -45,7 +45,7 @@ func TestServer_New(t *testing.T) {
 			port:    10480,
 			qPort:   10481,
 			want:    addr.Blank,
-			wantErr: addr.ErrInvalidServerIP,
+			wantErr: addr.ErrInvalidIP,
 		},
 		{
 			name:    "ipv4 address is required",
@@ -53,7 +53,7 @@ func TestServer_New(t *testing.T) {
 			port:    10480,
 			qPort:   10481,
 			want:    addr.Blank,
-			wantErr: addr.ErrInvalidServerIP,
+			wantErr: addr.ErrInvalidIP,
 		},
 		{
 			name:    "valid game port number is required #1",
@@ -61,7 +61,7 @@ func TestServer_New(t *testing.T) {
 			port:    65536,
 			qPort:   10481,
 			want:    addr.Blank,
-			wantErr: addr.ErrInvalidServerPort,
+			wantErr: addr.ErrInvalidPort,
 		},
 		{
 			name:    "valid game port number is required #2",
@@ -69,7 +69,7 @@ func TestServer_New(t *testing.T) {
 			port:    -10480,
 			qPort:   10481,
 			want:    addr.Blank,
-			wantErr: addr.ErrInvalidServerPort,
+			wantErr: addr.ErrInvalidPort,
 		},
 		{
 			name:    "valid query port number is required #1",
@@ -93,7 +93,7 @@ func TestServer_New(t *testing.T) {
 			port:    -10480,
 			qPort:   -10481,
 			want:    addr.Blank,
-			wantErr: addr.ErrInvalidServerPort,
+			wantErr: addr.ErrInvalidPort,
 		},
 	}
 	for _, tt := range tests {
@@ -175,20 +175,20 @@ func TestServer_New_ValidIPAddress(t *testing.T) {
 			if tt.want {
 				require.NoError(t, err)
 			} else {
-				require.ErrorIs(t, err, addr.ErrInvalidServerIP)
+				require.ErrorIs(t, err, addr.ErrInvalidIP)
 			}
 		})
 	}
 }
 
 func TestServer_DefaultInfo(t *testing.T) {
-	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
 	assert.Equal(t, "", svr.Info.Hostname)
 }
 
 func TestServer_InfoIsUpdated(t *testing.T) {
-	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 	assert.Equal(t, "", svr.Info.Hostname)
 
 	newInfo := details.MustNewInfoFromParams(map[string]string{
@@ -213,7 +213,7 @@ func TestServer_InfoIsUpdated(t *testing.T) {
 }
 
 func TestServer_DefaultDetails(t *testing.T) {
-	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
 	assert.Equal(t, "", svr.Details.Info.Hostname)
 	assert.Nil(t, svr.Details.Players)
@@ -221,7 +221,7 @@ func TestServer_DefaultDetails(t *testing.T) {
 }
 
 func TestServer_DetailsAreUpdated(t *testing.T) {
-	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 	assert.Equal(t, "", svr.Details.Info.Hostname)
 
 	serverParams := map[string]string{
@@ -295,7 +295,7 @@ func TestServer_DetailsAreUpdated(t *testing.T) {
 }
 
 func TestServer_DiscoveryStatusIsUpdated(t *testing.T) {
-	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 
 	// default status is new
 	assert.Equal(t, ds.New, svr.DiscoveryStatus)
@@ -323,7 +323,7 @@ func TestServer_DiscoveryStatusIsUpdated(t *testing.T) {
 }
 
 func TestServer_DiscoveryStatusIsCleared(t *testing.T) {
-	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 	// default status is new
 	assert.Equal(t, ds.New, svr.DiscoveryStatus)
 
@@ -355,7 +355,7 @@ func TestServer_DiscoveryStatusIsCleared(t *testing.T) {
 }
 
 func TestServer_HasDiscoveryStatusStatus(t *testing.T) {
-	svr, _ := server.New(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 
 	// default status is "new"
 	assert.Equal(t, ds.New, svr.DiscoveryStatus)
