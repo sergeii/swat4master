@@ -119,8 +119,23 @@ func TestServer_New_ValidIPAddress(t *testing.T) {
 		want bool
 	}{
 		{
-			name: "positive case",
+			name: "public address is accepted",
 			ip:   "1.1.1.1",
+			want: true,
+		},
+		{
+			name: "private network address accepted",
+			ip:   "192.168.10.12",
+			want: true,
+		},
+		{
+			name: "another private network address is accepted",
+			ip:   "10.0.0.1",
+			want: true,
+		},
+		{
+			name: "loopback address is accepted",
+			ip:   "127.0.0.1",
 			want: true,
 		},
 		{
@@ -139,11 +154,6 @@ func TestServer_New_ValidIPAddress(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "loopback address is not accepted",
-			ip:   "127.0.0.1",
-			want: false,
-		},
-		{
 			name: "multicast address is not accepted",
 			ip:   "224.0.0.1",
 			want: false,
@@ -151,21 +161,6 @@ func TestServer_New_ValidIPAddress(t *testing.T) {
 		{
 			name: "link local broadcast address is not accepted",
 			ip:   "169.254.0.1",
-			want: false,
-		},
-		{
-			name: "private network address is not accepted #1",
-			ip:   "192.168.10.12",
-			want: false,
-		},
-		{
-			name: "private network address is not accepted #2",
-			ip:   "10.0.0.1",
-			want: false,
-		},
-		{
-			name: "private network address is not accepted #3",
-			ip:   "172.16.18.1",
 			want: false,
 		},
 	}

@@ -31,6 +31,8 @@ func (a *API) AddServer(c *gin.Context) {
 	svr, err := a.container.AddServer.Execute(c, address)
 	if err != nil {
 		switch {
+		case errors.Is(err, addserver.ErrInvalidAddress):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid server address"})
 		case errors.Is(err, addserver.ErrUnableToCreateServer):
 			c.Status(http.StatusInternalServerError)
 		case errors.Is(err, addserver.ErrUnableToDiscoverServer):

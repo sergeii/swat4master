@@ -6,6 +6,7 @@ import (
 	"time"
 
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/filterset"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query"
@@ -17,18 +18,18 @@ type UseCase struct {
 	serverRepo repositories.ServerRepository
 }
 
-type Request struct {
-	query           query.Query
-	recentness      time.Duration
-	discoveryStatus ds.DiscoveryStatus
-}
-
 func New(
 	serverRepo repositories.ServerRepository,
 ) UseCase {
 	return UseCase{
 		serverRepo: serverRepo,
 	}
+}
+
+type Request struct {
+	query           query.Query
+	recentness      time.Duration
+	discoveryStatus ds.DiscoveryStatus
 }
 
 func NewRequest(
@@ -43,8 +44,8 @@ func NewRequest(
 	}
 }
 
-func (uc *UseCase) Execute(ctx context.Context, req Request) ([]server.Server, error) {
-	fs := repositories.NewServerFilterSet().
+func (uc UseCase) Execute(ctx context.Context, req Request) ([]server.Server, error) {
+	fs := filterset.New().
 		ActiveAfter(time.Now().Add(-req.recentness)).
 		WithStatus(req.discoveryStatus)
 

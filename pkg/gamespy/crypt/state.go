@@ -1,6 +1,6 @@
 package crypt
 
-type state struct {
+type cipherState struct {
 	cards      [256]byte // A permutation of 0-255.
 	rotor      byte      // Index that rotates smoothly
 	ratchet    byte      // Index that moves erratically
@@ -9,9 +9,9 @@ type state struct {
 	lastCipher byte      // Last cipher text byte
 }
 
-func newState(cryptKey [CRTL]byte) *state {
+func newCipherState(cryptKey [CRTL]byte) cipherState {
 	var toswap, rsum, keypos uint8
-	cs := state{}
+	cs := cipherState{}
 	// Start with state->cards all in order, one of each.
 	for i := 0; i < 256; i++ {
 		cs.cards[i] = uint8(i)
@@ -31,10 +31,10 @@ func newState(cryptKey [CRTL]byte) *state {
 	cs.avalanche = cs.cards[5]
 	cs.lastPlain = cs.cards[7]
 	cs.lastCipher = cs.cards[rsum]
-	return &cs
+	return cs
 }
 
-func (cs *state) shuffle(cryptKey [CRTL]byte, limit, rsum, keypos uint8) (uint8, uint8, uint8) {
+func (cs *cipherState) shuffle(cryptKey [CRTL]byte, limit, rsum, keypos uint8) (uint8, uint8, uint8) {
 	var u, mask uint8
 	// Avoid divide by zero error
 	if limit == 0 {
@@ -64,14 +64,14 @@ func (cs *state) shuffle(cryptKey [CRTL]byte, limit, rsum, keypos uint8) (uint8,
 	return u, rsum, keypos
 }
 
-func (cs *state) Encrypt(data []byte) []byte {
+func (cs *cipherState) Encrypt(data []byte) []byte {
 	for i := 0; i < len(data); i++ {
 		data[i] = cs.encryptByte(data[i])
 	}
 	return data
 }
 
-func (cs *state) encryptByte(b byte) byte { // nolint: dupl
+func (cs *cipherState) encryptByte(b byte) byte { // nolint: dupl
 	// Picture a single enigma state->rotor with 256 positions, rewired
 	// on the fly by card-shuffling.
 
@@ -98,14 +98,14 @@ func (cs *state) encryptByte(b byte) byte { // nolint: dupl
 	return cs.lastCipher
 }
 
-func (cs *state) Decrypt(data []byte) []byte {
+func (cs *cipherState) Decrypt(data []byte) []byte {
 	for i := 0; i < len(data); i++ {
 		data[i] = cs.decryptByte(data[i])
 	}
 	return data
 }
 
-func (cs *state) decryptByte(b byte) byte { // nolint: dupl
+func (cs *cipherState) decryptByte(b byte) byte { // nolint: dupl
 	var swaptemp byte
 	// Shuffle the deck a little more
 	cs.ratchet += cs.cards[cs.rotor]

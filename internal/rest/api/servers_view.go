@@ -33,6 +33,11 @@ func (a *API) ViewServer(c *gin.Context) {
 				Stringer("addr", address).
 				Msg("Requested server not found")
 			c.Status(http.StatusNotFound)
+		case errors.Is(err, getserver.ErrInvalidAddress):
+			a.logger.Debug().
+				Stringer("addr", address).
+				Msg("Requested server address is invalid")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid server address"})
 		case errors.Is(err, getserver.ErrServerHasNoDetails):
 			a.logger.Debug().
 				Stringer("addr", address).

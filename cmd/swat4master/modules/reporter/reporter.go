@@ -2,85 +2,25 @@ package reporter
 
 import (
 	"context"
-	"fmt"
-	"net"
-	"time"
 
-	"github.com/jonboulle/clockwork"
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
-	"github.com/sergeii/swat4master/internal/services/master/reporting"
-	"github.com/sergeii/swat4master/internal/services/monitoring"
+	"github.com/sergeii/swat4master/internal/reporter"
+	"github.com/sergeii/swat4master/internal/reporter/handlers/available"
+	"github.com/sergeii/swat4master/internal/reporter/handlers/challenge"
+	"github.com/sergeii/swat4master/internal/reporter/handlers/heartbeat"
+	"github.com/sergeii/swat4master/internal/reporter/handlers/keepalive"
 	udp "github.com/sergeii/swat4master/pkg/udp/server"
 )
 
 type Reporter struct{}
 
-type Handler struct {
-	service *reporting.Service
-	metrics *monitoring.MetricService
-	clock   clockwork.Clock
-	logger  *zerolog.Logger
-}
-
-func newHandler(
-	mrs *reporting.Service,
-	metrics *monitoring.MetricService,
-	clock clockwork.Clock,
-	logger *zerolog.Logger,
-) *Handler {
-	return &Handler{mrs, metrics, clock, logger}
-}
-
-func (h *Handler) Handle(
-	ctx context.Context,
-	conn *net.UDPConn,
-	addr *net.UDPAddr,
-	req []byte,
-) {
-	reqStarted := h.clock.Now()
-
-	h.logger.Debug().
-		Str("type", fmt.Sprintf("0x%02x", req[0])).Stringer("src", addr).Int("len", len(req)).
-		Msg("Received request")
-
-	h.metrics.ReporterReceived.Add(float64(len(req)))
-
-	resp, reqType, err := h.service.DispatchRequest(ctx, req, addr)
-	if err != nil {
-		h.metrics.ReporterErrors.WithLabelValues(reqType.String()).Inc()
-		h.logger.Error().
-			Err(err).
-			Stringer("src", addr).Stringer("type", reqType).Int("len", len(req)).
-			Msg("Failed to dispatch request")
-		return
-	}
-	// responses are optional for some request types, such as keepalive requests
-	if resp != nil {
-		h.logger.Debug().
-			Stringer("dst", addr).Int("len", len(resp)).
-			Msg("Sending response")
-		if _, err := conn.WriteToUDP(resp, addr); err != nil {
-			h.logger.Error().
-				Err(err).Stringer("dst", addr).Int("len", len(resp)).
-				Msg("Failed to send response")
-		} else {
-			// only account the size of the response if we were able to actually push it through the socket
-			h.metrics.ReporterSent.Add(float64(len(resp)))
-		}
-	}
-	h.metrics.ReporterRequests.WithLabelValues(reqType.String()).Inc()
-	h.metrics.ReporterDurations.
-		WithLabelValues(reqType.String()).
-		Observe(time.Since(reqStarted).Seconds())
-}
-
 func NewReporter(
 	lc fx.Lifecycle,
 	shutdowner fx.Shutdowner,
-	handler *Handler,
+	dispatcher *reporter.Dispatcher,
 	cfg config.Config,
 	logger *zerolog.Logger,
 ) (*Reporter, error) {
@@ -88,7 +28,7 @@ func NewReporter(
 
 	svr, err := udp.New(
 		cfg.ReporterListenAddr,
-		handler,
+		dispatcher,
 		udp.WithBufferSize(cfg.ReporterBufferSize),
 		udp.WithReadySignal(func() {
 			close(ready)
@@ -129,11 +69,13 @@ func NewReporter(
 var Module = fx.Module("reporter",
 	fx.Provide(
 		fx.Private,
-		newHandler,
+		reporter.NewDispatcher,
 	),
-	fx.Provide(
-		fx.Private,
-		reporting.NewService,
+	fx.Invoke(
+		available.New,
+		challenge.New,
+		heartbeat.New,
+		keepalive.New,
 	),
 	fx.Provide(NewReporter),
 )

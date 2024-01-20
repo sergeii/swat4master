@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/filterset"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 )
 
@@ -268,7 +269,7 @@ func (ms *MetricService) observeActiveServers(
 	playedServers := make(map[string]int)
 
 	activeSince := ms.clock.Now().Add(-cfg.ServerLiveness)
-	fs := repositories.NewServerFilterSet().ActiveAfter(activeSince).WithStatus(ds.Info)
+	fs := filterset.New().ActiveAfter(activeSince).WithStatus(ds.Info)
 	activeServers, err := ms.servers.Filter(ctx, fs)
 	if err != nil {
 		ms.logger.Error().Err(err).Msg("Unable to observe active server count")

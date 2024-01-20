@@ -8,6 +8,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/filterset"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query"
@@ -63,7 +64,7 @@ func (s *Service) FilterRecent(
 	q query.Query,
 	withStatus ds.DiscoveryStatus,
 ) ([]server.Server, error) {
-	fs := repositories.NewServerFilterSet().ActiveAfter(s.clock.Now().Add(-recentness)).WithStatus(withStatus)
+	fs := filterset.New().ActiveAfter(s.clock.Now().Add(-recentness)).WithStatus(withStatus)
 
 	recent, err := s.servers.Filter(ctx, fs)
 	if err != nil {

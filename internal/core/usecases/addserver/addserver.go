@@ -14,6 +14,7 @@ import (
 )
 
 var (
+	ErrInvalidAddress            = errors.New("invalid address")
 	ErrUnableToCreateServer      = errors.New("unable to create server")
 	ErrUnableToDiscoverServer    = errors.New("unable to discover server")
 	ErrServerDiscoveryInProgress = errors.New("server discovery is in progress")
@@ -38,7 +39,11 @@ func New(
 	}
 }
 
-func (uc *UseCase) Execute(ctx context.Context, address addr.Addr) (server.Server, error) {
+func (uc UseCase) Execute(ctx context.Context, address addr.Addr) (server.Server, error) {
+	if err := uc.validateAddress(address); err != nil {
+		return server.Blank, err
+	}
+
 	svr, err := uc.getOrCreateServer(ctx, address)
 	if err != nil {
 		return server.Blank, err
@@ -51,7 +56,15 @@ func (uc *UseCase) Execute(ctx context.Context, address addr.Addr) (server.Serve
 	return svr, nil
 }
 
-func (uc *UseCase) getOrCreateServer(ctx context.Context, address addr.Addr) (server.Server, error) {
+func (uc UseCase) validateAddress(address addr.Addr) error {
+	ipv4 := address.GetIP()
+	if !ipv4.IsGlobalUnicast() || ipv4.IsPrivate() {
+		return ErrInvalidAddress
+	}
+	return nil
+}
+
+func (uc UseCase) getOrCreateServer(ctx context.Context, address addr.Addr) (server.Server, error) {
 	svr, err := uc.serverRepo.Get(ctx, address)
 	if err != nil {
 		switch {
@@ -75,7 +88,7 @@ func (uc *UseCase) getOrCreateServer(ctx context.Context, address addr.Addr) (se
 	return svr, nil
 }
 
-func (uc *UseCase) createServerFromAddress(
+func (uc UseCase) createServerFromAddress(
 	ctx context.Context,
 	address addr.Addr,
 ) (server.Server, error) {
@@ -95,7 +108,7 @@ func (uc *UseCase) createServerFromAddress(
 	return svr, nil
 }
 
-func (uc *UseCase) maybeDiscoverServer(
+func (uc UseCase) maybeDiscoverServer(
 	ctx context.Context,
 	svr server.Server,
 ) error {
@@ -129,7 +142,7 @@ func (uc *UseCase) maybeDiscoverServer(
 	}
 }
 
-func (uc *UseCase) discoverServer(
+func (uc UseCase) discoverServer(
 	ctx context.Context,
 	svr server.Server,
 ) error {

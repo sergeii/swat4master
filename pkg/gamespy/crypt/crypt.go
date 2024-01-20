@@ -68,7 +68,8 @@ func Encrypt(gameSecret [GMSL]byte, challenge [CCHL]byte, data []byte) []byte {
 	payload[1] = 0x00 // this and the next byte - query backend options, short int, always zero for swat
 	payload[2] = 0x00
 	payload[8] = SCHL ^ 0xea // ^ 0xea = 14 - crypt key length, i.e. bytes [9...23)
-	ciphertext := newState(cryptKey).Encrypt(data)
+	state := newCipherState(cryptKey)
+	ciphertext := (&state).Encrypt(data)
 	copy(payload[HDRL:], ciphertext)
 	return payload
 }
@@ -87,5 +88,6 @@ func Decrypt(gameSecret [GMSL]byte, clientChallenge [CCHL]byte, data []byte) []b
 	}
 	// the encrypted data is the remaining payload
 	ciphertext := data[svrChOffset+svrChLen:] // [23...]
-	return newState(cryptKey).Decrypt(ciphertext)
+	state := newCipherState(cryptKey)
+	return (&state).Decrypt(ciphertext)
 }

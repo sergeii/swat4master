@@ -30,7 +30,10 @@ func New(ip net.IP, port int) (Addr, error) {
 	}
 
 	ipv4 := ip.To4()
-	if ipv4 == nil || !ipv4.IsGlobalUnicast() || ipv4.IsPrivate() {
+	switch {
+	case ipv4 == nil:
+		return Blank, ErrInvalidIP
+	case !ipv4.IsGlobalUnicast() && !ipv4.IsPrivate() && !ipv4.IsLoopback():
 		return Blank, ErrInvalidIP
 	}
 

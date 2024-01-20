@@ -6,6 +6,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/sergeii/swat4master/internal/core/entities/filterset"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
@@ -43,7 +44,7 @@ func (s *Service) Clean(ctx context.Context, until time.Time) error {
 		Stringer("until", until).Int("servers", before).
 		Msg("Starting to clean outdated servers")
 
-	fs := repositories.NewServerFilterSet().UpdatedBefore(until)
+	fs := filterset.New().UpdatedBefore(until)
 	outdatedServers, err := s.servers.Filter(ctx, fs)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Unable to obtain servers for cleanup")

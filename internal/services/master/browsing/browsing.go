@@ -44,7 +44,11 @@ func NewService(
 	return mbs
 }
 
-func (s *Service) HandleRequest(ctx context.Context, addr *net.TCPAddr, payload []byte) ([]byte, error) {
+func (s *Service) HandleRequest(
+	ctx context.Context,
+	addr *net.TCPAddr,
+	payload []byte,
+) ([]byte, error) {
 	var q query.Query
 
 	req, err := browsing.NewRequest(payload)

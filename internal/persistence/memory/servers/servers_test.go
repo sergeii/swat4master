@@ -14,6 +14,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	"github.com/sergeii/swat4master/internal/core/entities/details"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/filterset"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/persistence/memory/servers"
@@ -293,6 +294,76 @@ func TestServerMemoryRepo_Update_MultipleConflicts(t *testing.T) {
 	assert.Equal(t, ds.Info|ds.Master|ds.Details|ds.Port, svr.DiscoveryStatus)
 }
 
+func TestServerMemoryRepo_CreateOrUpdate_Created(t *testing.T) {
+	ctx := context.TODO()
+	c := clockwork.NewFakeClock()
+	repo := servers.New(c)
+
+	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr.UpdateDiscoveryStatus(ds.Master)
+	svr, err := repo.AddOrUpdate(ctx, svr, func(s *server.Server) {
+		panic("should not be called")
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
+	assert.Equal(t, 10480, svr.Addr.Port)
+	assert.Equal(t, 10481, svr.QueryPort)
+	assert.Equal(t, 0, svr.Version)
+	assert.Equal(t, ds.Master, svr.DiscoveryStatus)
+}
+
+func TestServerService_CreateOrUpdate_Updated(t *testing.T) {
+	ctx := context.TODO()
+	c := clockwork.NewFakeClock()
+	repo := servers.New(c)
+
+	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
+	svr.UpdateDiscoveryStatus(ds.Master)
+	repo.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
+
+	svr.UpdateDiscoveryStatus(ds.Details)
+	svr, err := repo.AddOrUpdate(ctx, svr, func(s *server.Server) {
+		panic("should not be called")
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
+	assert.Equal(t, 10480, svr.Addr.Port)
+	assert.Equal(t, 10481, svr.QueryPort)
+	assert.Equal(t, 1, svr.Version)
+	assert.Equal(t, ds.Master|ds.Details, svr.DiscoveryStatus)
+}
+
+func TestServerService_CreateOrUpdate_Race(t *testing.T) {
+	ctx := context.TODO()
+	c := clockwork.NewFakeClock()
+	repo := servers.New(c)
+
+	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
+	repo.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
+
+	wg := &sync.WaitGroup{}
+	update := func(t *testing.T, svr server.Server, status ds.DiscoveryStatus) {
+		defer wg.Done()
+		svr.UpdateDiscoveryStatus(status)
+		svr, err := repo.AddOrUpdate(ctx, svr, func(s *server.Server) {
+			s.UpdateDiscoveryStatus(status)
+		})
+		require.NoError(t, err)
+		assert.True(t, svr.HasDiscoveryStatus(status))
+	}
+
+	wg.Add(4)
+	go update(t, svr, ds.Master)
+	go update(t, svr, ds.Info)
+	go update(t, svr, ds.Details)
+	go update(t, svr, ds.Port)
+	wg.Wait()
+
+	svr, _ = repo.Get(ctx, svr.Addr)
+	assert.Equal(t, ds.Master|ds.Info|ds.Details|ds.Port, svr.DiscoveryStatus)
+	assert.Equal(t, 4, svr.Version)
+}
+
 func TestServerMemoryRepo_Remove_NoConflict(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -485,13 +556,13 @@ func TestServerMemoryRepo_CountByStatus(t *testing.T) {
 func TestServerMemoryRepo_Filter(t *testing.T) {
 	tests := []struct {
 		name        string
-		fsfactory   func(time.Time, time.Time, time.Time, time.Time, time.Time, time.Time) repositories.ServerFilterSet
+		fsfactory   func(time.Time, time.Time, time.Time, time.Time, time.Time, time.Time) filterset.FilterSet
 		wantServers []string
 	}{
 		{
 			"no filter",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) repositories.ServerFilterSet {
-				return repositories.NewServerFilterSet()
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
+				return filterset.New()
 			},
 			[]string{
 				"5.5.5.5:10480",
@@ -503,8 +574,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"exclude status",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) repositories.ServerFilterSet {
-				return repositories.NewServerFilterSet().NoStatus(ds.Master)
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
+				return filterset.New().NoStatus(ds.Master)
 			},
 			[]string{
 				"5.5.5.5:10480",
@@ -514,8 +585,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"exclude multiple status",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) repositories.ServerFilterSet {
-				return repositories.NewServerFilterSet().NoStatus(ds.PortRetry | ds.NoDetails)
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
+				return filterset.New().NoStatus(ds.PortRetry | ds.NoDetails)
 			},
 			[]string{
 				"3.3.3.3:10480",
@@ -525,8 +596,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"include status",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) repositories.ServerFilterSet {
-				return repositories.NewServerFilterSet().WithStatus(ds.Master)
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
+				return filterset.New().WithStatus(ds.Master)
 			},
 			[]string{
 				"3.3.3.3:10480",
@@ -535,8 +606,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"include multiple status",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) repositories.ServerFilterSet {
-				return repositories.NewServerFilterSet().WithStatus(ds.Master | ds.Details)
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
+				return filterset.New().WithStatus(ds.Master | ds.Details)
 			},
 			[]string{
 				"3.3.3.3:10480",
@@ -544,8 +615,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by multiple status",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) repositories.ServerFilterSet {
-				return repositories.NewServerFilterSet().WithStatus(ds.Master | ds.Details)
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
+				return filterset.New().WithStatus(ds.Master | ds.Details)
 			},
 			[]string{
 				"3.3.3.3:10480",
@@ -553,8 +624,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by update date - after",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) repositories.ServerFilterSet {
-				return repositories.NewServerFilterSet().UpdatedAfter(t4)
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
+				return filterset.New().UpdatedAfter(t4)
 			},
 			[]string{
 				"5.5.5.5:10480",
@@ -563,8 +634,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by update date - before",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) repositories.ServerFilterSet {
-				return repositories.NewServerFilterSet().UpdatedBefore(t4)
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
+				return filterset.New().UpdatedBefore(t4)
 			},
 			[]string{
 				"3.3.3.3:10480",
@@ -574,8 +645,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by update date - after and before",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) repositories.ServerFilterSet {
-				return repositories.NewServerFilterSet().
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
+				return filterset.New().
 					UpdatedAfter(t4).
 					UpdatedBefore(t5)
 			},
@@ -585,15 +656,15 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by update date - no match",
-			func(now time.Time, t1, t2, t3, t4, t5 time.Time) repositories.ServerFilterSet {
-				return repositories.NewServerFilterSet().UpdatedAfter(now)
+			func(now time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
+				return filterset.New().UpdatedAfter(now)
 			},
 			[]string{},
 		},
 		{
 			"filter by refresh date - after",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) repositories.ServerFilterSet {
-				return repositories.NewServerFilterSet().ActiveAfter(t2)
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
+				return filterset.New().ActiveAfter(t2)
 			},
 			[]string{
 				"3.3.3.3:10480",
@@ -602,8 +673,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by refresh date - before",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) repositories.ServerFilterSet {
-				return repositories.NewServerFilterSet().ActiveBefore(t3)
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
+				return filterset.New().ActiveBefore(t3)
 			},
 			[]string{
 				"2.2.2.2:10480",
@@ -612,8 +683,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by refresh date - after and before",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) repositories.ServerFilterSet {
-				return repositories.NewServerFilterSet().
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
+				return filterset.New().
 					ActiveAfter(t2).
 					ActiveBefore(t3)
 			},
@@ -623,15 +694,15 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by refresh date - no match",
-			func(now time.Time, t1, t2, t3, t4, t5 time.Time) repositories.ServerFilterSet {
-				return repositories.NewServerFilterSet().ActiveAfter(now)
+			func(now time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
+				return filterset.New().ActiveAfter(now)
 			},
 			[]string{},
 		},
 		{
 			"filter by multiple fields",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) repositories.ServerFilterSet {
-				return repositories.NewServerFilterSet().
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
+				return filterset.New().
 					UpdatedBefore(t5).
 					ActiveAfter(t2).
 					WithStatus(ds.Master)
@@ -698,28 +769,28 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 func TestServerMemoryRepo_Filter_Empty(t *testing.T) {
 	tests := []struct {
 		name      string
-		fsfactory func(time.Time) repositories.ServerFilterSet
+		fsfactory func(time.Time) filterset.FilterSet
 	}{
 		{
 			"default filterset",
-			func(time.Time) repositories.ServerFilterSet { return repositories.NewServerFilterSet() },
+			func(time.Time) filterset.FilterSet { return filterset.New() },
 		},
 		{
 			"filter by no status",
-			func(time.Time) repositories.ServerFilterSet {
-				return repositories.NewServerFilterSet().NoStatus(ds.Master)
+			func(time.Time) filterset.FilterSet {
+				return filterset.New().NoStatus(ds.Master)
 			},
 		},
 		{
 			"filter by status",
-			func(time.Time) repositories.ServerFilterSet {
-				return repositories.NewServerFilterSet().WithStatus(ds.Master)
+			func(time.Time) filterset.FilterSet {
+				return filterset.New().WithStatus(ds.Master)
 			},
 		},
 		{
 			"filter by status and update date",
-			func(t time.Time) repositories.ServerFilterSet {
-				return repositories.NewServerFilterSet().WithStatus(ds.Master).UpdatedBefore(t)
+			func(t time.Time) filterset.FilterSet {
+				return filterset.New().WithStatus(ds.Master).UpdatedBefore(t)
 			},
 		},
 	}

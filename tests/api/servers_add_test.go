@@ -6,16 +6,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
-	"github.com/sergeii/swat4master/internal/core/entities/details"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
-	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/internal/testutils/factories"
 )
@@ -163,10 +160,13 @@ func TestAPI_AddServer_SubmitExisting(t *testing.T) {
 			ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 			defer cancel()
 
-			svr, err := server.NewFromAddr(addr.MustNewFromDotted("1.1.1.1", 10480), 10484)
-			require.NoError(t, err)
-			svr.UpdateDiscoveryStatus(tt.initStatus)
-			factories.SaveServer(ctx, repos.Servers, svr)
+			factories.CreateServer(
+				ctx,
+				repos.Servers,
+				factories.WithAddress("1.1.1.1", 10480),
+				factories.WithQueryPort(10484),
+				factories.WithDiscoveryStatus(tt.initStatus),
+			)
 
 			payload, _ := json.Marshal(serverAddReqSchema{
 				IP:   "1.1.1.1",
@@ -224,13 +224,15 @@ func TestAPI_AddServer_AlreadyDiscovered(t *testing.T) {
 		"swatwon":       "1",
 		"suspectswon":   "2",
 	}
-	det := details.MustNewDetailsFromParams(fields, nil, nil)
 
-	svr, err := server.NewFromAddr(addr.MustNewFromDotted("1.1.1.1", 10480), 10484)
-	require.NoError(t, err)
-	svr.UpdateDiscoveryStatus(ds.Details)
-	svr.UpdateDetails(det, time.Now())
-	factories.SaveServer(ctx, repos.Servers, svr)
+	factories.CreateServer(
+		ctx,
+		repos.Servers,
+		factories.WithAddress("1.1.1.1", 10480),
+		factories.WithQueryPort(10484),
+		factories.WithDiscoveryStatus(ds.Details),
+		factories.WithInfo(fields),
+	)
 
 	payload, _ := json.Marshal(serverAddReqSchema{ // nolint: errchkjson
 		IP:   "1.1.1.1",

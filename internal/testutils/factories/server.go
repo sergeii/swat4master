@@ -13,108 +13,116 @@ import (
 	"github.com/sergeii/swat4master/pkg/random"
 )
 
-func SaveServer(
-	ctx context.Context,
-	repo repositories.ServerRepository,
-	svr server.Server,
-) server.Server {
-	savedSvr, _ := repo.Add(ctx, svr, repositories.ServerOnConflictIgnore)
-	return savedSvr
+type BuildServerParams struct {
+	IP              string
+	Port            int
+	QueryPort       int
+	DiscoveryStatus status.DiscoveryStatus
+	Info            map[string]string
+	Players         []map[string]string
+	Objectives      []map[string]string
 }
 
-func BuildNewServer(
-	ip string,
-	port int,
-	queryPort int,
-) server.Server {
-	svr, _ := server.New(net.ParseIP(ip), port, queryPort)
+type BuildServerOption func(*BuildServerParams)
+
+func WithAddress(ip string, port int) BuildServerOption {
+	return func(p *BuildServerParams) {
+		p.IP = ip
+		p.Port = port
+	}
+}
+
+func WithQueryPort(queryPort int) BuildServerOption {
+	return func(p *BuildServerParams) {
+		p.QueryPort = queryPort
+	}
+}
+
+func WithDiscoveryStatus(status status.DiscoveryStatus) BuildServerOption {
+	return func(p *BuildServerParams) {
+		p.DiscoveryStatus = status
+	}
+}
+
+func WithInfo(fields map[string]string) BuildServerOption {
+	return func(p *BuildServerParams) {
+		p.Info = fields
+	}
+}
+
+func WithNoInfo() BuildServerOption {
+	return func(p *BuildServerParams) {
+		p.Info = nil
+	}
+}
+
+func WithPlayers(players []map[string]string) BuildServerOption {
+	return func(p *BuildServerParams) {
+		p.Players = players
+	}
+}
+
+func WithObjectives(objectives []map[string]string) BuildServerOption {
+	return func(p *BuildServerParams) {
+		p.Objectives = objectives
+	}
+}
+
+func BuildServer(opts ...BuildServerOption) server.Server {
+	params := BuildServerParams{
+		IP:              "1.1.1.1",
+		Port:            10480,
+		QueryPort:       10481,
+		DiscoveryStatus: status.New,
+		Info: map[string]string{
+			"hostname":    "Swat4 Server",
+			"hostport":    "10480",
+			"mapname":     "A-Bomb Nightclub",
+			"gamever":     "1.1",
+			"gamevariant": "SWAT 4",
+			"gametype":    "VIP Escort",
+		},
+		Players:    nil,
+		Objectives: nil,
+	}
+
+	for _, opt := range opts {
+		opt(&params)
+	}
+
+	svr := server.MustNew(net.ParseIP(params.IP), params.Port, params.QueryPort)
+
+	svr.UpdateDetails(details.MustNewDetailsFromParams(params.Info, params.Players, params.Objectives), time.Now())
+	svr.UpdateDiscoveryStatus(params.DiscoveryStatus)
 	return svr
 }
 
 func BuildRandomServer() server.Server {
 	randomIP := testutils.GenRandomIP()
 	randPort := random.RandInt(1, 65534)
-	return BuildNewServer(
-		randomIP.String(),
-		randPort,
-		randPort+1,
+	return BuildServer(
+		WithAddress(randomIP.String(), randPort),
+		WithQueryPort(randPort+1),
 	)
 }
 
-func BuildServerWithDetails(
-	ip string,
-	port int,
-	queryPort int,
-	det details.Details,
-	status status.DiscoveryStatus,
+func SaveServer(
+	ctx context.Context,
+	repo repositories.ServerRepository,
+	svr server.Server,
 ) server.Server {
-	svr := BuildNewServer(ip, port, queryPort)
-	svr.UpdateDetails(det, time.Now())
-	svr.UpdateDiscoveryStatus(status)
-	return svr
-}
-
-func BuildServerWithStatus(
-	ip string,
-	port int,
-	queryPort int,
-	status status.DiscoveryStatus,
-) server.Server {
-	svr := BuildNewServer(ip, port, queryPort)
-	svr.UpdateDiscoveryStatus(status)
-	return svr
-}
-
-func BuildServerWithDefaultDetails(
-	status status.DiscoveryStatus,
-) server.Server {
-	fields := map[string]string{
-		"hostname":    "Swat4 Server",
-		"hostport":    "10480",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "VIP Escort",
+	savedSvr, err := repo.Add(ctx, svr, repositories.ServerOnConflictIgnore)
+	if err != nil {
+		panic(err)
 	}
-	svr := BuildNewServer("1.1.1.1", 10480, 10481)
-	svr.UpdateDetails(details.MustNewDetailsFromParams(fields, nil, nil), time.Now())
-	svr.UpdateDiscoveryStatus(status)
-	return svr
+	return savedSvr
 }
 
-func CreateServerWithDetails(
+func CreateServer(
 	ctx context.Context,
 	repo repositories.ServerRepository,
-	ip string,
-	port int,
-	queryPort int,
-	det details.Details,
-	status status.DiscoveryStatus,
+	opts ...BuildServerOption,
 ) server.Server {
-	svr := BuildServerWithDetails(ip, port, queryPort, det, status)
-	SaveServer(ctx, repo, svr)
-	return svr
-}
-
-func CreateServerWithStatus(
-	ctx context.Context,
-	repo repositories.ServerRepository,
-	ip string,
-	port int,
-	queryPort int,
-	status status.DiscoveryStatus,
-) server.Server {
-	svr := BuildServerWithStatus(ip, port, queryPort, status)
-	SaveServer(ctx, repo, svr)
-	return svr
-}
-
-func CreateServerWithDefaultDetails(
-	ctx context.Context,
-	repo repositories.ServerRepository,
-	status status.DiscoveryStatus,
-) server.Server {
-	svr := BuildServerWithDefaultDetails(status)
-	SaveServer(ctx, repo, svr)
-	return svr
+	svr := BuildServer(opts...)
+	return SaveServer(ctx, repo, svr)
 }

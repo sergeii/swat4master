@@ -65,21 +65,12 @@ func Run(
 	}
 }
 
-type Params struct {
-	fx.In
-
-	// not used, required for dependency
-	*probers.PortProber
-	*probers.DetailsProber
-}
-
 func NewProber(
 	lc fx.Lifecycle,
 	cfg config.Config,
 	queue *ps.Service,
 	wg *WorkerGroup,
 	logger *zerolog.Logger,
-	_ Params,
 ) *Prober {
 	stopped := make(chan struct{})
 	stop := make(chan struct{})
@@ -160,12 +151,8 @@ var Module = fx.Module("prober",
 		fx.Private,
 		provideWorkerGroup,
 	),
-	fx.Provide(
-		fx.Private,
+	fx.Invoke(
 		probers.NewDetailsProber,
-	),
-	fx.Provide(
-		fx.Private,
 		probers.NewPortProber,
 	),
 	fx.Provide(NewProber),

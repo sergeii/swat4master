@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/sergeii/swat4master/internal/core/entities/details"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/internal/testutils/factories"
@@ -128,14 +127,14 @@ func TestAPI_ViewServer_OK(t *testing.T) {
 	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 	defer cancel()
 
-	factories.CreateServerWithDetails(
+	factories.CreateServer(
 		ctx,
 		repos.Servers,
-		"1.1.1.1",
-		10580,
-		10581,
-		details.MustNewDetailsFromParams(fields, players, nil),
-		ds.Master|ds.Details|ds.Info,
+		factories.WithAddress("1.1.1.1", 10580),
+		factories.WithQueryPort(10581),
+		factories.WithDiscoveryStatus(ds.Master|ds.Details|ds.Info),
+		factories.WithInfo(fields),
+		factories.WithPlayers(players),
 	)
 
 	obj := serverDetailSchema{}
@@ -250,14 +249,15 @@ func TestAPI_ViewServer_Coop_OK(t *testing.T) {
 	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 	defer cancel()
 
-	factories.CreateServerWithDetails(
+	factories.CreateServer(
 		ctx,
 		repos.Servers,
-		"1.1.1.1",
-		10880,
-		10881,
-		details.MustNewDetailsFromParams(fields, players, objectives),
-		ds.Details|ds.Info,
+		factories.WithAddress("1.1.1.1", 10880),
+		factories.WithQueryPort(10881),
+		factories.WithDiscoveryStatus(ds.Details|ds.Info),
+		factories.WithInfo(fields),
+		factories.WithPlayers(players),
+		factories.WithObjectives(objectives),
 	)
 
 	obj := serverDetailSchema{}
@@ -326,14 +326,13 @@ func TestAPI_ViewServer_MinimalInfo_OK(t *testing.T) {
 	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 	defer cancel()
 
-	factories.CreateServerWithDetails(
+	factories.CreateServer(
 		ctx,
 		repos.Servers,
-		"1.1.1.1",
-		10480,
-		10481,
-		details.MustNewDetailsFromParams(fields, nil, nil),
-		ds.Details|ds.Info,
+		factories.WithAddress("1.1.1.1", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.Details|ds.Info),
+		factories.WithInfo(fields),
 	)
 
 	obj := serverDetailSchema{}
@@ -366,13 +365,13 @@ func TestAPI_ViewServer_NoInfo_OK(t *testing.T) {
 	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 	defer cancel()
 
-	factories.CreateServerWithStatus(
+	factories.CreateServer(
 		ctx,
 		repos.Servers,
-		"1.1.1.1",
-		10480,
-		10481,
-		ds.Details|ds.Info,
+		factories.WithAddress("1.1.1.1", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.Details|ds.Info),
+		factories.WithNoInfo(),
 	)
 
 	obj := serverDetailSchema{}
@@ -423,11 +422,7 @@ func TestAPI_ViewServer_NotFound(t *testing.T) {
 			ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 			defer cancel()
 
-			factories.CreateServerWithDefaultDetails(
-				ctx,
-				repos.Servers,
-				ds.Details,
-			)
+			factories.CreateServer(ctx, repos.Servers, factories.WithDiscoveryStatus(ds.Details))
 
 			testPath := "/api/servers/" + tt.address
 
@@ -534,11 +529,7 @@ func TestAPI_ViewServer_ValidateAddress(t *testing.T) {
 			ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 			defer cancel()
 
-			factories.CreateServerWithDefaultDetails(
-				ctx,
-				repos.Servers,
-				ds.Details,
-			)
+			factories.CreateServer(ctx, repos.Servers, factories.WithDiscoveryStatus(ds.Details))
 
 			obj := serverDetailSchema{}
 			resp := testutils.DoTestRequest(
@@ -587,14 +578,13 @@ func TestAPI_ViewServer_ValidateStatus(t *testing.T) {
 				"gamevariant": "SWAT 4",
 				"gametype":    "VIP Escort",
 			}
-			factories.CreateServerWithDetails(
+			factories.CreateServer(
 				ctx,
 				repos.Servers,
-				"1.1.1.1",
-				10480,
-				10481,
-				details.MustNewDetailsFromParams(fields, nil, nil),
-				tt.status,
+				factories.WithAddress("1.1.1.1", 10480),
+				factories.WithQueryPort(10481),
+				factories.WithDiscoveryStatus(tt.status),
+				factories.WithInfo(fields),
 			)
 
 			if tt.want {

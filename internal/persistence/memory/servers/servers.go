@@ -3,6 +3,7 @@ package servers
 import (
 	"container/list"
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/filterset"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 )
@@ -35,24 +37,24 @@ func New(clock clockwork.Clock) *Repository {
 	return repo
 }
 
-func (mr *Repository) Add(
+func (r *Repository) Add(
 	ctx context.Context,
 	svr server.Server,
 	onConflict func(*server.Server) bool,
 ) (server.Server, error) {
-	mr.mutex.Lock()
-	defer mr.mutex.Unlock()
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 
 	var item *serverItem
 
-	elem, exists := mr.servers[svr.Addr]
+	elem, exists := r.servers[svr.Addr]
 	if !exists {
 		item = &serverItem{
 			Server:    svr,
-			UpdatedAt: mr.clock.Now(),
+			UpdatedAt: r.clock.Now(),
 		}
-		elem = mr.history.PushFront(item)
-		mr.servers[svr.Addr] = elem
+		elem = r.history.PushFront(item)
+		r.servers[svr.Addr] = elem
 		return svr, nil
 	}
 
@@ -65,18 +67,18 @@ func (mr *Repository) Add(
 		return server.Blank, repositories.ErrServerExists
 	}
 	svr = resolved
-	return mr.update(ctx, elem, item, svr)
+	return r.update(ctx, elem, item, svr)
 }
 
-func (mr *Repository) Update(
+func (r *Repository) Update(
 	ctx context.Context,
 	svr server.Server,
 	onConflict func(*server.Server) bool,
 ) (server.Server, error) {
-	mr.mutex.Lock()
-	defer mr.mutex.Unlock()
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 
-	elem, exists := mr.servers[svr.Addr]
+	elem, exists := r.servers[svr.Addr]
 	if !exists {
 		return server.Blank, repositories.ErrServerNotFound
 	}
@@ -96,10 +98,10 @@ func (mr *Repository) Update(
 		svr = resolved
 	}
 
-	return mr.update(ctx, elem, item, svr)
+	return r.update(ctx, elem, item, svr)
 }
 
-func (mr *Repository) update(
+func (r *Repository) update(
 	_ context.Context,
 	elem *list.Element,
 	item *serverItem,
@@ -112,22 +114,43 @@ func (mr *Repository) update(
 	svr.Version++
 
 	item.Server = svr
-	item.UpdatedAt = mr.clock.Now()
+	item.UpdatedAt = r.clock.Now()
 
-	mr.history.MoveToFront(elem)
+	r.history.MoveToFront(elem)
 
 	return svr, nil
 }
 
-func (mr *Repository) Remove(
+func (r *Repository) AddOrUpdate(
+	ctx context.Context,
+	svr server.Server,
+	onConflictDo func(*server.Server),
+) (server.Server, error) {
+	repoOnConflict := func(s *server.Server) bool {
+		onConflictDo(s)
+		// we never want to fail an update
+		return true
+	}
+	if _, err := r.Get(ctx, svr.Addr); err != nil {
+		switch {
+		case errors.Is(err, repositories.ErrServerNotFound):
+			return r.Add(ctx, svr, repoOnConflict)
+		default:
+			return server.Blank, err
+		}
+	}
+	return r.Update(ctx, svr, repoOnConflict)
+}
+
+func (r *Repository) Remove(
 	_ context.Context,
 	svr server.Server,
 	onConflict func(*server.Server) bool,
 ) error {
-	mr.mutex.Lock()
-	defer mr.mutex.Unlock()
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 
-	elem, exists := mr.servers[svr.Addr]
+	elem, exists := r.servers[svr.Addr]
 	if !exists {
 		return nil
 	}
@@ -141,16 +164,16 @@ func (mr *Repository) Remove(
 		}
 	}
 
-	delete(mr.servers, svr.Addr)
-	mr.history.Remove(elem)
+	delete(r.servers, svr.Addr)
+	r.history.Remove(elem)
 
 	return nil
 }
 
-func (mr *Repository) Get(_ context.Context, addr addr.Addr) (server.Server, error) {
-	mr.mutex.RLock()
-	defer mr.mutex.RUnlock()
-	item, exists := mr.servers[addr]
+func (r *Repository) Get(_ context.Context, addr addr.Addr) (server.Server, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+	item, exists := r.servers[addr]
 	if !exists {
 		return server.Blank, repositories.ErrServerNotFound
 	}
@@ -158,12 +181,12 @@ func (mr *Repository) Get(_ context.Context, addr addr.Addr) (server.Server, err
 	return svr.Server, nil
 }
 
-func (mr *Repository) Filter( // nolint: cyclop
+func (r *Repository) Filter( // nolint: cyclop
 	_ context.Context,
-	fs repositories.ServerFilterSet,
+	fs filterset.FilterSet,
 ) ([]server.Server, error) {
-	mr.mutex.RLock()
-	defer mr.mutex.RUnlock()
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
 
 	activeBefore, byActiveBefore := fs.GetActiveBefore()
 	activeAfter, byActiveAfter := fs.GetActiveAfter()
@@ -173,8 +196,8 @@ func (mr *Repository) Filter( // nolint: cyclop
 	noStatus, byNoStatus := fs.GetNoStatus()
 
 	// make the slice with enough size to fit all servers
-	recent := make([]server.Server, 0, len(mr.servers))
-	for item := mr.history.Front(); item != nil; item = item.Next() {
+	recent := make([]server.Server, 0, len(r.servers))
+	for item := r.history.Front(); item != nil; item = item.Next() {
 		rep := item.Value.(*serverItem) // nolint: forcetypeassert
 		updatedAt := rep.UpdatedAt
 		refreshedAt := rep.Server.RefreshedAt
@@ -203,20 +226,20 @@ func (mr *Repository) Filter( // nolint: cyclop
 	return recent, nil
 }
 
-func (mr *Repository) Count(context.Context) (int, error) {
-	mr.mutex.RLock()
-	defer mr.mutex.RUnlock()
-	return len(mr.servers), nil
+func (r *Repository) Count(context.Context) (int, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+	return len(r.servers), nil
 }
 
-func (mr *Repository) CountByStatus(_ context.Context) (map[ds.DiscoveryStatus]int, error) {
-	mr.mutex.RLock()
-	defer mr.mutex.RUnlock()
+func (r *Repository) CountByStatus(_ context.Context) (map[ds.DiscoveryStatus]int, error) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
 
 	var bit ds.DiscoveryStatus
 	counter := make(map[ds.DiscoveryStatus]int)
 
-	for item := mr.history.Front(); item != nil; item = item.Next() {
+	for item := r.history.Front(); item != nil; item = item.Next() {
 		rep := item.Value.(*serverItem) // nolint: forcetypeassert
 		status := rep.Server.DiscoveryStatus
 		for bit = 1; bit <= status; bit <<= 1 {

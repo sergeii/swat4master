@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/sergeii/swat4master/internal/core/entities/details"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/filterset"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/core/usecases/listservers"
@@ -24,7 +24,7 @@ type MockServerRepository struct {
 	repositories.ServerRepository
 }
 
-func (m *MockServerRepository) Filter(ctx context.Context, fs repositories.ServerFilterSet) ([]server.Server, error) {
+func (m *MockServerRepository) Filter(ctx context.Context, fs filterset.FilterSet) ([]server.Server, error) {
 	args := m.Called(ctx, fs)
 	if err := args.Error(1); err != nil {
 		return nil, err
@@ -45,13 +45,13 @@ func TestListServersUseCase_FilterParams(t *testing.T) {
 		name       string
 		recentness time.Duration
 		status     ds.DiscoveryStatus
-		wantCall   func(fs repositories.ServerFilterSet) bool
+		wantCall   func(fs filterset.FilterSet) bool
 	}{
 		{
 			"servers active in the last hour with info status",
 			time.Hour,
 			ds.Info,
-			func(fs repositories.ServerFilterSet) bool {
+			func(fs filterset.FilterSet) bool {
 				_, activeBeforeIsSet := fs.GetActiveBefore()
 				activeAfter, activeAfterIsSet := fs.GetActiveAfter()
 				withStatus, withStatusIsSet := fs.GetWithStatus()
@@ -67,7 +67,7 @@ func TestListServersUseCase_FilterParams(t *testing.T) {
 			"servers active in the last 5 minutes with details and master status",
 			5 * time.Minute,
 			ds.Details | ds.Master,
-			func(fs repositories.ServerFilterSet) bool {
+			func(fs filterset.FilterSet) bool {
 				_, activeBeforeIsSet := fs.GetActiveBefore()
 				activeAfter, activeAfterIsSet := fs.GetActiveAfter()
 				withStatus, withStatusIsSet := fs.GetWithStatus()
@@ -98,8 +98,6 @@ func TestListServersUseCase_FilterParams(t *testing.T) {
 }
 
 func TestListServersUseCase_FilterByQuery(t *testing.T) {
-	ctx := context.TODO()
-
 	tests := []struct {
 		name      string
 		query     query.Query
@@ -325,9 +323,11 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 		},
 	}
 
-	vip := factories.BuildServerWithDetails(
-		"1.1.1.1", 10580, 10581,
-		details.MustNewDetailsFromParams(map[string]string{
+	vip := factories.BuildServer(
+		factories.WithAddress("1.1.1.1", 10580),
+		factories.WithQueryPort(10581),
+		factories.WithDiscoveryStatus(ds.Master|ds.Info),
+		factories.WithInfo(map[string]string{
 			"hostname":    "VIP Escort Swat4 Server",
 			"hostport":    "10480",
 			"gametype":    "VIP Escort",
@@ -337,13 +337,14 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 			"password":    "0",
 			"numplayers":  "16",
 			"maxplayers":  "16",
-		}, nil, nil),
-		ds.Master|ds.Info,
+		}),
 	)
 
-	vip10 := factories.BuildServerWithDetails(
-		"2.2.2.2", 10580, 10581,
-		details.MustNewDetailsFromParams(map[string]string{
+	vip10 := factories.BuildServer(
+		factories.WithAddress("2.2.2.2", 10580),
+		factories.WithQueryPort(10581),
+		factories.WithDiscoveryStatus(ds.Master|ds.Info),
+		factories.WithInfo(map[string]string{
 			"hostname":    "VIP 1.0 Swat4 Server",
 			"hostport":    "10480",
 			"gametype":    "VIP Escort",
@@ -353,13 +354,14 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 			"password":    "0",
 			"numplayers":  "16",
 			"maxplayers":  "18",
-		}, nil, nil),
-		ds.Master|ds.Info,
+		}),
 	)
 
-	bs := factories.BuildServerWithDetails(
-		"3.3.3.3", 10480, 10481,
-		details.MustNewDetailsFromParams(map[string]string{
+	bs := factories.BuildServer(
+		factories.WithAddress("3.3.3.3", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.Master|ds.Info|ds.Details),
+		factories.WithInfo(map[string]string{
 			"hostname":    "BS Swat4 Server",
 			"hostport":    "10480",
 			"gametype":    "Barricaded Suspects",
@@ -369,13 +371,14 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 			"password":    "0",
 			"numplayers":  "0",
 			"maxplayers":  "16",
-		}, nil, nil),
-		ds.Master|ds.Info|ds.Details,
+		}),
 	)
 
-	coop := factories.BuildServerWithDetails(
-		"4.4.4.4", 10480, 10481,
-		details.MustNewDetailsFromParams(map[string]string{
+	coop := factories.BuildServer(
+		factories.WithAddress("4.4.4.4", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.Info|ds.Details),
+		factories.WithInfo(map[string]string{
 			"hostname":    "COOP Swat4 Server",
 			"hostport":    "10480",
 			"gametype":    "CO-OP",
@@ -385,13 +388,14 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 			"password":    "0",
 			"numplayers":  "0",
 			"maxplayers":  "5",
-		}, nil, nil),
-		ds.Info|ds.Details,
+		}),
 	)
 
-	sg := factories.BuildServerWithDetails(
-		"5.5.5.5", 10480, 10481,
-		details.MustNewDetailsFromParams(map[string]string{
+	sg := factories.BuildServer(
+		factories.WithAddress("5.5.5.5", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.Master|ds.Info|ds.NoDetails),
+		factories.WithInfo(map[string]string{
 			"hostname":    "S&G Swat4 Server",
 			"hostport":    "10480",
 			"gametype":    "Smash And Grab",
@@ -401,13 +405,14 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 			"password":    "0",
 			"numplayers":  "0",
 			"maxplayers":  "16",
-		}, nil, nil),
-		ds.Master|ds.Info|ds.NoDetails,
+		}),
 	)
 
-	coopx := factories.BuildServerWithDetails(
-		"6.6.6.6", 10480, 10481,
-		details.MustNewDetailsFromParams(map[string]string{
+	coopx := factories.BuildServer(
+		factories.WithAddress("6.6.6.6", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.Master|ds.Info),
+		factories.WithInfo(map[string]string{
 			"hostname":    "TSS COOP Swat4 Server",
 			"hostport":    "10480",
 			"gametype":    "CO-OP",
@@ -417,13 +422,14 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 			"password":    "0",
 			"numplayers":  "1",
 			"maxplayers":  "10",
-		}, nil, nil),
-		ds.Master|ds.Info,
+		}),
 	)
 
-	passworded := factories.BuildServerWithDetails(
-		"7.7.7.7", 10480, 10481,
-		details.MustNewDetailsFromParams(map[string]string{
+	passworded := factories.BuildServer(
+		factories.WithAddress("7.7.7.7", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.Info|ds.Details),
+		factories.WithInfo(map[string]string{
 			"hostname":    "Private Swat4 Server",
 			"hostport":    "10480",
 			"gametype":    "VIP Escort",
@@ -433,8 +439,7 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 			"password":    "1",
 			"numplayers":  "0",
 			"maxplayers":  "16",
-		}, nil, nil),
-		ds.Details|ds.Info,
+		}),
 	)
 
 	repoServers := []server.Server{
@@ -449,6 +454,8 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.TODO()
+
 			mockRepo := new(MockServerRepository)
 			mockRepo.On("Filter", ctx, mock.Anything).Return(repoServers, nil)
 

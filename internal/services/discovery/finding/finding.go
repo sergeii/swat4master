@@ -8,6 +8,7 @@ import (
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/filterset"
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	ps "github.com/sergeii/swat4master/internal/services/probe"
@@ -37,7 +38,7 @@ func (s *Service) RefreshDetails(
 	ctx context.Context,
 	deadline time.Time,
 ) (int, error) {
-	fs := repositories.NewServerFilterSet().WithStatus(ds.Port).NoStatus(ds.DetailsRetry)
+	fs := filterset.New().WithStatus(ds.Port).NoStatus(ds.DetailsRetry)
 	serversWithDetails, err := s.servers.Filter(ctx, fs)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Unable to obtain servers for details discovery")
@@ -66,7 +67,7 @@ func (s *Service) ReviveServers(
 	maxCountdown time.Time,
 	deadline time.Time,
 ) (int, error) {
-	fs := repositories.NewServerFilterSet().ActiveAfter(minScope).ActiveBefore(maxScope).NoStatus(ds.Port | ds.PortRetry)
+	fs := filterset.New().ActiveAfter(minScope).ActiveBefore(maxScope).NoStatus(ds.Port | ds.PortRetry)
 	serversWithoutPort, err := s.servers.Filter(ctx, fs)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Unable to obtain servers for port discovery")
