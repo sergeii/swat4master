@@ -10,7 +10,6 @@ import (
 	"github.com/sergeii/swat4master/internal/services/discovery/finding"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
 	"github.com/sergeii/swat4master/internal/services/probe"
-	"github.com/sergeii/swat4master/internal/services/server"
 	"github.com/sergeii/swat4master/internal/validation"
 )
 
@@ -22,7 +21,6 @@ var Module = fx.Module("application",
 	fx.Provide(persistence.Provide),
 	fx.Provide(monitoring.NewMetricService),
 	fx.Provide(finding.NewService),
-	fx.Provide(server.NewService),
 	fx.Provide(probe.NewService),
 	container.Module,
 )

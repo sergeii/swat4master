@@ -98,13 +98,7 @@ func TestExporter_MasterMetrics(t *testing.T) {
 		testutils.GenBrowserChallenge8,
 		testutils.CalcReqLength,
 	)
-	buf := make([]byte, 1024)
-	conn, _ := net.Dial("tcp", "127.0.0.1:13381")
-	_, err := conn.Write(req)
-	require.NoError(t, err)
-	_, err = conn.Read(buf)
-	require.NoError(t, err)
-	conn.Close()
+	testutils.SendTCP("127.0.0.1:13381", req)
 
 	// invalid browser request (no fields)
 	req = testutils.PackBrowserRequest(
@@ -114,8 +108,8 @@ func TestExporter_MasterMetrics(t *testing.T) {
 		testutils.GenBrowserChallenge8,
 		testutils.CalcReqLength,
 	)
-	conn, _ = net.Dial("tcp", "127.0.0.1:13381")
-	_, err = conn.Write(req)
+	conn, _ := net.Dial("tcp", "127.0.0.1:13381")
+	_, err := conn.Write(req)
 	require.NoError(t, err)
 
 	mf := getMetrics(t)

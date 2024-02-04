@@ -50,6 +50,14 @@ func WithInfo(fields map[string]string) BuildServerOption {
 	}
 }
 
+func WithExtraFields(extraFields map[string]string) BuildServerOption {
+	return func(p *BuildServerParams) {
+		for k, v := range extraFields {
+			p.Info[k] = v
+		}
+	}
+}
+
 func WithNoInfo() BuildServerOption {
 	return func(p *BuildServerParams) {
 		p.Info = nil

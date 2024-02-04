@@ -1,13 +1,11 @@
 package testutils
 
 import (
-	"context"
 	"encoding/binary"
 	"fmt"
 	"net"
 	"strings"
 
-	"github.com/sergeii/swat4master/internal/services/master/browsing"
 	"github.com/sergeii/swat4master/pkg/binutils"
 	gscrypt "github.com/sergeii/swat4master/pkg/gamespy/crypt"
 	"github.com/sergeii/swat4master/pkg/random"
@@ -109,11 +107,7 @@ func UnpackServerList(resp []byte) []map[string]string {
 	return servers
 }
 
-func SendBrowserRequest(
-	service *browsing.Service,
-	filters string,
-	getAddrFunc func() (net.IP, int),
-) ([]byte, error) {
+func SendBrowserRequest(address string, filters string) []byte {
 	var gameKey [6]byte
 	var challenge [8]byte
 	copy(challenge[:], GenBrowserChallenge8())
@@ -130,11 +124,7 @@ func SendBrowserRequest(
 		},
 		CalcReqLength,
 	)
-	ip, port := getAddrFunc()
-	respEnc, err := service.HandleRequest(context.TODO(), &net.TCPAddr{IP: ip, Port: port}, req)
-	if err != nil {
-		return nil, err
-	}
+	resp := SendTCP(address, req)
 	copy(gameKey[:], "tG3j8c")
-	return gscrypt.Decrypt(gameKey, challenge, respEnc), nil
+	return gscrypt.Decrypt(gameKey, challenge, resp)
 }

@@ -22,7 +22,6 @@ import (
 	"github.com/sergeii/swat4master/internal/persistence/memory"
 	"github.com/sergeii/swat4master/internal/services/discovery/probing"
 	"github.com/sergeii/swat4master/internal/services/discovery/probing/probers"
-	"github.com/sergeii/swat4master/internal/services/master/reporting"
 	"github.com/sergeii/swat4master/internal/services/monitoring"
 	sp "github.com/sergeii/swat4master/internal/services/probe"
 	"github.com/sergeii/swat4master/internal/validation"
@@ -46,7 +45,6 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 		fx.Provide(
 			monitoring.NewMetricService,
 			sp.NewService,
-			reporting.NewService,
 		),
 		fx.NopLogger,
 		fx.Provide(func() probing.ServiceOpts {

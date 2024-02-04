@@ -1,10 +1,6 @@
 package testutils
 
 import (
-	"context"
-	"net"
-
-	"github.com/sergeii/swat4master/internal/services/master/reporting"
 	"github.com/sergeii/swat4master/pkg/slice"
 )
 
@@ -33,33 +29,6 @@ func GenExtraServerParams(extra map[string]string) map[string]string {
 		params[k] = v
 	}
 	return params
-}
-
-func WithServerParams(params map[string]string) func() map[string]string {
-	return func() map[string]string {
-		return params
-	}
-}
-
-func WithExtraServerParams(extra map[string]string) func() map[string]string {
-	return func() map[string]string {
-		return GenExtraServerParams(extra)
-	}
-}
-
-func SendHeartbeat(
-	service *reporting.Service,
-	instanceID []byte,
-	getParamsFunc func() map[string]string,
-	getAddrFunc func() (net.IP, int),
-) ([]byte, error) {
-	ip, port := getAddrFunc()
-	resp, _, err := service.DispatchRequest(
-		context.TODO(),
-		PackHeartbeatRequest(instanceID, getParamsFunc()),
-		&net.UDPAddr{IP: ip, Port: port},
-	)
-	return resp, err
 }
 
 func PackHeartbeatRequest(instanceID []byte, params map[string]string) []byte {

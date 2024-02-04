@@ -5,8 +5,6 @@ import (
 	"log"
 	"math/rand"
 	"net"
-
-	"github.com/sergeii/swat4master/pkg/random"
 )
 
 func GenRandomIP() net.IP {
@@ -22,21 +20,4 @@ func GenRandomIP() net.IP {
 		return randIP
 	}
 	panic("unable to generate random IP")
-}
-
-func StandardAddr() (net.IP, int) {
-	return net.ParseIP("1.1.1.1"), 10481
-}
-
-func WithRandomAddr() func() (net.IP, int) {
-	return func() (net.IP, int) {
-		randPort := random.RandInt(1, 65535)
-		return GenRandomIP(), randPort
-	}
-}
-
-func WithCustomAddr(ip string, port int) func() (net.IP, int) {
-	return func() (net.IP, int) {
-		return net.ParseIP(ip), port
-	}
 }
