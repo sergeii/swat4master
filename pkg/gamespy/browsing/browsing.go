@@ -26,7 +26,9 @@ var (
 	ErrTooManyFieldsRequested = errors.New("too many fields are requested")
 )
 
-func NewRequest(data []byte) (*Request, error) {
+var Blank Request
+
+func NewRequest(data []byte) (Request, error) {
 	// nolint:lll
 	// \x00swat4\x00swat4\x00q!8Gp9Rigametype='CO-OP' and gamever='1.1'\x00\hostname\...\password\gamever\x00\x00\x00\x00\x00
 	// \x00swat4xp1\x00swat4xp1\x00|OQ0ERkV\x00\hostname\numplayers\...\statsenabled\x00\x00\x00\x00\x00
@@ -35,14 +37,14 @@ func NewRequest(data []byte) (*Request, error) {
 	// the first 2 bytes denote the actual payload length
 	// which also should not be lesser than the minimal accepted length
 	if len(data) < 2 {
-		return nil, ErrInvalidRequestFormat
+		return Blank, ErrInvalidRequestFormat
 	}
 
 	// correctly formatted payload without filters or fields should be at least 26 bytes long
 	// but in reality much longer because we require fields to be present
 	dataLen := int(binary.BigEndian.Uint16(data[:2]))
 	if dataLen < MinRequestPayloadLength || dataLen > len(data) {
-		return nil, ErrInvalidRequestFormat
+		return Blank, ErrInvalidRequestFormat
 	}
 	req := Request{
 		// skip the following 7 bytes (excluding the first two that encode the payload length)
@@ -50,9 +52,9 @@ func NewRequest(data []byte) (*Request, error) {
 		unparsed: data[9:dataLen],
 	}
 	if err := req.parse(); err != nil {
-		return nil, err
+		return Blank, err
 	}
-	return &req, nil
+	return req, nil
 }
 
 func (req *Request) parse() error {

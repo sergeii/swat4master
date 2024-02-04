@@ -30,7 +30,8 @@ type Config struct {
 
 	ExporterListenAddr string
 
-	DiscoveryRefreshInterval  time.Duration
+	DiscoveryRefreshInterval time.Duration
+
 	DiscoveryRevivalInterval  time.Duration
 	DiscoveryRevivalScope     time.Duration
 	DiscoveryRevivalCountdown time.Duration
@@ -143,11 +144,11 @@ func Provide() Config {
 	)
 	flag.DurationVar(
 		&cfg.ProbePollSchedule, "probe.schedule", time.Millisecond*50,
-		"Defines how often the discovery queue is checked for new targets",
+		"Defines how often the discovery queue is checked for new probes",
 	)
 	flag.DurationVar(
 		&cfg.ProbeTimeout, "probe.timeout", time.Second,
-		"Limits the maximum time a discovery target will be waited for a complete response",
+		"Limits the maximum time a discovery probe will be waited for a complete response",
 	)
 	flag.IntVar(
 		&cfg.ProbeRetries, "probe.retries", 5,
@@ -155,7 +156,7 @@ func Provide() Config {
 	)
 	flag.IntVar(
 		&cfg.ProbeConcurrency, "probe.concurrency", 25,
-		"Limits how many discovery targets can be probed simultaneously",
+		"Limits how many discovery probes can be ran simultaneously",
 	)
 	flag.DurationVar(
 		&cfg.CleanRetention, "clean.retention", time.Hour,

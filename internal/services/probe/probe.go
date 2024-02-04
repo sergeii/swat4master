@@ -21,8 +21,8 @@ func NewService(repo repositories.ProbeRepository, metrics *monitoring.MetricSer
 	}
 }
 
-func (s *Service) AddAfter(ctx context.Context, target probe.Probe, after time.Time) error {
-	err := s.queue.AddBetween(ctx, target, after, repositories.NC)
+func (s *Service) AddAfter(ctx context.Context, prb probe.Probe, after time.Time) error {
+	err := s.queue.AddBetween(ctx, prb, after, repositories.NC)
 	if err != nil {
 		return err
 	}
@@ -30,8 +30,8 @@ func (s *Service) AddAfter(ctx context.Context, target probe.Probe, after time.T
 	return nil
 }
 
-func (s *Service) AddBefore(ctx context.Context, target probe.Probe, before time.Time) error {
-	err := s.queue.AddBetween(ctx, target, repositories.NC, before)
+func (s *Service) AddBefore(ctx context.Context, prb probe.Probe, before time.Time) error {
+	err := s.queue.AddBetween(ctx, prb, repositories.NC, before)
 	if err != nil {
 		return err
 	}
@@ -39,8 +39,8 @@ func (s *Service) AddBefore(ctx context.Context, target probe.Probe, before time
 	return nil
 }
 
-func (s *Service) AddBetween(ctx context.Context, target probe.Probe, after time.Time, before time.Time) error {
-	err := s.queue.AddBetween(ctx, target, after, before)
+func (s *Service) AddBetween(ctx context.Context, prb probe.Probe, after time.Time, before time.Time) error {
+	err := s.queue.AddBetween(ctx, prb, after, before)
 	if err != nil {
 		return err
 	}
@@ -49,14 +49,14 @@ func (s *Service) AddBetween(ctx context.Context, target probe.Probe, after time
 }
 
 func (s *Service) PopMany(ctx context.Context, count int) ([]probe.Probe, error) {
-	targets, expired, err := s.queue.PopMany(ctx, count)
+	probes, expired, err := s.queue.PopMany(ctx, count)
 	if err != nil {
 		return nil, err
 	}
-	s.metrics.DiscoveryQueueConsumed.Add(float64(len(targets)))
+	s.metrics.DiscoveryQueueConsumed.Add(float64(len(probes)))
 	// measure the number of expired probes
 	if expired > 0 {
 		s.metrics.DiscoveryQueueExpired.Add(float64(expired))
 	}
-	return targets, err
+	return probes, err
 }

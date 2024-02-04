@@ -2,8 +2,8 @@ package prober
 
 import (
 	"context"
+	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
@@ -21,14 +21,12 @@ func provideWorkerGroup(
 	cfg config.Config,
 	service *probing.Service,
 	metrics *monitoring.MetricService,
-	clock clock.Clock,
 	logger *zerolog.Logger,
 ) *WorkerGroup {
 	return NewWorkerGroup(
 		cfg.ProbeConcurrency,
 		service,
 		metrics,
-		clock,
 		logger,
 	)
 }
@@ -37,12 +35,11 @@ func Run(
 	stop chan struct{},
 	stopped chan struct{},
 	logger *zerolog.Logger,
-	clock clock.Clock,
 	queue *ps.Service,
 	wg *WorkerGroup,
 	cfg config.Config,
 ) {
-	ticker := clock.Ticker(cfg.ProbePollSchedule)
+	ticker := time.NewTicker(cfg.ProbePollSchedule)
 	defer ticker.Stop()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -68,29 +65,19 @@ func Run(
 	}
 }
 
-type Params struct {
-	fx.In
-
-	// not used, required for dependency
-	*probers.PortProber
-	*probers.DetailsProber
-}
-
 func NewProber(
 	lc fx.Lifecycle,
 	cfg config.Config,
-	clock clock.Clock,
 	queue *ps.Service,
 	wg *WorkerGroup,
 	logger *zerolog.Logger,
-	_ Params,
 ) *Prober {
 	stopped := make(chan struct{})
 	stop := make(chan struct{})
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			go Run(stop, stopped, logger, clock, queue, wg, cfg) // nolint: contextcheck
+			go Run(stop, stopped, logger, queue, wg, cfg) // nolint: contextcheck
 			return nil
 		},
 		OnStop: func(context.Context) error {
@@ -120,7 +107,7 @@ func feed(
 	if err != nil {
 		logger.Warn().
 			Err(err).Int("availability", availability).
-			Msg("Unable to fetch new targets")
+			Msg("Unable to fetch new probes")
 		return
 	}
 
@@ -130,7 +117,7 @@ func feed(
 
 	logger.Debug().
 		Int("availability", availability).Int("probes", len(probes)).
-		Msg("Obtained targets")
+		Msg("Obtained probes")
 
 	for _, prb := range probes {
 		pool <- prb
@@ -138,7 +125,7 @@ func feed(
 
 	logger.Debug().
 		Int("availability", availability).Int("probes", len(probes)).
-		Msg("Sent targets to work pool")
+		Msg("Sent probes to work pool")
 }
 
 var Module = fx.Module("prober",
@@ -164,12 +151,8 @@ var Module = fx.Module("prober",
 		fx.Private,
 		provideWorkerGroup,
 	),
-	fx.Provide(
-		fx.Private,
+	fx.Invoke(
 		probers.NewDetailsProber,
-	),
-	fx.Provide(
-		fx.Private,
 		probers.NewPortProber,
 	),
 	fx.Provide(NewProber),

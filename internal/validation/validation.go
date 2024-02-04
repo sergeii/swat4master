@@ -13,3 +13,11 @@ func New() (*validator.Validate, error) {
 	}
 	return validate, nil
 }
+
+func MustNew() *validator.Validate {
+	validate, err := New()
+	if err != nil {
+		panic(err)
+	}
+	return validate
+}

@@ -153,7 +153,7 @@ func TestFilter_Parse(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := filter.ParseFilter(tt.filter)
+			got, err := filter.Parse(tt.filter)
 			if tt.wantErr != nil {
 				assert.ErrorIs(t, err, tt.wantErr)
 			} else {
@@ -344,7 +344,7 @@ func TestFilter_Match(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f, err := filter.NewFilter(tt.args.Field, tt.args.Op, tt.args.Value)
+			f, err := filter.New(tt.args.Field, tt.args.Op, tt.args.Value)
 			require.NoError(t, err)
 
 			fields := Schema{

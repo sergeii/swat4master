@@ -7,8 +7,8 @@ import (
 )
 
 type Instance struct {
-	id   string
-	addr addr.Addr
+	ID   string
+	Addr addr.Addr
 }
 
 var Blank Instance // nolint: gochecknoglobals
@@ -27,24 +27,4 @@ func MustNew(id string, ip net.IP, port int) Instance {
 		panic(err)
 	}
 	return ins
-}
-
-func (ins Instance) GetID() string {
-	return ins.id
-}
-
-func (ins Instance) GetIP() net.IP {
-	return ins.addr.GetIP()
-}
-
-func (ins Instance) GetDottedIP() string {
-	return ins.addr.GetDottedIP()
-}
-
-func (ins Instance) GetPort() int {
-	return ins.addr.Port
-}
-
-func (ins Instance) GetAddr() addr.Addr {
-	return ins.addr
 }

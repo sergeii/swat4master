@@ -6,8 +6,8 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/go-playground/validator/v10"
+	"github.com/jonboulle/clockwork"
 	"github.com/rs/zerolog"
 
 	"github.com/sergeii/swat4master/internal/core/entities/details"
@@ -22,7 +22,7 @@ import (
 type DetailsProber struct {
 	metrics  *monitoring.MetricService
 	validate *validator.Validate
-	clock    clock.Clock
+	clock    clockwork.Clock
 	logger   *zerolog.Logger
 }
 
@@ -30,7 +30,7 @@ func NewDetailsProber(
 	service *probing.Service,
 	metrics *monitoring.MetricService,
 	validate *validator.Validate,
-	clock clock.Clock,
+	clock clockwork.Clock,
 	logger *zerolog.Logger,
 ) (*DetailsProber, error) {
 	dp := &DetailsProber{
@@ -55,37 +55,36 @@ func (s *DetailsProber) Probe(
 	queryPort int,
 	timeout time.Duration,
 ) (any, error) {
-	addr := svr.GetAddr()
-	qAddr := netip.AddrPortFrom(netip.AddrFrom4(addr.GetIP4()), uint16(queryPort))
+	qAddr := netip.AddrPortFrom(netip.AddrFrom4(svr.Addr.IP), uint16(queryPort))
 
-	queryStarted := s.clock.Now()
+	queryStarted := time.Now()
 
 	resp, err := gs1.Query(ctx, qAddr, timeout)
 	if err != nil {
 		s.logger.Info().
 			Err(err).
-			Dur("timeout", timeout).Stringer("addr", addr).Int("port", queryPort).
+			Dur("timeout", timeout).Stringer("addr", svr.Addr).Int("port", queryPort).
 			Msg("Failed to probe details")
 		return details.Blank, err
 	}
 
-	queryDur := s.clock.Since(queryStarted).Seconds()
+	queryDur := time.Since(queryStarted).Seconds()
 	s.metrics.DiscoveryQueryDurations.Observe(queryDur)
 	s.logger.Debug().
-		Stringer("addr", addr).Int("port", queryPort).
+		Stringer("addr", svr.Addr).Int("port", queryPort).
 		Float64("duration", queryDur).Stringer("version", resp.Version).
 		Msg("Successfully queried server")
 
 	svrDetails, err := details.NewDetailsFromParams(resp.Fields, resp.Players, resp.Objectives)
 	if err != nil {
 		s.logger.Error().
-			Err(err).Stringer("addr", addr).Int("port", queryPort).
+			Err(err).Stringer("addr", svr.Addr).Int("port", queryPort).
 			Msg("Failed to parse query response")
 		return details.Blank, err
 	}
 	if validateErr := svrDetails.Validate(s.validate); validateErr != nil {
 		s.logger.Error().
-			Err(validateErr).Stringer("addr", addr).Int("port", queryPort).
+			Err(validateErr).Stringer("addr", svr.Addr).Int("port", queryPort).
 			Msg("Failed to validate query response")
 		return details.Blank, validateErr
 	}

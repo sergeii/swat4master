@@ -9,6 +9,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
+	"github.com/sergeii/swat4master/internal/rest"
 	"github.com/sergeii/swat4master/internal/rest/api"
 	http "github.com/sergeii/swat4master/pkg/http/server"
 )
@@ -74,7 +75,7 @@ var Module = fx.Module("api",
 		api.New,
 	),
 	fx.Provide(
-		NewRouter,
+		rest.NewRouter,
 	),
 	fx.Provide(
 		NewAPI,

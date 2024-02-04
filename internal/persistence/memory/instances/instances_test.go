@@ -26,23 +26,23 @@ func TestInstanceMemoryRepo_Add_NewInstance(t *testing.T) {
 	err = repo.Add(ctx, ins2)
 	require.NoError(t, err)
 
-	got, err := repo.GetByAddr(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	got, err := repo.GetByAddr(ctx, addr.MustNewFromDotted("1.1.1.1", 10480))
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1:10480", got.GetAddr().String())
+	assert.Equal(t, "1.1.1.1:10480", got.Addr.String())
 
 	got, err = repo.GetByID(ctx, "foo")
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1:10480", got.GetAddr().String())
-	assert.Equal(t, "foo", got.GetID())
+	assert.Equal(t, "1.1.1.1:10480", got.Addr.String())
+	assert.Equal(t, "foo", got.ID)
 
-	got, err = repo.GetByAddr(ctx, addr.MustNewFromString("2.2.2.2", 10480))
+	got, err = repo.GetByAddr(ctx, addr.MustNewFromDotted("2.2.2.2", 10480))
 	require.NoError(t, err)
-	assert.Equal(t, "2.2.2.2:10480", got.GetAddr().String())
-	assert.Equal(t, "bar", got.GetID())
+	assert.Equal(t, "2.2.2.2:10480", got.Addr.String())
+	assert.Equal(t, "bar", got.ID)
 
 	got, err = repo.GetByID(ctx, "bar")
 	require.NoError(t, err)
-	assert.Equal(t, "2.2.2.2:10480", got.GetAddr().String())
+	assert.Equal(t, "2.2.2.2:10480", got.Addr.String())
 }
 
 func TestInstanceMemoryRepo_Add_OldInstance(t *testing.T) {
@@ -53,30 +53,30 @@ func TestInstanceMemoryRepo_Add_OldInstance(t *testing.T) {
 	err := repo.Add(ctx, former)
 	require.NoError(t, err)
 
-	got, err := repo.GetByAddr(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	got, err := repo.GetByAddr(ctx, addr.MustNewFromDotted("1.1.1.1", 10480))
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1:10480", got.GetAddr().String())
-	assert.Equal(t, "foo", got.GetID())
+	assert.Equal(t, "1.1.1.1:10480", got.Addr.String())
+	assert.Equal(t, "foo", got.ID)
 
 	got, err = repo.GetByID(ctx, "foo")
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1:10480", got.GetAddr().String())
-	assert.Equal(t, "foo", got.GetID())
+	assert.Equal(t, "1.1.1.1:10480", got.Addr.String())
+	assert.Equal(t, "foo", got.ID)
 
 	// add a new instance with different id but same address
 	latter := instance.MustNew("bar", net.ParseIP("1.1.1.1"), 10480)
 	err = repo.Add(ctx, latter)
 	require.NoError(t, err)
 
-	got, err = repo.GetByAddr(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	got, err = repo.GetByAddr(ctx, addr.MustNewFromDotted("1.1.1.1", 10480))
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1:10480", got.GetAddr().String())
-	assert.Equal(t, "bar", got.GetID())
+	assert.Equal(t, "1.1.1.1:10480", got.Addr.String())
+	assert.Equal(t, "bar", got.ID)
 
 	got, err = repo.GetByID(ctx, "bar")
 	require.NoError(t, err)
-	assert.Equal(t, "1.1.1.1:10480", got.GetAddr().String())
-	assert.Equal(t, "bar", got.GetID())
+	assert.Equal(t, "1.1.1.1:10480", got.Addr.String())
+	assert.Equal(t, "bar", got.ID)
 
 	// instance with the former id was removed
 	_, err = repo.GetByID(ctx, "foo")
@@ -92,13 +92,13 @@ func TestInstanceMemoryRepo_GetByAddr(t *testing.T) {
 	}{
 		{
 			"positive case #1",
-			addr.MustNewFromString("1.1.1.1", 10480),
+			addr.MustNewFromDotted("1.1.1.1", 10480),
 			"foo",
 			nil,
 		},
 		{
 			"positive case #2",
-			addr.MustNewFromString("1.1.1.1", 10580),
+			addr.MustNewFromDotted("1.1.1.1", 10580),
 			"bar",
 			nil,
 		},
@@ -110,7 +110,7 @@ func TestInstanceMemoryRepo_GetByAddr(t *testing.T) {
 		},
 		{
 			"unknown address",
-			addr.MustNewFromString("1.1.1.1", 10680),
+			addr.MustNewFromDotted("1.1.1.1", 10680),
 			"",
 			repositories.ErrInstanceNotFound,
 		},
@@ -130,8 +130,8 @@ func TestInstanceMemoryRepo_GetByAddr(t *testing.T) {
 				assert.ErrorIs(t, err, tt.wantErr)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tt.wantID, got.GetID())
-				assert.Equal(t, tt.addr, got.GetAddr())
+				assert.Equal(t, tt.wantID, got.ID)
+				assert.Equal(t, tt.addr, got.Addr)
 			}
 		})
 	}
@@ -147,13 +147,13 @@ func TestInstanceMemoryRepo_GetByID(t *testing.T) {
 		{
 			"positive case #1",
 			"foo",
-			addr.MustNewFromString("1.1.1.1", 10480),
+			addr.MustNewFromDotted("1.1.1.1", 10480),
 			nil,
 		},
 		{
 			"positive case #2",
 			"bar",
-			addr.MustNewFromString("1.1.1.1", 10580),
+			addr.MustNewFromDotted("1.1.1.1", 10580),
 			nil,
 		},
 		{
@@ -184,8 +184,8 @@ func TestInstanceMemoryRepo_GetByID(t *testing.T) {
 				assert.ErrorIs(t, err, tt.wantErr)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tt.wantAddr, got.GetAddr())
-				assert.Equal(t, tt.id, got.GetID())
+				assert.Equal(t, tt.wantAddr, got.Addr)
+				assert.Equal(t, tt.id, got.ID)
 			}
 		})
 	}
@@ -208,7 +208,7 @@ func TestInstanceMemoryRepo_RemoveByID(t *testing.T) {
 
 	got, err := repo.GetByID(ctx, "bar")
 	require.NoError(t, err)
-	assert.Equal(t, "2.2.2.2:10480", got.GetAddr().String())
+	assert.Equal(t, "2.2.2.2:10480", got.Addr.String())
 
 	// now remove ins2 too
 	err = repo.RemoveByID(ctx, "bar")
@@ -233,31 +233,31 @@ func TestInstanceMemoryRepo_RemoveByAddr(t *testing.T) {
 	ins2 := instance.MustNew("bar", net.ParseIP("2.2.2.2"), 10480)
 	_ = repo.Add(ctx, ins2)
 
-	err := repo.RemoveByAddr(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	err := repo.RemoveByAddr(ctx, addr.MustNewFromDotted("1.1.1.1", 10480))
 	require.NoError(t, err)
 
-	_, err = repo.GetByAddr(ctx, addr.MustNewFromString("1.1.1.1", 10480))
+	_, err = repo.GetByAddr(ctx, addr.MustNewFromDotted("1.1.1.1", 10480))
 	assert.ErrorIs(t, err, repositories.ErrInstanceNotFound)
 	_, err = repo.GetByID(ctx, "foo")
 	assert.ErrorIs(t, err, repositories.ErrInstanceNotFound)
 
-	got, err := repo.GetByAddr(ctx, addr.MustNewFromString("2.2.2.2", 10480))
+	got, err := repo.GetByAddr(ctx, addr.MustNewFromDotted("2.2.2.2", 10480))
 	require.NoError(t, err)
-	assert.Equal(t, "bar", got.GetID())
+	assert.Equal(t, "bar", got.ID)
 
 	// now remove ins2 too
-	err = repo.RemoveByAddr(ctx, addr.MustNewFromString("2.2.2.2", 10480))
+	err = repo.RemoveByAddr(ctx, addr.MustNewFromDotted("2.2.2.2", 10480))
 	require.NoError(t, err)
 
-	_, err = repo.GetByAddr(ctx, addr.MustNewFromString("2.2.2.2", 10480))
+	_, err = repo.GetByAddr(ctx, addr.MustNewFromDotted("2.2.2.2", 10480))
 	assert.ErrorIs(t, err, repositories.ErrInstanceNotFound)
 	_, err = repo.GetByID(ctx, "bar")
 	assert.ErrorIs(t, err, repositories.ErrInstanceNotFound)
 
 	// subsequent remove calls do not trigger an error
 	for _, insAddr := range []addr.Addr{
-		addr.MustNewFromString("1.1.1.1", 10480),
-		addr.MustNewFromString("2.2.2.2", 10480),
+		addr.MustNewFromDotted("1.1.1.1", 10480),
+		addr.MustNewFromDotted("2.2.2.2", 10480),
 	} {
 		err := repo.RemoveByAddr(ctx, insAddr)
 		require.NoError(t, err)
@@ -287,13 +287,13 @@ func TestInstanceMemoryRepo_Count(t *testing.T) {
 	_ = repo.RemoveByID(ctx, "foo")
 	assertCount(1)
 
-	_ = repo.RemoveByAddr(ctx, addr.MustNewFromString("2.2.2.2", 10480))
+	_ = repo.RemoveByAddr(ctx, addr.MustNewFromDotted("2.2.2.2", 10480))
 	assertCount(0)
 
 	// double remove
 	_ = repo.RemoveByID(ctx, "foo")
 	assertCount(0)
 
-	_ = repo.RemoveByAddr(ctx, addr.MustNewFromString("2.2.2.2", 10480))
+	_ = repo.RemoveByAddr(ctx, addr.MustNewFromDotted("2.2.2.2", 10480))
 	assertCount(0)
 }

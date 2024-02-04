@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/go-playground/validator/v10"
+	"github.com/jonboulle/clockwork"
 	"github.com/rs/zerolog"
 
 	"github.com/sergeii/swat4master/internal/core/entities/details"
@@ -46,7 +46,7 @@ type PortProberOpts struct {
 type PortProber struct {
 	metrics  *monitoring.MetricService
 	validate *validator.Validate
-	clock    clock.Clock
+	clock    clockwork.Clock
 	logger   *zerolog.Logger
 	opts     PortProberOpts
 }
@@ -55,7 +55,7 @@ func NewPortProber(
 	service *probing.Service,
 	metrics *monitoring.MetricService,
 	validate *validator.Validate,
-	clock clock.Clock,
+	clock clockwork.Clock,
 	logger *zerolog.Logger,
 	opts PortProberOpts,
 ) (*PortProber, error) {
@@ -89,11 +89,10 @@ func (s *PortProber) Probe(
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	svrAddr := svr.GetAddr()
-	ip := netip.AddrFrom4(svrAddr.GetIP4())
+	ip := netip.AddrFrom4(svr.Addr.IP)
 	for _, pIdx := range s.opts.Offsets {
 		wg.Add(1)
-		go s.probePort(ctx, wg, results, ip, svrAddr.Port, svrAddr.Port+pIdx, timeout)
+		go s.probePort(ctx, wg, results, ip, svr.Addr.Port, svr.Addr.Port+pIdx, timeout)
 	}
 
 	go func() {
@@ -148,7 +147,7 @@ func (s *PortProber) probePort(
 	timeout time.Duration,
 ) {
 	defer wg.Done()
-	queryStarted := s.clock.Now()
+	queryStarted := time.Now()
 
 	resp, err := gs1.Query(ctx, netip.AddrPortFrom(ip, uint16(queryPort)), timeout)
 	if err != nil {
@@ -175,7 +174,7 @@ func (s *PortProber) probePort(
 		return
 	}
 
-	queryDur := s.clock.Since(queryStarted).Seconds()
+	queryDur := time.Since(queryStarted).Seconds()
 	s.metrics.DiscoveryQueryDurations.Observe(queryDur)
 	s.logger.Debug().
 		Stringer("ip", ip).Int("port", queryPort).
@@ -194,7 +193,7 @@ func (s *PortProber) collectResponses(
 	// this timeout should never trigger
 	// because we expect query goroutines to stop within configured probe timeout
 	// but in case of unexpected goroutine hangup, add this emergency timeout
-	exitTimeout := s.clock.After(timeout * 2)
+	exitTimeout := time.After(timeout * 2)
 	ok := false
 	for {
 		select {
@@ -221,7 +220,7 @@ func (s *PortProber) HandleSuccess(res any, svr server.Server) server.Server {
 	if !ok {
 		panic(fmt.Errorf("unexpected result type %T, %v", result, result))
 	}
-	svr.UpdateQueryPort(result.port)
+	svr.QueryPort = result.port
 	svr.UpdateDetails(result.details, s.clock.Now())
 	svr.UpdateDiscoveryStatus(ds.Info | ds.Details | ds.Port)
 	svr.ClearDiscoveryStatus(ds.NoDetails | ds.DetailsRetry | ds.PortRetry | ds.NoPort)

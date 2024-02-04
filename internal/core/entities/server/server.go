@@ -14,14 +14,14 @@ import (
 var ErrInvalidQueryPort = errors.New("invalid port number")
 
 type Server struct {
-	addr      addr.Addr
-	queryPort int
-	status    ds.DiscoveryStatus
-	info      details.Info
-	details   details.Details
+	Addr            addr.Addr
+	QueryPort       int
+	DiscoveryStatus ds.DiscoveryStatus
+	Info            details.Info
+	Details         details.Details
 
-	refreshedAt time.Time
-	version     int // lamport clock counter
+	RefreshedAt time.Time
+	Version     int // lamport clock counter
 }
 
 var Blank Server // nolint: gochecknoglobals
@@ -39,9 +39,9 @@ func NewFromAddr(addr addr.Addr, queryPort int) (Server, error) {
 		return Blank, ErrInvalidQueryPort
 	}
 	return Server{
-		addr:      addr,
-		queryPort: queryPort,
-		status:    ds.New,
+		Addr:            addr,
+		QueryPort:       queryPort,
+		DiscoveryStatus: ds.New,
 	}, nil
 }
 
@@ -53,90 +53,50 @@ func MustNew(ip net.IP, port, queryPort int) Server {
 	return svr
 }
 
-func (gs *Server) GetAddr() addr.Addr {
-	return gs.addr
-}
-
-func (gs *Server) GetIP() net.IP {
-	return gs.addr.GetIP()
-}
-
-func (gs *Server) GetDottedIP() string {
-	return gs.addr.GetDottedIP()
-}
-
-func (gs *Server) GetGamePort() int {
-	return gs.addr.Port
-}
-
-func (gs *Server) GetQueryPort() int {
-	return gs.queryPort
-}
-
-func (gs *Server) UpdateQueryPort(port int) {
-	gs.queryPort = port
-}
-
-func (gs *Server) GetDiscoveryStatus() ds.DiscoveryStatus {
-	return gs.status
+func MustNewFromAddr(addr addr.Addr, queryPort int) Server {
+	svr, err := NewFromAddr(addr, queryPort)
+	if err != nil {
+		panic(err)
+	}
+	return svr
 }
 
 func (gs *Server) HasDiscoveryStatus(status ds.DiscoveryStatus) bool {
-	return (gs.status & status) == status
+	return (gs.DiscoveryStatus & status) == status
 }
 
 func (gs *Server) HasAnyDiscoveryStatus(status ds.DiscoveryStatus) bool {
-	return (gs.status & status) > 0
+	return (gs.DiscoveryStatus & status) > 0
 }
 
 func (gs *Server) HasNoDiscoveryStatus(status ds.DiscoveryStatus) bool {
-	return (gs.status &^ status) == gs.status
+	return (gs.DiscoveryStatus &^ status) == gs.DiscoveryStatus
 }
 
 func (gs *Server) UpdateDiscoveryStatus(status ds.DiscoveryStatus) {
-	gs.status &^= ds.New
-	gs.status |= status
+	gs.DiscoveryStatus &^= ds.New
+	gs.DiscoveryStatus |= status
 }
 
 func (gs *Server) ClearDiscoveryStatus(status ds.DiscoveryStatus) {
-	gs.status &^= status
-}
-
-func (gs *Server) GetInfo() details.Info {
-	return gs.info
+	gs.DiscoveryStatus &^= status
 }
 
 func (gs *Server) UpdateInfo(info details.Info, updatedAt time.Time) {
-	gs.info = info
-	gs.refreshedAt = updatedAt
-}
-
-func (gs *Server) GetDetails() details.Details {
-	return gs.details
+	gs.Info = info
+	gs.RefreshedAt = updatedAt
 }
 
 func (gs *Server) UpdateDetails(det details.Details, updatedAt time.Time) {
-	gs.details = det
-	gs.info = det.Info
-	gs.refreshedAt = updatedAt
+	gs.Details = det
+	gs.Info = det.Info
+	gs.RefreshedAt = updatedAt
 }
 
 func (gs *Server) Refresh(updatedAt time.Time) {
-	gs.refreshedAt = updatedAt
-}
-
-func (gs *Server) GetRefreshedAt() time.Time {
-	return gs.refreshedAt
-}
-
-func (gs *Server) GetVersion() int {
-	return gs.version
-}
-
-func (gs *Server) IncVersion() {
-	gs.version++
+	gs.RefreshedAt = updatedAt
 }
 
 func (gs Server) String() string {
-	return fmt.Sprintf("%s (%d)", gs.addr, gs.queryPort)
+	return fmt.Sprintf("%s (%d)", gs.Addr, gs.QueryPort)
 }

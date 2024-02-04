@@ -156,7 +156,7 @@ func (f Filter) compareToString(this interface{}, other string) (bool, error) {
 	}
 }
 
-func NewFilter(field, rawOp string, value interface{}) (Filter, error) {
+func New(field, rawOp string, value interface{}) (Filter, error) {
 	var op Operator
 	if !IsQueryField(field) {
 		return Filter{}, ErrUnknownFieldName
@@ -176,11 +176,19 @@ func NewFilter(field, rawOp string, value interface{}) (Filter, error) {
 	return Filter{field, op, rawOp, value}, nil
 }
 
-// ParseFilter accepts a string in the form of "<field><op><value>" that represents
+func MustNew(field, rawOp string, value interface{}) Filter {
+	f, err := New(field, rawOp, value)
+	if err != nil {
+		panic(err)
+	}
+	return f
+}
+
+// Parse accepts a string in the form of "<field><op><value>" that represents
 // a single filter value for the specified server field.
 // Examples: numplayers!=maxplayers, password=0, gamevariant='SWAT 4'
 // Returns an instance of Filter
-func ParseFilter(filter string) (Filter, error) { // nolint: cyclop
+func Parse(filter string) (Filter, error) { // nolint: cyclop
 	var fieldName, op string
 	filterBytes := []byte(filter)
 	i, j := 0, 0
@@ -209,7 +217,7 @@ func ParseFilter(filter string) (Filter, error) { // nolint: cyclop
 	if err != nil {
 		return Filter{}, err
 	}
-	return NewFilter(fieldName, op, filterValue)
+	return New(fieldName, op, filterValue)
 }
 
 func parseRawFilterValue(rawVal string) (interface{}, error) {

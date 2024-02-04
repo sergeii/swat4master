@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -16,45 +16,42 @@ import (
 	"github.com/sergeii/swat4master/internal/persistence/memory/probes"
 )
 
-func makeRepo() (*probes.Repository, *clock.Mock) {
-	clockMock := clock.NewMock()
-	return probes.New(clockMock), clockMock
-}
-
 func TestProbesMemoryRepo_Add(t *testing.T) {
-	repo, _ := makeRepo()
-	ctx := context.Background()
+	ctx := context.TODO()
+	c := clockwork.NewFakeClock()
+	repo := probes.New(c)
 
-	err := repo.Add(ctx, probe.New(addr.MustNewFromString("1.1.1.1", 10480), 10480, probe.GoalDetails))
+	err := repo.Add(ctx, probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails))
 	assert.NoError(t, err)
 	cnt, _ := repo.Count(ctx)
 	assert.Equal(t, 1, cnt)
 
-	err = repo.Add(ctx, probe.New(addr.MustNewFromString("2.2.2.2", 10480), 10480, probe.GoalDetails))
+	err = repo.Add(ctx, probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails))
 	assert.NoError(t, err)
 	cnt, _ = repo.Count(ctx)
 	assert.Equal(t, 2, cnt)
 
-	t1, err := repo.Pop(ctx)
+	p1, err := repo.Pop(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", t1.GetDottedIP())
+	assert.Equal(t, "1.1.1.1", p1.Addr.GetDottedIP())
 
-	t2, err := repo.Pop(ctx)
+	p2, err := repo.Pop(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, "2.2.2.2", t2.GetDottedIP())
+	assert.Equal(t, "2.2.2.2", p2.Addr.GetDottedIP())
 
 	_, err = repo.Pop(ctx)
 	assert.ErrorIs(t, err, repositories.ErrProbeQueueIsEmpty)
 }
 
 func TestProbesMemoryRepo_AddBetween(t *testing.T) {
-	repo, clockMock := makeRepo()
-	ctx := context.Background()
-	now := clockMock.Now()
+	ctx := context.TODO()
+	c := clockwork.NewFakeClock()
+	repo := probes.New(c)
+	now := c.Now()
 
 	err := repo.AddBetween(
 		ctx,
-		probe.New(addr.MustNewFromString("1.1.1.1", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails),
 		now.Add(time.Millisecond*10),
 		now.Add(time.Millisecond*50),
 	)
@@ -67,7 +64,7 @@ func TestProbesMemoryRepo_AddBetween(t *testing.T) {
 
 	err = repo.AddBetween(
 		ctx,
-		probe.New(addr.MustNewFromString("2.2.2.2", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails),
 		now.Add(time.Millisecond*10),
 		now.Add(time.Millisecond*15),
 	)
@@ -75,7 +72,7 @@ func TestProbesMemoryRepo_AddBetween(t *testing.T) {
 
 	err = repo.AddBetween(
 		ctx,
-		probe.New(addr.MustNewFromString("3.3.3.3", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("3.3.3.3", 10480), 10480, probe.GoalDetails),
 		now.Add(time.Millisecond*25),
 		now.Add(time.Millisecond*50),
 	)
@@ -86,18 +83,18 @@ func TestProbesMemoryRepo_AddBetween(t *testing.T) {
 	_, err = repo.Pop(ctx)
 	assert.ErrorIs(t, err, repositories.ErrProbeIsNotReady)
 
-	clockMock.Add(time.Millisecond * 5)
+	c.Advance(time.Millisecond * 5)
 
 	// not ready yet
 	_, err = repo.Pop(ctx)
 	assert.ErrorIs(t, err, repositories.ErrProbeIsNotReady)
 
-	clockMock.Add(time.Millisecond * 15)
+	c.Advance(time.Millisecond * 15)
 
 	// 1st item is ready
-	t1, err := repo.Pop(ctx)
+	p1, err := repo.Pop(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", t1.GetDottedIP())
+	assert.Equal(t, "1.1.1.1", p1.Addr.GetDottedIP())
 
 	// 2nd item has expired
 	_, err = repo.Pop(ctx)
@@ -107,12 +104,12 @@ func TestProbesMemoryRepo_AddBetween(t *testing.T) {
 	_, err = repo.Pop(ctx)
 	assert.ErrorIs(t, err, repositories.ErrProbeIsNotReady)
 
-	clockMock.Add(time.Millisecond * 5)
+	c.Advance(time.Millisecond * 5)
 
 	// 3rd item is now ready
-	t3, err := repo.Pop(ctx)
+	p3, err := repo.Pop(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, "3.3.3.3", t3.GetDottedIP())
+	assert.Equal(t, "3.3.3.3", p3.Addr.GetDottedIP())
 
 	// queue is empty now
 	cnt, _ = repo.Count(ctx)
@@ -122,13 +119,14 @@ func TestProbesMemoryRepo_AddBetween(t *testing.T) {
 }
 
 func TestProbesMemoryRepo_AddBetween_After(t *testing.T) {
-	repo, clockMock := makeRepo()
-	ctx := context.Background()
-	now := clockMock.Now()
+	ctx := context.TODO()
+	c := clockwork.NewFakeClock()
+	repo := probes.New(c)
+	now := c.Now()
 
 	err := repo.AddBetween(
 		ctx,
-		probe.New(addr.MustNewFromString("1.1.1.1", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails),
 		now.Add(time.Millisecond*50),
 		repositories.NC,
 	)
@@ -141,7 +139,7 @@ func TestProbesMemoryRepo_AddBetween_After(t *testing.T) {
 
 	err = repo.AddBetween(
 		ctx,
-		probe.New(addr.MustNewFromString("2.2.2.2", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails),
 		now.Add(time.Millisecond*100),
 		repositories.NC,
 	)
@@ -152,26 +150,26 @@ func TestProbesMemoryRepo_AddBetween_After(t *testing.T) {
 	_, err = repo.Pop(ctx)
 	assert.ErrorIs(t, err, repositories.ErrProbeIsNotReady)
 
-	clockMock.Add(time.Millisecond * 5)
+	c.Advance(time.Millisecond * 5)
 	// not ready yet
 	_, err = repo.Pop(ctx)
 	assert.ErrorIs(t, err, repositories.ErrProbeIsNotReady)
 
 	// 1st item is ready
-	clockMock.Add(time.Millisecond * 50)
-	t1, err := repo.Pop(ctx)
+	c.Advance(time.Millisecond * 50)
+	p1, err := repo.Pop(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", t1.GetDottedIP())
+	assert.Equal(t, "1.1.1.1", p1.Addr.GetDottedIP())
 
 	// 2nd item still not ready
 	_, err = repo.Pop(ctx)
 	assert.ErrorIs(t, err, repositories.ErrProbeIsNotReady)
 
 	// 2nd item is now ready
-	clockMock.Add(time.Millisecond * 50)
-	t1, err = repo.Pop(ctx)
+	c.Advance(time.Millisecond * 50)
+	p1, err = repo.Pop(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, "2.2.2.2", t1.GetDottedIP())
+	assert.Equal(t, "2.2.2.2", p1.Addr.GetDottedIP())
 
 	// queue is empty now
 	_, err = repo.Pop(ctx)
@@ -179,13 +177,14 @@ func TestProbesMemoryRepo_AddBetween_After(t *testing.T) {
 }
 
 func TestProbesMemoryRepo_AddBetween_AddBefore(t *testing.T) {
-	repo, clockMock := makeRepo()
-	ctx := context.Background()
-	now := clockMock.Now()
+	ctx := context.TODO()
+	c := clockwork.NewFakeClock()
+	repo := probes.New(c)
+	now := c.Now()
 
 	err := repo.AddBetween(
 		ctx,
-		probe.New(addr.MustNewFromString("1.1.1.1", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails),
 		repositories.NC,
 		now.Add(time.Millisecond*50),
 	)
@@ -193,7 +192,7 @@ func TestProbesMemoryRepo_AddBetween_AddBefore(t *testing.T) {
 
 	err = repo.AddBetween(
 		ctx,
-		probe.New(addr.MustNewFromString("2.2.2.2", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails),
 		repositories.NC,
 		now.Add(time.Millisecond*50),
 	)
@@ -202,19 +201,19 @@ func TestProbesMemoryRepo_AddBetween_AddBefore(t *testing.T) {
 	cntBeforeSleep, _ := repo.Count(ctx)
 	assert.Equal(t, 2, cntBeforeSleep)
 
-	clockMock.Add(time.Millisecond * 10)
+	c.Advance(time.Millisecond * 10)
 
 	cntAfterSleep, _ := repo.Count(ctx)
 	assert.Equal(t, 2, cntAfterSleep)
 
-	t1, err := repo.Pop(ctx)
+	p1, err := repo.Pop(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, "1.1.1.1", t1.GetDottedIP())
+	assert.Equal(t, "1.1.1.1", p1.Addr.GetDottedIP())
 
 	cntAfterPop, _ := repo.Count(ctx)
 	assert.Equal(t, 1, cntAfterPop)
 
-	clockMock.Add(time.Millisecond * 41)
+	c.Advance(time.Millisecond * 41)
 
 	cntAfterPopSleep, _ := repo.Count(ctx)
 	assert.Equal(t, 1, cntAfterPopSleep)
@@ -228,19 +227,20 @@ func TestProbesMemoryRepo_AddBetween_AddBefore(t *testing.T) {
 }
 
 func TestProbesMemoryRepo_PopExpired(t *testing.T) {
-	repo, clockMock := makeRepo()
-	ctx := context.Background()
-	now := clockMock.Now()
+	ctx := context.TODO()
+	c := clockwork.NewFakeClock()
+	repo := probes.New(c)
+	now := c.Now()
 
 	repo.AddBetween( // nolint:errcheck
 		ctx,
-		probe.New(addr.MustNewFromString("1.1.1.1", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails),
 		repositories.NC,
 		now.Add(-time.Millisecond*50),
 	)
 	repo.AddBetween( // nolint:errcheck
 		ctx,
-		probe.New(addr.MustNewFromString("2.2.2.2", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails),
 		repositories.NC,
 		now.Add(-time.Millisecond*10),
 	)
@@ -254,27 +254,28 @@ func TestProbesMemoryRepo_PopExpired(t *testing.T) {
 }
 
 func TestProbesMemoryRepo_Pop(t *testing.T) {
-	repo, clockMock := makeRepo()
-	ctx := context.Background()
-	now := clockMock.Now()
+	ctx := context.TODO()
+	c := clockwork.NewFakeClock()
+	repo := probes.New(c)
+	now := c.Now()
 
 	repo.AddBetween( // nolint:errcheck
 		ctx,
-		probe.New(addr.MustNewFromString("1.1.1.1", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails),
 		now.Add(time.Millisecond*75),
 		repositories.NC,
 	)
 	repo.AddBetween( // nolint:errcheck
 		ctx,
-		probe.New(addr.MustNewFromString("2.2.2.2", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails),
 		now.Add(time.Millisecond*50),
 		repositories.NC,
 	)
-	repo.Add(ctx, probe.New(addr.MustNewFromString("3.3.3.3", 10480), 10480, probe.GoalDetails)) // nolint:errcheck
-	repo.Add(ctx, probe.New(addr.MustNewFromString("4.4.4.4", 10480), 10480, probe.GoalDetails)) // nolint:errcheck
+	repo.Add(ctx, probe.New(addr.MustNewFromDotted("3.3.3.3", 10480), 10480, probe.GoalDetails)) // nolint:errcheck
+	repo.Add(ctx, probe.New(addr.MustNewFromDotted("4.4.4.4", 10480), 10480, probe.GoalDetails)) // nolint:errcheck
 	repo.AddBetween(                                                                             // nolint:errcheck
 		ctx,
-		probe.New(addr.MustNewFromString("5.5.5.5", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("5.5.5.5", 10480), 10480, probe.GoalDetails),
 		now.Add(time.Millisecond*100),
 		repositories.NC,
 	)
@@ -283,27 +284,28 @@ func TestProbesMemoryRepo_Pop(t *testing.T) {
 	started := make(chan struct{})
 	ready := make(chan struct{})
 
+	advanced := make(chan bool)
 	go func() {
-		ticker := clockMock.Ticker(time.Millisecond * 5)
 		close(started)
-		for range ticker.C {
-			tgt, err := repo.Pop(ctx)
+		for range advanced {
+			prb, err := repo.Pop(ctx)
 			if errors.Is(err, repositories.ErrProbeIsNotReady) {
 				continue
 			} else if errors.Is(err, repositories.ErrProbeQueueIsEmpty) {
-				return
+				continue
 			}
-			popped = append(popped, tgt.GetDottedIP())
+			popped = append(popped, prb.Addr.GetDottedIP())
 		}
-	}()
-
-	go func() {
-		<-clockMock.After(time.Millisecond * 50)
 		close(ready)
 	}()
 
 	<-started
-	clockMock.Add(time.Second)
+	// advance 100ms in steps
+	for i := 0; i < 100; i++ {
+		c.Advance(time.Millisecond * 1)
+		advanced <- true
+	}
+	close(advanced)
 	<-ready
 
 	assert.Equal(t, []string{"3.3.3.3", "4.4.4.4", "2.2.2.2", "1.1.1.1", "5.5.5.5"}, popped)
@@ -314,36 +316,37 @@ func TestProbesMemoryRepo_Pop(t *testing.T) {
 }
 
 func TestProbesMemoryRepo_PopAny(t *testing.T) {
-	repo, clockMock := makeRepo()
-	ctx := context.Background()
-	now := clockMock.Now()
+	ctx := context.TODO()
+	c := clockwork.NewFakeClock()
+	repo := probes.New(c)
+	now := c.Now()
 
 	repo.AddBetween( // nolint:errcheck
 		ctx,
-		probe.New(addr.MustNewFromString("1.1.1.1", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails),
 		now.Add(time.Millisecond*75),
 		repositories.NC,
 	)
 	repo.AddBetween( // nolint:errcheck
 		ctx,
-		probe.New(addr.MustNewFromString("2.2.2.2", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails),
 		now.Add(time.Millisecond*50),
 		repositories.NC,
 	)
-	repo.Add(ctx, probe.New(addr.MustNewFromString("3.3.3.3", 10480), 10480, probe.GoalDetails)) // nolint:errcheck
-	repo.Add(ctx, probe.New(addr.MustNewFromString("4.4.4.4", 10480), 10480, probe.GoalDetails)) // nolint:errcheck
+	repo.Add(ctx, probe.New(addr.MustNewFromDotted("3.3.3.3", 10480), 10480, probe.GoalDetails)) // nolint:errcheck
+	repo.Add(ctx, probe.New(addr.MustNewFromDotted("4.4.4.4", 10480), 10480, probe.GoalDetails)) // nolint:errcheck
 	repo.AddBetween(                                                                             // nolint:errcheck
 		ctx,
-		probe.New(addr.MustNewFromString("5.5.5.5", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("5.5.5.5", 10480), 10480, probe.GoalDetails),
 		now.Add(time.Millisecond*100),
 		repositories.NC,
 	)
 
 	popped := make([]string, 0)
 	for i := 0; i < 5; i++ {
-		tgt, err := repo.PopAny(ctx)
+		prb, err := repo.PopAny(ctx)
 		require.NoError(t, err)
-		popped = append(popped, tgt.GetDottedIP())
+		popped = append(popped, prb.Addr.GetDottedIP())
 	}
 
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2", "3.3.3.3", "4.4.4.4", "5.5.5.5"}, popped)
@@ -411,54 +414,56 @@ func TestProbesMemoryRepo_PopMany(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, clockMock := makeRepo()
-			ctx := context.Background()
-			now := clockMock.Now()
+			ctx := context.TODO()
+
+			c := clockwork.NewFakeClock()
+			repo := probes.New(c)
+			now := c.Now()
 
 			repo.AddBetween( // nolint:errcheck
 				ctx,
-				probe.New(addr.MustNewFromString("7.7.7.7", 10480), 10480, probe.GoalDetails),
+				probe.New(addr.MustNewFromDotted("7.7.7.7", 10480), 10480, probe.GoalDetails),
 				repositories.NC,
 				now.Add(-time.Millisecond*1),
 			)
 			repo.AddBetween( // nolint:errcheck
 				ctx,
-				probe.New(addr.MustNewFromString("1.1.1.1", 10480), 10480, probe.GoalDetails),
+				probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails),
 				now.Add(time.Millisecond*75),
 				repositories.NC,
 			)
 			repo.AddBetween( // nolint:errcheck
 				ctx,
-				probe.New(addr.MustNewFromString("2.2.2.2", 10480), 10480, probe.GoalDetails),
+				probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails),
 				now.Add(time.Millisecond*50),
 				repositories.NC,
 			)
 			repo.Add(ctx, probe.New( // nolint:errcheck
-				addr.MustNewFromString("3.3.3.3", 10480),
+				addr.MustNewFromDotted("3.3.3.3", 10480),
 				10480,
 				probe.GoalDetails,
 			))
 			repo.AddBetween( // nolint:errcheck
 				ctx,
-				probe.New(addr.MustNewFromString("4.4.4.4", 10480), 10480, probe.GoalDetails),
+				probe.New(addr.MustNewFromDotted("4.4.4.4", 10480), 10480, probe.GoalDetails),
 				repositories.NC,
 				now.Add(time.Millisecond*150),
 			)
 			repo.AddBetween( // nolint:errcheck
 				ctx,
-				probe.New(addr.MustNewFromString("5.5.5.5", 10480), 10480, probe.GoalDetails),
+				probe.New(addr.MustNewFromDotted("5.5.5.5", 10480), 10480, probe.GoalDetails),
 				now.Add(time.Millisecond*100),
 				repositories.NC,
 			)
 			repo.AddBetween( // nolint:errcheck
 				ctx,
-				probe.New(addr.MustNewFromString("6.6.6.6", 10480), 10480, probe.GoalDetails),
+				probe.New(addr.MustNewFromDotted("6.6.6.6", 10480), 10480, probe.GoalDetails),
 				repositories.NC,
 				now.Add(time.Millisecond*10),
 			)
 			repo.AddBetween( // nolint:errcheck
 				ctx,
-				probe.New(addr.MustNewFromString("8.8.8.8", 10480), 10480, probe.GoalDetails),
+				probe.New(addr.MustNewFromDotted("8.8.8.8", 10480), 10480, probe.GoalDetails),
 				repositories.NC,
 				now.Add(-time.Millisecond*10),
 			)
@@ -468,7 +473,8 @@ func TestProbesMemoryRepo_PopMany(t *testing.T) {
 			assert.Equal(t, tt.popped, getProbesIPs(popped))
 			assert.Equal(t, tt.expired1, expired)
 
-			clockMock.Add(time.Millisecond * 100)
+			c.Advance(time.Millisecond * 100)
+
 			remaining, expired, err := repo.PopMany(ctx, 5)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.remaining, getProbesIPs(remaining))
@@ -487,22 +493,28 @@ func TestProbesMemoryRepo_PopMany(t *testing.T) {
 }
 
 func TestProbesMemoryRepo_PopEmpty(t *testing.T) {
-	repo, _ := makeRepo()
-	_, err := repo.Pop(context.Background())
+	ctx := context.TODO()
+	c := clockwork.NewFakeClock()
+	repo := probes.New(c)
+	_, err := repo.Pop(ctx)
 	assert.ErrorIs(t, err, repositories.ErrProbeQueueIsEmpty)
 }
 
 func TestProbesMemoryRepo_PopManyEmpty(t *testing.T) {
-	repo, _ := makeRepo()
-	popped, expired, err := repo.PopMany(context.Background(), 5)
+	ctx := context.TODO()
+	c := clockwork.NewFakeClock()
+	repo := probes.New(c)
+
+	popped, expired, err := repo.PopMany(ctx, 5)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(popped))
 	assert.Equal(t, 0, expired)
 }
 
 func TestProbesMemoryRepo_Count(t *testing.T) {
-	repo, _ := makeRepo()
-	ctx := context.Background()
+	ctx := context.TODO()
+	c := clockwork.NewFakeClock()
+	repo := probes.New(c)
 
 	assertCount := func(expected int) {
 		cnt, err := repo.Count(ctx)
@@ -512,11 +524,11 @@ func TestProbesMemoryRepo_Count(t *testing.T) {
 
 	assertCount(0)
 
-	t1 := probe.New(addr.MustNewFromString("1.1.1.1", 10480), 10480, probe.GoalDetails)
+	t1 := probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails)
 	_ = repo.Add(ctx, t1)
 	assertCount(1)
 
-	t2 := probe.New(addr.MustNewFromString("2.2.2.2", 10480), 10480, probe.GoalDetails)
+	t2 := probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails)
 	_ = repo.Add(ctx, t2)
 	assertCount(2)
 
@@ -529,7 +541,7 @@ func TestProbesMemoryRepo_Count(t *testing.T) {
 	_, _ = repo.Pop(ctx)
 	assertCount(0)
 
-	t3 := probe.New(addr.MustNewFromString("3.3.3.3", 10480), 10480, probe.GoalDetails)
+	t3 := probe.New(addr.MustNewFromDotted("3.3.3.3", 10480), 10480, probe.GoalDetails)
 	_ = repo.Add(ctx, t3)
 	assertCount(1)
 }
@@ -537,7 +549,7 @@ func TestProbesMemoryRepo_Count(t *testing.T) {
 func getProbesIPs(probes []probe.Probe) []string {
 	ips := make([]string, 0, len(probes))
 	for _, prb := range probes {
-		ips = append(ips, prb.GetDottedIP())
+		ips = append(ips, prb.Addr.GetDottedIP())
 	}
 	return ips
 }

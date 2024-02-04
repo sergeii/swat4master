@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
+	"strings"
 )
 
 type Addr struct {
@@ -14,22 +16,25 @@ type Addr struct {
 var Blank Addr // nolint: gochecknoglobals
 
 var (
-	ErrInvalidServerIP   = errors.New("invalid IP address")
-	ErrInvalidServerPort = errors.New("invalid port number")
+	ErrInvalidIP   = errors.New("invalid IP address")
+	ErrInvalidPort = errors.New("invalid port number")
 )
 
 func New(ip net.IP, port int) (Addr, error) {
 	if port < 1 || port > 65535 {
-		return Blank, ErrInvalidServerPort
+		return Blank, ErrInvalidPort
 	}
 
 	if len(ip) == 0 {
-		return Blank, ErrInvalidServerIP
+		return Blank, ErrInvalidIP
 	}
 
 	ipv4 := ip.To4()
-	if ipv4 == nil || !ipv4.IsGlobalUnicast() || ipv4.IsPrivate() {
-		return Blank, ErrInvalidServerIP
+	switch {
+	case ipv4 == nil:
+		return Blank, ErrInvalidIP
+	case !ipv4.IsGlobalUnicast() && !ipv4.IsPrivate() && !ipv4.IsLoopback():
+		return Blank, ErrInvalidIP
 	}
 
 	addr := Addr{Port: port}
@@ -48,20 +53,30 @@ func NewForTesting(ip net.IP, port int) Addr {
 	return addr
 }
 
-func NewFromString(ip string, port int) (Addr, error) {
+func NewFromDotted(ip string, port int) (Addr, error) {
 	return New(net.ParseIP(ip), port)
 }
 
-func MustNewFromString(ip string, port int) Addr {
-	addr, err := NewFromString(ip, port)
+func MustNewFromDotted(ip string, port int) Addr {
+	addr, err := NewFromDotted(ip, port)
 	if err != nil {
 		panic(err)
 	}
 	return addr
 }
 
-func (a Addr) GetIP4() [4]byte {
-	return a.IP
+func NewFromString(addrAndPort string) (Addr, error) {
+	maybeIP, maybePort, ok := strings.Cut(addrAndPort, ":")
+	if !ok || maybeIP == "" || maybePort == "" {
+		return Blank, ErrInvalidIP
+	}
+
+	maybePortNumber, err := strconv.Atoi(maybePort)
+	if err != nil {
+		return Blank, ErrInvalidPort
+	}
+
+	return NewFromDotted(maybeIP, maybePortNumber)
 }
 
 func (a Addr) GetIP() net.IP {

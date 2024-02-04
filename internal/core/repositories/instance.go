@@ -2,10 +2,13 @@ package repositories
 
 import (
 	"context"
+	"errors"
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	"github.com/sergeii/swat4master/internal/core/entities/instance"
 )
+
+var ErrInstanceNotFound = errors.New("the requested instance was not found")
 
 type InstanceRepository interface {
 	Add(context.Context, instance.Instance) error

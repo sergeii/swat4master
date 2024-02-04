@@ -12,6 +12,7 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/application"
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/api"
+	"github.com/sergeii/swat4master/internal/persistence"
 )
 
 func PrepareTestServer(tb fxtest.TB, extra ...fx.Option) (*httptest.Server, func()) {
@@ -44,4 +45,20 @@ func PrepareTestServer(tb fxtest.TB, extra ...fx.Option) (*httptest.Server, func
 		defer app.Stop(context.TODO()) // nolint: errcheck
 		defer ts.Close()
 	}
+}
+
+func PrepareTestServerWithRepos(
+	tb fxtest.TB,
+	extra ...fx.Option,
+) (*httptest.Server, persistence.Repositories, func()) {
+	var repos persistence.Repositories
+	extra = append(
+		extra,
+		fx.Populate(&repos.Servers, &repos.Instances, &repos.Probes),
+	)
+	ts, cleanup := PrepareTestServer(
+		tb,
+		extra...,
+	)
+	return ts, repos, cleanup
 }

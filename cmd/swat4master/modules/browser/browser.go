@@ -4,38 +4,20 @@ import (
 	"context"
 	"net"
 
-	"github.com/benbjohnson/clock"
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
-	"github.com/sergeii/swat4master/internal/services/master/browsing"
-	"github.com/sergeii/swat4master/internal/services/monitoring"
+	"github.com/sergeii/swat4master/internal/browser"
 	tcp "github.com/sergeii/swat4master/pkg/tcp/server"
 )
 
 type Browser struct{}
 
-type Handler struct {
-	service *browsing.Service
-	metrics *monitoring.MetricService
-	clock   clock.Clock
-	logger  *zerolog.Logger
-}
-
-func newHandler(
-	service *browsing.Service,
-	metrics *monitoring.MetricService,
-	clock clock.Clock,
-	logger *zerolog.Logger,
-) *Handler {
-	return &Handler{service, metrics, clock, logger}
-}
-
 func NewBrowser(
 	lc fx.Lifecycle,
 	shutdowner fx.Shutdowner,
-	handler *Handler,
+	handler browser.Handler,
 	cfg config.Config,
 	logger *zerolog.Logger,
 ) (*Browser, error) {
@@ -87,22 +69,18 @@ func NewBrowser(
 	return &Browser{}, nil
 }
 
-var Module = fx.Module("reporter",
+var Module = fx.Module("browser",
 	fx.Provide(
 		fx.Private,
-		func(cfg config.Config) browsing.ServiceOpts {
-			return browsing.ServiceOpts{
+		func(cfg config.Config) browser.HandlerOpts {
+			return browser.HandlerOpts{
 				Liveness: cfg.BrowserServerLiveness,
 			}
 		},
 	),
 	fx.Provide(
 		fx.Private,
-		browsing.NewService,
-	),
-	fx.Provide(
-		fx.Private,
-		newHandler,
+		browser.NewHandler,
 	),
 	fx.Provide(NewBrowser),
 )

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"sync/atomic"
+	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/rs/zerolog"
 
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
@@ -18,7 +18,6 @@ type WorkerGroup struct {
 	busy        int64
 	prober      *probing.Service
 	metrics     *monitoring.MetricService
-	clock       clock.Clock
 	logger      *zerolog.Logger
 }
 
@@ -26,14 +25,12 @@ func NewWorkerGroup(
 	concurrency int,
 	prober *probing.Service,
 	metrics *monitoring.MetricService,
-	clock clock.Clock,
 	logger *zerolog.Logger,
 ) *WorkerGroup {
 	return &WorkerGroup{
 		concurrency: concurrency,
 		prober:      prober,
 		metrics:     metrics,
-		clock:       clock,
 		logger:      logger,
 	}
 }
@@ -71,32 +68,32 @@ func (wg *WorkerGroup) probe(ctx context.Context, prb probe.Probe) {
 		wg.metrics.DiscoveryWorkersBusy.Dec()
 		wg.metrics.DiscoveryWorkersAvailable.Inc()
 	}()
-	goal := prb.GetGoal()
-	goalLabel := goal.String()
+
+	goalLabel := prb.Goal.String()
 
 	wg.logger.Debug().
-		Stringer("addr", prb.GetAddr()).Stringer("goal", goal).
-		Int64("busyness", atomic.LoadInt64(&wg.busy)).Int("retries", prb.GetRetries()).
+		Stringer("addr", prb.Addr).Stringer("goal", prb.Goal).
+		Int64("busyness", atomic.LoadInt64(&wg.busy)).Int("retries", prb.Retries).
 		Msg("About to start probing")
 
-	before := wg.clock.Now()
+	before := time.Now()
 
 	if err := wg.prober.Probe(ctx, prb); err != nil {
 		if errors.Is(err, probing.ErrProbeRetried) { // nolint: gocritic
 			wg.metrics.DiscoveryProbeRetries.WithLabelValues(goalLabel).Inc()
 			wg.logger.Debug().
-				Stringer("addr", prb.GetAddr()).Stringer("goal", goal).
+				Stringer("addr", prb.Addr).Stringer("goal", prb.Goal).
 				Msg("Probe is retried")
 		} else if errors.Is(err, probing.ErrOutOfRetries) {
 			wg.metrics.DiscoveryProbeFailures.WithLabelValues(goalLabel).Inc()
 			wg.logger.Debug().
-				Stringer("addr", prb.GetAddr()).Stringer("goal", goal).
+				Stringer("addr", prb.Addr).Stringer("goal", prb.Goal).
 				Msg("Probe failed after retries")
 		} else {
 			wg.metrics.DiscoveryProbeErrors.WithLabelValues(goalLabel).Inc()
 			wg.logger.Error().
 				Err(err).
-				Stringer("addr", prb.GetAddr()).Stringer("goal", goal).
+				Stringer("addr", prb.Addr).Stringer("goal", prb.Goal).
 				Msg("Probe failed due to error")
 		}
 	} else {
@@ -104,13 +101,13 @@ func (wg *WorkerGroup) probe(ctx context.Context, prb probe.Probe) {
 	}
 
 	wg.logger.Debug().
-		Stringer("addr", prb.GetAddr()).Stringer("goal", goal).
+		Stringer("addr", prb.Addr).Stringer("goal", prb.Goal).
 		Int64("busyness", atomic.LoadInt64(&wg.busy)).
-		Dur("elapsed", wg.clock.Since(before)).
+		Dur("elapsed", time.Since(before)).
 		Msg("Finished probing")
 
 	wg.metrics.DiscoveryProbes.WithLabelValues(goalLabel).Inc()
-	wg.metrics.DiscoveryProbeDurations.WithLabelValues(goalLabel).Observe(wg.clock.Since(before).Seconds())
+	wg.metrics.DiscoveryProbeDurations.WithLabelValues(goalLabel).Observe(time.Since(before).Seconds())
 }
 
 func (wg *WorkerGroup) Busy() int {

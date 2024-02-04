@@ -2,9 +2,16 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
+)
+
+var (
+	ErrProbeQueueIsEmpty = errors.New("queue is empty")
+	ErrProbeIsNotReady   = errors.New("queue has waiting probes")
+	ErrProbeHasExpired   = errors.New("probe has expired")
 )
 
 var NC = time.Time{} // no constraint

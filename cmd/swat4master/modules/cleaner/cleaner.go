@@ -3,7 +3,7 @@ package cleaner
 import (
 	"context"
 
-	"github.com/benbjohnson/clock"
+	"github.com/jonboulle/clockwork"
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
@@ -16,12 +16,13 @@ type Cleaner struct{}
 func Run(
 	stop chan struct{},
 	stopped chan struct{},
-	clock clock.Clock,
+	clock clockwork.Clock,
 	logger *zerolog.Logger,
 	service *cleaning.Service,
 	cfg config.Config,
 ) {
-	ticker := clock.Ticker(cfg.CleanInterval)
+	ticker := clock.NewTicker(cfg.CleanInterval)
+	tickerCh := ticker.Chan()
 	defer ticker.Stop()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -37,7 +38,7 @@ func Run(
 			logger.Info().Msg("Stopping cleaner")
 			close(stopped)
 			return
-		case <-ticker.C:
+		case <-tickerCh:
 			if err := service.Clean(ctx, clock.Now().Add(-cfg.CleanRetention)); err != nil {
 				logger.Error().
 					Err(err).
@@ -50,7 +51,7 @@ func Run(
 func NewCleaner(
 	lc fx.Lifecycle,
 	cfg config.Config,
-	clock clock.Clock,
+	clock clockwork.Clock,
 	service *cleaning.Service,
 	logger *zerolog.Logger,
 ) *Cleaner {

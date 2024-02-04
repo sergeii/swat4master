@@ -7,7 +7,7 @@ import (
 )
 
 type Details struct {
-	Info       Info        `param:"-" validate:"dive"`
+	Info       Info        `param:"-" validate:"required"`
 	Players    []Player    `param:"-" validate:"dive"`
 	Objectives []Objective `param:"-" validate:"dive"`
 }

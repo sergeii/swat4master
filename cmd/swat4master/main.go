@@ -15,9 +15,10 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/cleaner"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/collector"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/exporter"
-	"github.com/sergeii/swat4master/cmd/swat4master/modules/finder"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/prober"
+	"github.com/sergeii/swat4master/cmd/swat4master/modules/refresher"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/reporter"
+	"github.com/sergeii/swat4master/cmd/swat4master/modules/reviver"
 
 	"github.com/sergeii/swat4master/cmd/swat4master/application"
 )
@@ -26,7 +27,8 @@ func main() {
 	app := fx.New(
 		fx.Provide(config.Provide),
 		application.Module,
-		finder.Module,
+		refresher.Module,
+		reviver.Module,
 		prober.Module,
 		browser.Module,
 		reporter.Module,
@@ -56,7 +58,8 @@ func main() {
 		}),
 		fx.Invoke(func(
 			logger *zerolog.Logger,
-			_ *finder.Finder,
+			_ *refresher.Refresher,
+			_ *reviver.Reviver,
 			_ *prober.Prober,
 			_ *browser.Browser,
 			_ *reporter.Reporter,

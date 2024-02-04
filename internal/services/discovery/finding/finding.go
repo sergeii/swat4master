@@ -8,6 +8,7 @@ import (
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/core/entities/filterset"
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	ps "github.com/sergeii/swat4master/internal/services/probe"
@@ -37,7 +38,7 @@ func (s *Service) RefreshDetails(
 	ctx context.Context,
 	deadline time.Time,
 ) (int, error) {
-	fs := repositories.NewServerFilterSet().WithStatus(ds.Port).NoStatus(ds.DetailsRetry)
+	fs := filterset.New().WithStatus(ds.Port).NoStatus(ds.DetailsRetry)
 	serversWithDetails, err := s.servers.Filter(ctx, fs)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Unable to obtain servers for details discovery")
@@ -46,7 +47,7 @@ func (s *Service) RefreshDetails(
 
 	cnt := 0
 	for _, svr := range serversWithDetails {
-		if err := s.DiscoverDetails(ctx, svr.GetAddr(), svr.GetQueryPort(), deadline); err != nil {
+		if err := s.DiscoverDetails(ctx, svr.Addr, svr.QueryPort, deadline); err != nil {
 			s.logger.Warn().
 				Err(err).Stringer("server", svr).
 				Msg("Failed to add server to details discovery queue")
@@ -66,7 +67,7 @@ func (s *Service) ReviveServers(
 	maxCountdown time.Time,
 	deadline time.Time,
 ) (int, error) {
-	fs := repositories.NewServerFilterSet().ActiveAfter(minScope).ActiveBefore(maxScope).NoStatus(ds.Port | ds.PortRetry)
+	fs := filterset.New().ActiveAfter(minScope).ActiveBefore(maxScope).NoStatus(ds.Port | ds.PortRetry)
 	serversWithoutPort, err := s.servers.Filter(ctx, fs)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Unable to obtain servers for port discovery")
@@ -76,7 +77,7 @@ func (s *Service) ReviveServers(
 	cnt := 0
 	for _, svr := range serversWithoutPort {
 		countdown := selectCountdown(minCountdown, maxCountdown)
-		if err := s.DiscoverPort(ctx, svr.GetAddr(), countdown, deadline); err != nil {
+		if err := s.DiscoverPort(ctx, svr.Addr, countdown, deadline); err != nil {
 			s.logger.Warn().
 				Err(err).
 				Stringer("server", svr).Time("countdown", countdown).Time("deadline", deadline).
