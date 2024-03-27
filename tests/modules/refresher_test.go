@@ -2,10 +2,10 @@ package modules_test
 
 import (
 	"context"
-	"net"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -13,43 +13,16 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/application"
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/refresher"
-	"github.com/sergeii/swat4master/internal/core/entities/details"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
+	"github.com/sergeii/swat4master/internal/services/monitoring"
+	"github.com/sergeii/swat4master/internal/testutils/factories"
 )
 
-func TestRefresher_Run_OK(t *testing.T) {
-	var serverRepo repositories.ServerRepository
-	var probeRepo repositories.ProbeRepository
-
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	assertProbes := func(wantCount, wantExpired int, wantDetails []string) {
-		count, err := probeRepo.Count(ctx)
-		require.NoError(t, err)
-		assert.Equal(t, wantCount, count)
-
-		probes, expired, err := probeRepo.PopMany(ctx, count)
-		require.NoError(t, err)
-		detailsProbes := make([]string, 0, len(wantDetails))
-		portProbes := make([]string, 0)
-		for _, prb := range probes {
-			switch prb.Goal {
-			case probe.GoalDetails:
-				detailsProbes = append(detailsProbes, prb.Addr.String())
-			case probe.GoalPort:
-				portProbes = append(portProbes, prb.Addr.String())
-			}
-		}
-		assert.Equal(t, wantExpired, expired)
-		assert.Equal(t, wantDetails, detailsProbes)
-		assert.Equal(t, []string{}, portProbes)
-	}
-
-	app := fx.New(
+func makeAppWithRefresher(extra ...fx.Option) (*fx.App, func()) {
+	fxopts := []fx.Option{
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
@@ -59,62 +32,110 @@ func TestRefresher_Run_OK(t *testing.T) {
 		refresher.Module,
 		fx.NopLogger,
 		fx.Invoke(func(*refresher.Refresher) {}),
-		fx.Populate(&serverRepo, &probeRepo),
-	)
+	}
+	fxopts = append(fxopts, extra...)
+	app := fx.New(fxopts...)
+	return app, func() {
+		app.Stop(context.TODO()) // nolint: errcheck
+	}
+}
 
-	info := details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Awesome Server",
-		"hostport":    "10580",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "CO-OP",
-	})
+type refresherProbeCount struct {
+	count   int
+	expired int
+	probes  []string
+}
 
-	gs1 := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	gs1.UpdateInfo(info, time.Now())
-	gs1.UpdateDiscoveryStatus(ds.Master)
-
-	gs2 := server.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
-	gs2.UpdateInfo(info, time.Now())
-	gs2.UpdateDiscoveryStatus(ds.Port)
-
-	gs3 := server.MustNew(net.ParseIP("3.3.3.3"), 10480, 10481)
-	gs3.UpdateInfo(info, time.Now())
-	gs3.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Port)
-
-	gs4 := server.MustNew(net.ParseIP("5.5.5.5"), 10480, 10481)
-	gs4.UpdateInfo(info, time.Now())
-	gs4.UpdateDiscoveryStatus(ds.DetailsRetry)
-
-	gs5 := server.MustNew(net.ParseIP("6.6.6.6"), 10480, 10481)
-	gs5.UpdateInfo(info, time.Now())
-	gs5.UpdateDiscoveryStatus(ds.Port | ds.Details | ds.DetailsRetry)
-
-	gs6 := server.MustNew(net.ParseIP("7.7.7.7"), 10480, 10481)
-	gs6.UpdateInfo(info, time.Now())
-	gs6.UpdateDiscoveryStatus(ds.Master | ds.Info | ds.Details)
-
-	gs7 := server.MustNew(net.ParseIP("9.9.9.9"), 10480, 10481)
-	gs7.UpdateInfo(info, time.Now())
-	gs7.UpdateDiscoveryStatus(ds.Port | ds.PortRetry)
-
-	for _, gs := range []*server.Server{&gs1, &gs2, &gs3, &gs4, &gs5, &gs6, &gs7} {
-		*gs, _ = serverRepo.Add(ctx, *gs, repositories.ServerOnConflictIgnore)
+func countRefresherProbes(
+	ctx context.Context,
+	repo repositories.ProbeRepository,
+) (refresherProbeCount, error) {
+	count, err := repo.Count(ctx)
+	if err != nil {
+		return refresherProbeCount{}, err
 	}
 
-	app.Start(context.TODO()) // nolint: errcheck
-	defer func() {
-		app.Stop(context.TODO()) // nolint: errcheck
-	}()
+	probes, expired, err := repo.PopMany(ctx, count)
+	if err != nil {
+		return refresherProbeCount{}, err
+	}
+
+	detailsProbes := make([]string, 0, count)
+	for _, prb := range probes {
+		if prb.Goal == probe.GoalDetails {
+			detailsProbes = append(detailsProbes, prb.Addr.String())
+		}
+	}
+	return refresherProbeCount{
+		count:   count,
+		expired: expired,
+		probes:  detailsProbes,
+	}, nil
+}
+
+func TestRefresher_OK(t *testing.T) {
+	var serverRepo repositories.ServerRepository
+	var probeRepo repositories.ProbeRepository
+	var metrics *monitoring.MetricService
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	gs1 := factories.BuildServer(
+		factories.WithAddress("1.1.1.1", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.Master),
+	)
+	gs2 := factories.BuildServer(
+		factories.WithAddress("2.2.2.2", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.Port),
+	)
+	gs3 := factories.BuildServer(
+		factories.WithAddress("3.3.3.3", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.Master|ds.Details|ds.Port),
+	)
+	gs4 := factories.BuildServer(
+		factories.WithAddress("5.5.5.5", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.DetailsRetry),
+	)
+	gs5 := factories.BuildServer(
+		factories.WithAddress("6.6.6.6", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.Port|ds.Details|ds.DetailsRetry),
+	)
+	gs6 := factories.BuildServer(
+		factories.WithAddress("7.7.7.7", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.Master|ds.Info|ds.Details),
+	)
+	gs7 := factories.BuildServer(
+		factories.WithAddress("9.9.9.9", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.Port|ds.PortRetry),
+	)
+
+	app, cancel := makeAppWithRefresher(
+		fx.Populate(&serverRepo, &probeRepo, &metrics),
+	)
+	defer cancel()
+	app.Start(ctx) // nolint: errcheck
+
+	for _, gs := range []server.Server{gs1, gs2, gs3, gs4, gs5, gs6, gs7} {
+		factories.SaveServer(ctx, serverRepo, gs)
+	}
 
 	// let refresher run a cycle
 	<-time.After(time.Millisecond * 150)
 
 	// details probes are added
-	assertProbes(3, 0,
-		[]string{"9.9.9.9:10480", "3.3.3.3:10480", "2.2.2.2:10480"},
-	)
+	result, err := countRefresherProbes(ctx, probeRepo)
+	require.NoError(t, err)
+	assert.Equal(t, 3, result.count)
+	assert.Equal(t, 0, result.expired)
+	assert.Equal(t, []string{"9.9.9.9:10480", "3.3.3.3:10480", "2.2.2.2:10480"}, result.probes)
 
 	// clear the server's refreshable status, so that it doesn't get picked up again
 	gs3.ClearDiscoveryStatus(ds.Details | ds.Port)
@@ -127,22 +148,20 @@ func TestRefresher_Run_OK(t *testing.T) {
 	// let refresher run another cycle
 	<-time.After(time.Millisecond * 100)
 
-	assertProbes(3,
-		0,
-		[]string{
-			"6.6.6.6:10480", "9.9.9.9:10480", "2.2.2.2:10480",
-		},
-	)
+	result, err = countRefresherProbes(ctx, probeRepo)
+	require.NoError(t, err)
+	assert.Equal(t, 3, result.count)
+	assert.Equal(t, 0, result.expired)
+	assert.Equal(t, []string{"6.6.6.6:10480", "9.9.9.9:10480", "2.2.2.2:10480"}, result.probes)
 
 	// run a couple of cycles, expect some probes to expire
 	<-time.After(time.Millisecond * 200)
 
-	assertProbes(6,
-		3,
-		[]string{
-			"6.6.6.6:10480", "9.9.9.9:10480", "2.2.2.2:10480",
-		},
-	)
+	result, err = countRefresherProbes(ctx, probeRepo)
+	require.NoError(t, err)
+	assert.Equal(t, 6, result.count)
+	assert.Equal(t, 3, result.expired)
+	assert.Equal(t, []string{"6.6.6.6:10480", "9.9.9.9:10480", "2.2.2.2:10480"}, result.probes)
 
 	// make the remaining servers non-refreshable
 	gs2.ClearDiscoveryStatus(ds.Port)
@@ -156,5 +175,12 @@ func TestRefresher_Run_OK(t *testing.T) {
 	// run another cycle, expect no probes
 	<-time.After(time.Millisecond * 100)
 
-	assertProbes(0, 0, []string{})
+	result, err = countRefresherProbes(ctx, probeRepo)
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.count)
+	assert.Equal(t, 0, result.expired)
+	assert.Equal(t, []string{}, result.probes)
+
+	producedMetricValue := testutil.ToFloat64(metrics.DiscoveryQueueProduced)
+	assert.Equal(t, 12.0, producedMetricValue)
 }

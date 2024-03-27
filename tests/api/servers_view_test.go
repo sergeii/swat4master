@@ -512,8 +512,13 @@ func TestAPI_ViewServer_ValidateAddress(t *testing.T) {
 			false,
 		},
 		{
-			"private ip address",
+			"local ip address",
 			"127.0.0.1:10480",
+			false,
+		},
+		{
+			"private ip address",
+			"192.168.1.1:10480",
 			false,
 		},
 		{

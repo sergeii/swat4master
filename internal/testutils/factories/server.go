@@ -50,14 +50,6 @@ func WithInfo(fields map[string]string) BuildServerOption {
 	}
 }
 
-func WithExtraFields(extraFields map[string]string) BuildServerOption {
-	return func(p *BuildServerParams) {
-		for k, v := range extraFields {
-			p.Info[k] = v
-		}
-	}
-}
-
 func WithNoInfo() BuildServerOption {
 	return func(p *BuildServerParams) {
 		p.Info = nil
@@ -102,6 +94,7 @@ func BuildServer(opts ...BuildServerOption) server.Server {
 
 	svr.UpdateDetails(details.MustNewDetailsFromParams(params.Info, params.Players, params.Objectives), time.Now())
 	svr.UpdateDiscoveryStatus(params.DiscoveryStatus)
+
 	return svr
 }
 

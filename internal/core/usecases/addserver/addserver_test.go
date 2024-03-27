@@ -141,7 +141,7 @@ func TestAddServerUseCase_ServerExists(t *testing.T) {
 			probeRepo.On("AddBetween", ctx, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 			uc := addserver.New(serverRepo, probeRepo, &logger)
-			addedSvr, err := uc.Execute(ctx, svrAddr)
+			addedSvr, err := uc.Execute(ctx, addr.MustNewPublicAddr(svrAddr))
 
 			if tt.wantErr != nil {
 				assert.ErrorIs(t, err, tt.wantErr)
@@ -200,7 +200,7 @@ func TestAddServerUseCase_ServerDoesNotExist(t *testing.T) {
 	probeRepo.On("AddBetween", ctx, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	uc := addserver.New(serverRepo, probeRepo, &logger)
-	_, err := uc.Execute(ctx, svrAddr)
+	_, err := uc.Execute(ctx, addr.MustNewPublicAddr(svrAddr))
 	assert.ErrorIs(t, err, addserver.ErrServerDiscoveryInProgress)
 
 	serverRepo.AssertCalled(t, "Get", ctx, svrAddr)
@@ -223,65 +223,4 @@ func TestAddServerUseCase_ServerDoesNotExist(t *testing.T) {
 		repositories.NC,
 		repositories.NC,
 	)
-}
-
-func TestAddServerUseCase_ValidateAddress(t *testing.T) {
-	tests := []struct {
-		name string
-		ip   string
-		port int
-		want bool
-	}{
-		{
-			"positive case",
-			"1.1.1.1",
-			10480,
-			true,
-		},
-		{
-			"private ip address",
-			"127.0.0.1",
-			10480,
-			false,
-		},
-		{
-			"Private address",
-			"192.168.1.1",
-			10480,
-			false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
-			logger := zerolog.Nop()
-
-			svrAddr := addr.MustNewFromDotted(tt.ip, tt.port)
-			svr := factories.BuildServer(
-				factories.WithAddress(tt.ip, tt.port),
-				factories.WithDiscoveryStatus(ds.Details),
-			)
-
-			serverRepo := new(MockServerRepository)
-			serverRepo.On("Get", ctx, svrAddr).Return(server.Blank, repositories.ErrServerNotFound)
-			serverRepo.On("Add", ctx, mock.Anything, mock.Anything).Return(svr, nil)
-			serverRepo.On("Update", ctx, mock.Anything, mock.Anything).Return(svr, nil)
-
-			probeRepo := new(MockProbeRepository)
-			probeRepo.On("AddBetween", ctx, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-
-			uc := addserver.New(serverRepo, probeRepo, &logger)
-			_, err := uc.Execute(ctx, svrAddr)
-
-			if tt.want {
-				assert.NoError(t, err)
-			} else {
-				assert.ErrorIs(t, err, addserver.ErrInvalidAddress)
-				serverRepo.AssertNotCalled(t, "Get", mock.Anything, mock.Anything)
-				serverRepo.AssertNotCalled(t, "Add", mock.Anything, mock.Anything, mock.Anything)
-				serverRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything)
-			}
-		})
-	}
 }

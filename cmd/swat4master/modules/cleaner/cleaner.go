@@ -2,13 +2,15 @@ package cleaner
 
 import (
 	"context"
+	"time"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
-	"github.com/sergeii/swat4master/internal/services/cleaning"
+	"github.com/sergeii/swat4master/internal/core/usecases/cleanservers"
+	"github.com/sergeii/swat4master/internal/services/monitoring"
 )
 
 type Cleaner struct{}
@@ -18,7 +20,8 @@ func Run(
 	stopped chan struct{},
 	clock clockwork.Clock,
 	logger *zerolog.Logger,
-	service *cleaning.Service,
+	metrics *monitoring.MetricService,
+	uc cleanservers.UseCase,
 	cfg config.Config,
 ) {
 	ticker := clock.NewTicker(cfg.CleanInterval)
@@ -39,11 +42,7 @@ func Run(
 			close(stopped)
 			return
 		case <-tickerCh:
-			if err := service.Clean(ctx, clock.Now().Add(-cfg.CleanRetention)); err != nil {
-				logger.Error().
-					Err(err).
-					Msg("Failed to clean outdated servers")
-			}
+			clean(ctx, clock, logger, metrics, uc, cfg.CleanRetention)
 		}
 	}
 }
@@ -52,7 +51,8 @@ func NewCleaner(
 	lc fx.Lifecycle,
 	cfg config.Config,
 	clock clockwork.Clock,
-	service *cleaning.Service,
+	metrics *monitoring.MetricService,
+	uc cleanservers.UseCase,
 	logger *zerolog.Logger,
 ) *Cleaner {
 	stopped := make(chan struct{})
@@ -60,7 +60,7 @@ func NewCleaner(
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			go Run(stop, stopped, clock, logger, service, cfg) // nolint: contextcheck
+			go Run(stop, stopped, clock, logger, metrics, uc, cfg) // nolint: contextcheck
 			return nil
 		},
 		OnStop: func(context.Context) error {
@@ -73,10 +73,24 @@ func NewCleaner(
 	return &Cleaner{}
 }
 
+func clean(
+	ctx context.Context,
+	clock clockwork.Clock,
+	logger *zerolog.Logger,
+	metrics *monitoring.MetricService,
+	uc cleanservers.UseCase,
+	retention time.Duration,
+) {
+	resp, err := uc.Execute(ctx, clock.Now().Add(-retention))
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Msg("Failed to clean outdated servers")
+	}
+	metrics.CleanerRemovals.Add(float64(resp.Count))
+	metrics.CleanerErrors.Add(float64(resp.Errors))
+}
+
 var Module = fx.Module("cleaner",
-	fx.Provide(
-		fx.Private,
-		cleaning.NewService,
-	),
 	fx.Provide(NewCleaner),
 )
