@@ -124,43 +124,18 @@ func TestServer_New_ValidIPAddress(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "private network address accepted",
-			ip:   "192.168.10.12",
-			want: true,
-		},
-		{
-			name: "another private network address is accepted",
-			ip:   "10.0.0.1",
-			want: true,
-		},
-		{
 			name: "loopback address is accepted",
 			ip:   "127.0.0.1",
 			want: true,
 		},
 		{
-			name: "invalid ip address",
+			name: "invalid ip address is not accepted",
 			ip:   "256.500.0.1",
 			want: false,
 		},
 		{
-			name: "unspecified ip address",
-			ip:   "0.0.0.0",
-			want: false,
-		},
-		{
-			name: "ipv4 address is required",
+			name: "ipv6 address is not accepted",
 			ip:   "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
-			want: false,
-		},
-		{
-			name: "multicast address is not accepted",
-			ip:   "224.0.0.1",
-			want: false,
-		},
-		{
-			name: "link local broadcast address is not accepted",
-			ip:   "169.254.0.1",
 			want: false,
 		},
 	}

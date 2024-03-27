@@ -19,8 +19,8 @@ import (
 // @Success      200 {object} model.ServerDetail
 // @Router       /servers/:address [get]
 func (a *API) ViewServer(c *gin.Context) {
-	address, err := addr.NewFromString(c.Param("address"))
-	if err != nil {
+	address, parseErr := parseViewServerAddress(c)
+	if parseErr != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid server address"})
 		return
 	}
@@ -30,17 +30,17 @@ func (a *API) ViewServer(c *gin.Context) {
 		switch {
 		case errors.Is(err, getserver.ErrServerNotFound):
 			a.logger.Debug().
-				Stringer("addr", address).
+				Stringer("addr", address.ToAddr()).
 				Msg("Requested server not found")
 			c.Status(http.StatusNotFound)
 		case errors.Is(err, getserver.ErrInvalidAddress):
 			a.logger.Debug().
-				Stringer("addr", address).
+				Stringer("addr", address.ToAddr()).
 				Msg("Requested server address is invalid")
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid server address"})
 		case errors.Is(err, getserver.ErrServerHasNoDetails):
 			a.logger.Debug().
-				Stringer("addr", address).
+				Stringer("addr", address.ToAddr()).
 				Msg("Requested server has no details")
 			c.Status(http.StatusNoContent)
 		}
@@ -48,4 +48,18 @@ func (a *API) ViewServer(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, model.NewServerDetailFromDomain(svr))
+}
+
+func parseViewServerAddress(c *gin.Context) (addr.PublicAddr, error) {
+	address, err := addr.NewFromString(c.Param("address"))
+	if err != nil {
+		return addr.BlankPublicAddr, err
+	}
+
+	pubAddress, err := addr.NewPublicAddr(address)
+	if err != nil {
+		return addr.BlankPublicAddr, err
+	}
+
+	return pubAddress, nil
 }

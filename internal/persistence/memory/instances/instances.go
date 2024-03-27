@@ -52,11 +52,11 @@ func (r *Repository) RemoveByID(_ context.Context, id string) error {
 func (r *Repository) RemoveByAddr(_ context.Context, insAddr addr.Addr) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-	instance, exists := r.addrs[insAddr]
+	ins, exists := r.addrs[insAddr]
 	if !exists {
 		return nil
 	}
-	delete(r.ids, instance.ID)
+	delete(r.ids, ins.ID)
 	delete(r.addrs, insAddr)
 	return nil
 }

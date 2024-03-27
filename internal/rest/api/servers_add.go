@@ -48,17 +48,22 @@ func (a *API) AddServer(c *gin.Context) {
 	c.JSON(http.StatusOK, model.NewServerFromDomain(svr))
 }
 
-func parseAddServerAddress(c *gin.Context) (addr.Addr, error) {
+func parseAddServerAddress(c *gin.Context) (addr.PublicAddr, error) {
 	var req model.NewServer
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		return addr.Blank, err
+		return addr.BlankPublicAddr, err
 	}
 
 	address, err := addr.NewFromDotted(req.IP, req.Port)
 	if err != nil {
-		return addr.Blank, err
+		return addr.BlankPublicAddr, err
 	}
 
-	return address, nil
+	pubAddress, err := addr.NewPublicAddr(address)
+	if err != nil {
+		return addr.BlankPublicAddr, err
+	}
+
+	return pubAddress, nil
 }

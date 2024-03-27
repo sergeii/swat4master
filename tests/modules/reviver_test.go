@@ -2,10 +2,10 @@ package modules_test
 
 import (
 	"context"
-	"net"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -13,43 +13,16 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/application"
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/reviver"
-	"github.com/sergeii/swat4master/internal/core/entities/details"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
+	"github.com/sergeii/swat4master/internal/services/monitoring"
+	"github.com/sergeii/swat4master/internal/testutils/factories"
 )
 
-func TestReviver_Run_OK(t *testing.T) {
-	var serverRepo repositories.ServerRepository
-	var probeRepo repositories.ProbeRepository
-
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	assertProbes := func(wantCount, wantExpired int, wantPorts []string) {
-		count, err := probeRepo.Count(ctx)
-		require.NoError(t, err)
-		assert.Equal(t, wantCount, count)
-
-		probes, expired, err := probeRepo.PopMany(ctx, count)
-		require.NoError(t, err)
-		detailsProbes := make([]string, 0)
-		portProbes := make([]string, 0, len(wantPorts))
-		for _, prb := range probes {
-			switch prb.Goal {
-			case probe.GoalDetails:
-				detailsProbes = append(detailsProbes, prb.Addr.String())
-			case probe.GoalPort:
-				portProbes = append(portProbes, prb.Addr.String())
-			}
-		}
-		assert.Equal(t, wantExpired, expired)
-		assert.Equal(t, []string{}, detailsProbes)
-		assert.Equal(t, wantPorts, portProbes)
-	}
-
-	app := fx.New(
+func makeAppWithReviver(extra ...fx.Option) (*fx.App, func()) {
+	fxopts := []fx.Option{
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
@@ -62,58 +35,105 @@ func TestReviver_Run_OK(t *testing.T) {
 		reviver.Module,
 		fx.NopLogger,
 		fx.Invoke(func(*reviver.Reviver) {}),
-		fx.Populate(&serverRepo, &probeRepo),
-	)
+	}
+	fxopts = append(fxopts, extra...)
+	app := fx.New(fxopts...)
+	return app, func() {
+		app.Stop(context.TODO()) // nolint: errcheck
+	}
+}
 
-	info := details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Awesome Server",
-		"hostport":    "10580",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "CO-OP",
-	})
+type reviverProbeCount struct {
+	count   int
+	expired int
+	probes  []string
+}
 
-	gs1 := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	gs1.UpdateInfo(info, time.Now())
-	gs1.UpdateDiscoveryStatus(ds.Master)
-
-	gs2 := server.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
-	gs2.UpdateInfo(info, time.Now())
-	gs2.UpdateDiscoveryStatus(ds.Port)
-
-	gs3 := server.MustNew(net.ParseIP("3.3.3.3"), 10480, 10481)
-	gs3.UpdateInfo(info, time.Now())
-	gs3.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Port)
-
-	gs4 := server.MustNew(net.ParseIP("4.4.4.4"), 10480, 10481)
-	gs4.UpdateInfo(info, time.Now())
-	gs4.UpdateDiscoveryStatus(ds.DetailsRetry)
-
-	gs5 := server.MustNew(net.ParseIP("5.5.5.5"), 10480, 10481)
-	gs5.UpdateInfo(info, time.Now())
-	gs5.UpdateDiscoveryStatus(ds.Master | ds.Info | ds.Details)
-
-	gs6 := server.MustNew(net.ParseIP("6.6.6.6"), 10480, 10481)
-	gs6.UpdateInfo(info, time.Now())
-	gs6.UpdateDiscoveryStatus(ds.Master | ds.PortRetry)
-
-	for _, gs := range []*server.Server{&gs1, &gs2, &gs3, &gs4, &gs5, &gs6} {
-		*gs, _ = serverRepo.Add(ctx, *gs, repositories.ServerOnConflictIgnore)
+func countReviverProbes(
+	ctx context.Context,
+	repo repositories.ProbeRepository,
+) (reviverProbeCount, error) {
+	count, err := repo.Count(ctx)
+	if err != nil {
+		return reviverProbeCount{}, err
 	}
 
-	app.Start(context.TODO()) // nolint: errcheck
-	defer func() {
-		app.Stop(context.TODO()) // nolint: errcheck
-	}()
+	probes, expired, err := repo.PopMany(ctx, count)
+	if err != nil {
+		return reviverProbeCount{}, err
+	}
+
+	portProbes := make([]string, 0, count)
+	for _, prb := range probes {
+		if prb.Goal == probe.GoalPort {
+			portProbes = append(portProbes, prb.Addr.String())
+		}
+	}
+	return reviverProbeCount{
+		count:   count,
+		expired: expired,
+		probes:  portProbes,
+	}, nil
+}
+
+func TestReviver_OK(t *testing.T) {
+	var serverRepo repositories.ServerRepository
+	var probeRepo repositories.ProbeRepository
+	var metrics *monitoring.MetricService
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	gs1 := factories.BuildServer(
+		factories.WithAddress("1.1.1.1", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.Master),
+	)
+	gs2 := factories.BuildServer(
+		factories.WithAddress("2.2.2.2", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.Port),
+	)
+	gs3 := factories.BuildServer(
+		factories.WithAddress("3.3.3.3", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.Master|ds.Details|ds.Port),
+	)
+	gs4 := factories.BuildServer(
+		factories.WithAddress("4.4.4.4", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.DetailsRetry),
+	)
+	gs5 := factories.BuildServer(
+		factories.WithAddress("5.5.5.5", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.Master|ds.Info|ds.Details),
+	)
+	gs6 := factories.BuildServer(
+		factories.WithAddress("6.6.6.6", 10480),
+		factories.WithQueryPort(10481),
+		factories.WithDiscoveryStatus(ds.Master|ds.PortRetry),
+	)
+
+	app, cancel := makeAppWithReviver(
+		fx.Populate(&serverRepo, &probeRepo, &metrics),
+	)
+	defer cancel()
+	app.Start(ctx) // nolint: errcheck
+
+	for _, gs := range []server.Server{gs1, gs2, gs3, gs4, gs5, gs6} {
+		factories.SaveServer(ctx, serverRepo, gs)
+	}
 
 	// let refresher run a cycle
 	<-time.After(time.Millisecond * 150)
 
 	// port probes are added
-	assertProbes(3, 0,
-		[]string{"5.5.5.5:10480", "4.4.4.4:10480", "1.1.1.1:10480"},
-	)
+	result, err := countReviverProbes(ctx, probeRepo)
+	require.NoError(t, err)
+	assert.Equal(t, 3, result.count)
+	assert.Equal(t, 0, result.expired)
+	assert.Equal(t, []string{"5.5.5.5:10480", "4.4.4.4:10480", "1.1.1.1:10480"}, result.probes)
 
 	// make gs3 non-revivable
 	gs3.ClearDiscoveryStatus(ds.Port)
@@ -121,16 +141,19 @@ func TestReviver_Run_OK(t *testing.T) {
 
 	// let reviver run another cycle
 	<-time.After(time.Millisecond * 100)
-	assertProbes(4, 0,
-		[]string{"3.3.3.3:10480", "5.5.5.5:10480", "4.4.4.4:10480", "1.1.1.1:10480"},
-	)
+	result, err = countReviverProbes(ctx, probeRepo)
+	require.NoError(t, err)
+	assert.Equal(t, 4, result.count)
+	assert.Equal(t, 0, result.expired)
+	assert.Equal(t, []string{"3.3.3.3:10480", "5.5.5.5:10480", "4.4.4.4:10480", "1.1.1.1:10480"}, result.probes)
 
 	// run a couple of cycles, expect some probes to expire
 	<-time.After(time.Millisecond * 200)
-
-	assertProbes(8, 4,
-		[]string{"3.3.3.3:10480", "5.5.5.5:10480", "4.4.4.4:10480", "1.1.1.1:10480"},
-	)
+	result, err = countReviverProbes(ctx, probeRepo)
+	require.NoError(t, err)
+	assert.Equal(t, 8, result.count)
+	assert.Equal(t, 4, result.expired)
+	assert.Equal(t, []string{"3.3.3.3:10480", "5.5.5.5:10480", "4.4.4.4:10480", "1.1.1.1:10480"}, result.probes)
 
 	// make the remaining servers non-revivable
 	gs1.UpdateDiscoveryStatus(ds.Port)
@@ -143,11 +166,20 @@ func TestReviver_Run_OK(t *testing.T) {
 
 	// run another cycle, expect only gs3 to be revived
 	<-time.After(time.Millisecond * 100)
-
-	assertProbes(1, 0, []string{"3.3.3.3:10480"})
+	result, err = countReviverProbes(ctx, probeRepo)
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.count)
+	assert.Equal(t, 0, result.expired)
+	assert.Equal(t, []string{"3.3.3.3:10480"}, result.probes)
 
 	// the remaining server goes out of revival scope
 	<-time.After(time.Millisecond * 500)
+	result, err = countReviverProbes(ctx, probeRepo)
+	require.NoError(t, err)
+	assert.Equal(t, 4, result.count)
+	assert.Equal(t, 4, result.expired)
+	assert.Equal(t, []string{}, result.probes)
 
-	assertProbes(4, 4, []string{})
+	producedMetricValue := testutil.ToFloat64(metrics.DiscoveryQueueProduced)
+	assert.Equal(t, 20.0, producedMetricValue)
 }

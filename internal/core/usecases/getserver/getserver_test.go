@@ -34,7 +34,7 @@ func TestGetServerUseCase_OK(t *testing.T) {
 	mockRepo.On("Get", ctx, svr.Addr).Return(svr, nil)
 
 	uc := getserver.New(mockRepo)
-	got, err := uc.Execute(ctx, svr.Addr)
+	got, err := uc.Execute(ctx, addr.MustNewPublicAddr(svr.Addr))
 
 	assert.NoError(t, err)
 	assert.Equal(t, 10481, got.QueryPort)
@@ -57,65 +57,11 @@ func TestGetServerUseCase_NotFound(t *testing.T) {
 	mockRepo.On("Get", ctx, svrAddr).Return(server.Blank, repositories.ErrServerNotFound)
 
 	uc := getserver.New(mockRepo)
-	_, err := uc.Execute(ctx, svrAddr)
+	_, err := uc.Execute(ctx, addr.MustNewPublicAddr(svrAddr))
 
 	assert.ErrorIs(t, err, getserver.ErrServerNotFound)
 
 	mockRepo.AssertExpectations(t)
-}
-
-func TestGetServerUseCase_ValidateAddress(t *testing.T) {
-	tests := []struct {
-		name string
-		ip   string
-		port int
-		want bool
-	}{
-		{
-			"positive case",
-			"1.1.1.1",
-			10480,
-			true,
-		},
-		{
-			"private ip address",
-			"127.0.0.1",
-			10480,
-			false,
-		},
-		{
-			"Private address",
-			"192.168.1.1",
-			10480,
-			false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
-
-			svr := factories.BuildServer(
-				factories.WithAddress(tt.ip, tt.port),
-				factories.WithDiscoveryStatus(ds.Details),
-			)
-
-			mockRepo := new(MockServerRepository)
-			mockRepo.On("Get", ctx, svr.Addr).Return(svr, nil)
-
-			uc := getserver.New(mockRepo)
-			got, err := uc.Execute(ctx, svr.Addr)
-
-			if tt.want {
-				assert.NoError(t, err)
-				assert.Equal(t, "Swat4 Server", got.Info.Hostname)
-				mockRepo.AssertCalled(t, "Get", ctx, got.Addr)
-			} else {
-				assert.ErrorIs(t, err, getserver.ErrInvalidAddress)
-				mockRepo.AssertNotCalled(t, "Get", mock.Anything, mock.Anything)
-			}
-		})
-	}
 }
 
 func TestGetServerUseCase_ValidateStatus(t *testing.T) {
@@ -163,7 +109,7 @@ func TestGetServerUseCase_ValidateStatus(t *testing.T) {
 			mockRepo.On("Get", ctx, svr.Addr).Return(svr, nil)
 
 			uc := getserver.New(mockRepo)
-			got, err := uc.Execute(ctx, svr.Addr)
+			got, err := uc.Execute(ctx, addr.MustNewPublicAddr(svr.Addr))
 
 			mockRepo.AssertExpectations(t)
 

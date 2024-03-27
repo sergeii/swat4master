@@ -39,12 +39,8 @@ func New(
 	}
 }
 
-func (uc UseCase) Execute(ctx context.Context, address addr.Addr) (server.Server, error) {
-	if err := uc.validateAddress(address); err != nil {
-		return server.Blank, err
-	}
-
-	svr, err := uc.getOrCreateServer(ctx, address)
+func (uc UseCase) Execute(ctx context.Context, publicAddr addr.PublicAddr) (server.Server, error) {
+	svr, err := uc.getOrCreateServer(ctx, publicAddr.ToAddr())
 	if err != nil {
 		return server.Blank, err
 	}
@@ -54,14 +50,6 @@ func (uc UseCase) Execute(ctx context.Context, address addr.Addr) (server.Server
 	}
 
 	return svr, nil
-}
-
-func (uc UseCase) validateAddress(address addr.Addr) error {
-	ipv4 := address.GetIP()
-	if !ipv4.IsGlobalUnicast() || ipv4.IsPrivate() {
-		return ErrInvalidAddress
-	}
-	return nil
 }
 
 func (uc UseCase) getOrCreateServer(ctx context.Context, address addr.Addr) (server.Server, error) {
