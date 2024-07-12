@@ -29,7 +29,6 @@ linters:
     - testifylint
     - perfsprint
     - contextcheck
-    - intrange
     - revive
 linters-settings:
   cyclop:

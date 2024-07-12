@@ -38,7 +38,7 @@ func NewWorkerGroup(
 func (wg *WorkerGroup) Run(ctx context.Context) chan probe.Probe {
 	wg.metrics.DiscoveryWorkersAvailable.Add(float64(wg.concurrency))
 	queue := make(chan probe.Probe, wg.concurrency)
-	for i := 0; i < wg.concurrency; i++ {
+	for range wg.concurrency {
 		go wg.work(ctx, queue)
 	}
 	return queue

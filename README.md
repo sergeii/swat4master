@@ -51,7 +51,7 @@ For other tags see [container registry][packages].
 Alternatively you can download and run a server binary suitable for your platform from one of the [releases][releases].
 
 ## Building from source
-To build the project from source you need Go 1.21+
+To build the project from source you need Go 1.22+
 ```
 go build -o swat4master cmd/swat4master/main.go
 ```

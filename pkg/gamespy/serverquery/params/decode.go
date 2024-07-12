@@ -17,7 +17,7 @@ func Marshal(v any) (map[string]string, error) {
 func marshal(sv reflect.Value) (map[string]string, error) {
 	params := make(map[string]string)
 	st := reflect.TypeOf(sv.Interface())
-	for i := 0; i < st.NumField(); i++ {
+	for i := range st.NumField() {
 		field := st.Field(i)
 		// ignore private fields
 		if !field.IsExported() {
