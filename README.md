@@ -63,7 +63,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 [mit]: https://opensource.org/licenses/MIT
 
 [go-version-img]: https://img.shields.io/github/go-mod/go-version/sergeii/swat4master.svg
-[go-version]: https://tip.golang.org/doc/go1.21
+[go-version]: https://tip.golang.org/doc/go1.22
 
 [ci-img]: https://github.com/sergeii/swat4master/actions/workflows/ci.yml/badge.svg?branch=main
 [ci]: https://github.com/sergeii/swat4master/actions/workflows/ci.yml
