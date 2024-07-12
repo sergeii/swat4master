@@ -19,7 +19,7 @@ func TestServerListen(t *testing.T) {
 
 	server, err := tcp.New(
 		"localhost:0", // 0 - listen an any available port
-		tcp.HandleFunc(func(ctx context.Context, conn *net.TCPConn) {
+		tcp.HandleFunc(func(_ context.Context, conn *net.TCPConn) {
 			defer conn.Close()
 			buf := make([]byte, 1024)
 			n, _ := conn.Read(buf)
@@ -58,7 +58,7 @@ func TestServerTimeout(t *testing.T) {
 
 	server, err := tcp.New(
 		"localhost:0", // 0 - listen an any available port
-		tcp.HandleFunc(func(ctx context.Context, conn *net.TCPConn) {
+		tcp.HandleFunc(func(_ context.Context, conn *net.TCPConn) {
 			defer conn.Close()
 			buf := make([]byte, 1024)
 			n, _ := conn.Read(buf)

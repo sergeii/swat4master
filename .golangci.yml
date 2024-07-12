@@ -27,9 +27,6 @@ linters:
     - mnd
     - inamedparam
     - testifylint
-    - perfsprint
-    - contextcheck
-    - revive
 linters-settings:
   cyclop:
     max-complexity: 10

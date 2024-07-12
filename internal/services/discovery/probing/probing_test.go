@@ -181,7 +181,7 @@ func TestProbingService_ProbeDetails_RetryOnError(t *testing.T) {
 			"positive case for existing server",
 			ds.Details,
 			true,
-			func(ctx context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, bytes []byte) {
+			func(_ context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, _ []byte) {
 				packet := []byte(
 					"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16" +
 						"\\gametype\\VIP Escort\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store" +
@@ -196,7 +196,7 @@ func TestProbingService_ProbeDetails_RetryOnError(t *testing.T) {
 			"good response for new server",
 			ds.NoStatus,
 			false,
-			func(ctx context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, bytes []byte) {
+			func(_ context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, _ []byte) {
 				packet := []byte(
 					"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16" +
 						"\\gametype\\VIP Escort\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store" +
@@ -227,7 +227,7 @@ func TestProbingService_ProbeDetails_RetryOnError(t *testing.T) {
 			"no valid response for existing server - no queryid",
 			ds.Master | ds.Details | ds.Info,
 			true,
-			func(ctx context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, bytes []byte) {
+			func(_ context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, _ []byte) {
 				packet := []byte(
 					"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16\\gametype\\VIP Escort" +
 						"\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store\\hostport\\10480" +
@@ -243,7 +243,7 @@ func TestProbingService_ProbeDetails_RetryOnError(t *testing.T) {
 			"no valid response for existing server - validation",
 			ds.Details,
 			true,
-			func(ctx context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, bytes []byte) {
+			func(_ context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, _ []byte) {
 				packet := []byte(
 					"\\hostname\\-==MYT Team Svr==-\\numplayers\\-1\\maxplayers\\16" +
 						"\\gametype\\VIP Escort\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store" +
@@ -258,7 +258,7 @@ func TestProbingService_ProbeDetails_RetryOnError(t *testing.T) {
 			"no valid response for new server",
 			ds.NoStatus,
 			false,
-			func(ctx context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, bytes []byte) {
+			func(_ context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, _ []byte) {
 				packet := []byte(
 					"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16\\gametype\\VIP Escort" +
 						"\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store\\hostport\\10480" +

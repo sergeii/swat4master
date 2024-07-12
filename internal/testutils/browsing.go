@@ -2,8 +2,8 @@ package testutils
 
 import (
 	"encoding/binary"
-	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	"github.com/sergeii/swat4master/pkg/binutils"
@@ -20,7 +20,7 @@ func GenBrowserChallenge(l uint) []byte {
 }
 
 func WithBrowserChallengeLength(l int) func([]byte) int {
-	return func(req []byte) int {
+	return func(_ []byte) int {
 		return l
 	}
 }
@@ -93,7 +93,7 @@ func UnpackServerList(resp []byte) []map[string]string {
 	for unparsed[0] == 0x51 {
 		server := map[string]string{
 			"host": net.IPv4(unparsed[1], unparsed[2], unparsed[3], unparsed[4]).String(),
-			"port": fmt.Sprintf("%d", binary.BigEndian.Uint16(unparsed[5:7])),
+			"port": strconv.FormatUint(uint64(binary.BigEndian.Uint16(unparsed[5:7])), 10),
 		}
 		unparsed = unparsed[7:]
 		for i := range fields {

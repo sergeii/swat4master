@@ -85,7 +85,7 @@ func (uc UseCase) createServerFromAddress(
 		return server.Blank, err
 	}
 
-	if svr, err = uc.serverRepo.Add(ctx, svr, func(upd *server.Server) bool {
+	if svr, err = uc.serverRepo.Add(ctx, svr, func(_ *server.Server) bool {
 		// a server with exactly same address was created in the process,
 		// we cannot proceed further
 		return false

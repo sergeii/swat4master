@@ -17,7 +17,7 @@ func TestServerListen(t *testing.T) {
 
 	server, err := udp.New(
 		"localhost:0", // 0 - listen an any available port
-		udp.HandleFunc(func(ctx context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {
+		udp.HandleFunc(func(_ context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {
 			resp := req
 			slices.Reverse(resp)
 			conn.WriteToUDP(resp, addr) // nolint: errcheck

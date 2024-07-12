@@ -85,7 +85,7 @@ func (uc UseCase) Execute(
 		return ErrInstanceAddrMismatch
 	}
 
-	if err = uc.serverRepo.Remove(ctx, svr, func(s *server.Server) bool {
+	if err = uc.serverRepo.Remove(ctx, svr, func(_ *server.Server) bool {
 		return true
 	}); err != nil {
 		return err

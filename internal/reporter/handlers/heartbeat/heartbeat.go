@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -145,7 +146,7 @@ func parseAddrFromHeartbeatParams(
 	gamePort, ok1 := parseNumericField(fields, "hostport")
 	queryPort, ok2 := parseNumericField(fields, "localport")
 	if !ok1 || !ok2 {
-		return addr.Blank, -1, fmt.Errorf("missing hostport or localport field")
+		return addr.Blank, -1, errors.New("missing hostport or localport field")
 	}
 	svrAddr, err := addr.New(connAddr.IP, gamePort)
 	if err != nil {

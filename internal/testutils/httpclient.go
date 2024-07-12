@@ -15,7 +15,7 @@ type Response struct {
 type TestRequestOpt func(*http.Request, *http.Response)
 
 func MustBindJSON(v interface{}) TestRequestOpt {
-	return func(req *http.Request, resp *http.Response) {
+	return func(_ *http.Request, resp *http.Response) {
 		if resp != nil {
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
@@ -29,7 +29,7 @@ func MustBindJSON(v interface{}) TestRequestOpt {
 }
 
 func MustHaveNoBody() TestRequestOpt {
-	return func(req *http.Request, resp *http.Response) {
+	return func(_ *http.Request, resp *http.Response) {
 		if resp != nil {
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
@@ -56,7 +56,7 @@ func DoTestRequest(
 
 	// disable redirects
 	client := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 	}

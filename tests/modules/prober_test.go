@@ -64,7 +64,7 @@ func TestProber_Run(t *testing.T) {
 	responses2 := make(chan []byte)
 	var i2 int64
 	udp2, cancel2 := gs1.ServerFactory(
-		func(ctx context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {
+		func(_ context.Context, conn *net.UDPConn, addr *net.UDPAddr, _ []byte) {
 			packet := <-responses2
 			conn.WriteToUDP(packet, addr) // nolint: errcheck
 			atomic.AddInt64(&i2, 1)
