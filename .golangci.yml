@@ -4,10 +4,6 @@ linters:
     - godot
     - gci
     - funlen
-    - maligned
-    - golint
-    - scopelint
-    - interfacer
     - wrapcheck
     - varnamelen
     - paralleltest
@@ -17,9 +13,8 @@ linters:
     - tagliatelle
     - noctx
     - nlreturn
-    - exhaustivestruct
     - wsl
-    - goerr113
+    - err113
     - gochecknoglobals
     - exhaustruct
     - nolintlint
@@ -27,7 +22,15 @@ linters:
     - misspell
     - dupword
     - depguard
-    - structcheck
+    - execinquery
+    - protogetter
+    - mnd
+    - inamedparam
+    - testifylint
+    - perfsprint
+    - contextcheck
+    - intrange
+    - revive
 linters-settings:
   cyclop:
     max-complexity: 10

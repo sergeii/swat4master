@@ -106,7 +106,7 @@ func (r *Repository) update(
 	elem *list.Element,
 	item *serverItem,
 	svr server.Server,
-) (server.Server, error) {
+) (server.Server, error) { // nolint: unparam
 	// bump the version counter
 	// so this version of the server instance
 	// maybe be only rewritten when other writers
