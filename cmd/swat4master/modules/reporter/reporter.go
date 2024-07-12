@@ -41,7 +41,7 @@ func NewReporter(
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			go func() {
+			go func() { // nolint: contextcheck
 				logger.Info().Str("listen", cfg.ReporterListenAddr).Msg("Starting reporter")
 				if err := svr.Listen(); err != nil {
 					logger.Error().Err(err).Msg("Reporter UDP server exited prematurely")

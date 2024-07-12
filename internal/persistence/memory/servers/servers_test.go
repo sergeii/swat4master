@@ -1,3 +1,4 @@
+// nolint:revive
 package servers_test
 
 import (
@@ -301,7 +302,7 @@ func TestServerMemoryRepo_CreateOrUpdate_Created(t *testing.T) {
 
 	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 	svr.UpdateDiscoveryStatus(ds.Master)
-	svr, err := repo.AddOrUpdate(ctx, svr, func(s *server.Server) {
+	svr, err := repo.AddOrUpdate(ctx, svr, func(_ *server.Server) {
 		panic("should not be called")
 	})
 	require.NoError(t, err)

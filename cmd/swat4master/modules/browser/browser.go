@@ -39,7 +39,7 @@ func NewBrowser(
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			go func() {
+			go func() { // nolint: contextcheck
 				logger.Info().
 					Str("listen", cfg.BrowserListenAddr).Dur("timeout", cfg.BrowserClientTimeout).
 					Msg("Starting browser")
@@ -53,7 +53,7 @@ func NewBrowser(
 			<-ready
 			return nil
 		},
-		OnStop: func(stopCtx context.Context) error {
+		OnStop: func(_ context.Context) error {
 			logger.Info().Msg("Stopping browser")
 			if err := svr.Stop(); err != nil {
 				logger.Error().

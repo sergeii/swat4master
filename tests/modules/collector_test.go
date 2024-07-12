@@ -34,7 +34,7 @@ func TestCollector_Run(t *testing.T) {
 		}),
 		collector.Module,
 		fx.NopLogger,
-		fx.Invoke(func(_ *collector.Collector, m *monitoring.MetricService) {}),
+		fx.Invoke(func(_ *collector.Collector, _ *monitoring.MetricService) {}),
 		fx.Populate(&metrics, &repo),
 	)
 	app.Start(context.TODO()) // nolint: errcheck
