@@ -60,7 +60,7 @@ func NewRequest(data []byte) (Request, error) {
 func (req *Request) parse() error {
 	// consume 2 equal strings with game identifier (such as swat4 or swat4xp1)
 	// because they don't serve any purpose for us, just bin them
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		_, rem := binutils.ConsumeCString(req.unparsed)
 		if rem == nil {
 			return ErrInvalidRequestFormat

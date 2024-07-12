@@ -13,7 +13,7 @@ func newCipherState(cryptKey [CRTL]byte) cipherState {
 	var toswap, rsum, keypos uint8
 	cs := cipherState{}
 	// Start with state->cards all in order, one of each.
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		cs.cards[i] = uint8(i)
 	}
 	keypos = 0 // Start with first byte of the crypt key

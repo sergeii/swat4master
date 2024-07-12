@@ -83,7 +83,7 @@ func UnpackServerList(resp []byte) []map[string]string {
 	fieldCount := int(resp[6])
 	fields := make([]string, 0, fieldCount)
 	unparsed := resp[8:]
-	for i := 0; i < fieldCount; i++ {
+	for range fieldCount {
 		field, rem := binutils.ConsumeCString(unparsed)
 		// consume extra null byte at the end of the field
 		unparsed = rem[1:]

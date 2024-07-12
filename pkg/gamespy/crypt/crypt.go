@@ -56,7 +56,7 @@ func Encrypt(gameSecret [GMSL]byte, challenge [CCHL]byte, data []byte) []byte {
 	payload := make([]byte, HDRL+len(data))
 	// init crypt header and fill it with random
 	// bytes 9-23 will be the crypt key xor'ed with the game secret and the client's challenge
-	for i := 0; i < HDRL; i++ {
+	for i := range HDRL {
 		payload[i] = uint8(random.RandInt(1, 255)) ^ gameSecret[i%GMSL] ^ challenge[i%CCHL]
 	}
 	svrChallenge := payload[9:HDRL]
@@ -75,14 +75,13 @@ func Encrypt(gameSecret [GMSL]byte, challenge [CCHL]byte, data []byte) []byte {
 }
 
 func Decrypt(gameSecret [GMSL]byte, clientChallenge [CCHL]byte, data []byte) []byte {
-	var i uint8
 	var cryptKey [CRTL]byte
 	// combine secret key, client and server challenges into a crypt key
 	svrChOffset := (data[0] ^ 0xec) + 2                      // 9
 	svrChLen := data[svrChOffset-1] ^ 0xea                   // 14
 	svrChallenge := data[svrChOffset : svrChOffset+svrChLen] // [9..23)
 	copy(cryptKey[:], clientChallenge[:])
-	for i = 0; i < svrChLen; i++ {
+	for i := range svrChLen {
 		k := (i * gameSecret[i%GMSL]) % CCHL
 		cryptKey[k] ^= (cryptKey[i%CCHL] ^ svrChallenge[i]) & 0xFF
 	}

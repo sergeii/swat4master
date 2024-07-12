@@ -82,7 +82,7 @@ func TestExporter_MasterMetrics(t *testing.T) {
 	sendUDP("127.0.0.1:33811", []byte{0x09})
 
 	// invalid keepalive request (no prior heartbeat)
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		sendUDP("127.0.0.1:33811", []byte{0x08, 0xde, 0xad, 0xbe, 0xef})
 	}
 

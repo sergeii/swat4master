@@ -301,7 +301,7 @@ func TestProbesMemoryRepo_Pop(t *testing.T) {
 
 	<-started
 	// advance 100ms in steps
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		c.Advance(time.Millisecond * 1)
 		advanced <- true
 	}
@@ -343,7 +343,7 @@ func TestProbesMemoryRepo_PopAny(t *testing.T) {
 	)
 
 	popped := make([]string, 0)
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		prb, err := repo.PopAny(ctx)
 		require.NoError(t, err)
 		popped = append(popped, prb.Addr.GetDottedIP())

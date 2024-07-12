@@ -8,8 +8,7 @@ import (
 )
 
 func GenRandomIP() net.IP {
-	var i int
-	for i = 0; i < 10; i++ {
+	for i := range 10 {
 		rand32int := make([]byte, 4)
 		binary.BigEndian.PutUint32(rand32int, rand.Uint32()) // nolint: gosec
 		randIP := net.IPv4(rand32int[0], rand32int[1], rand32int[2], rand32int[3])

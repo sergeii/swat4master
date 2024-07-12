@@ -264,7 +264,7 @@ func TestBrowser_ParseResponse(t *testing.T) {
 	assert.Equal(t, 9, fieldCount)
 	fields := make([]string, 0, fieldCount)
 	unparsed := resp[8:]
-	for i := 0; i < fieldCount; i++ {
+	for range fieldCount {
 		field, rem := binutils.ConsumeCString(unparsed)
 		assert.True(t, len(field) > 0)
 		assert.Equal(t, uint8(0), rem[0])
