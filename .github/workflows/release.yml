@@ -13,6 +13,7 @@ jobs:
     outputs:
       new_tag: ${{ steps.version.outputs.new_tag }}
       changelog: ${{ steps.version.outputs.changelog }}
+      date: ${{ steps.build_meta.outputs.date }}
     steps:
       - name: Bump release version and push tag
         id: version
@@ -20,6 +21,11 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           default_bump: false
+
+      - name: Prepare build metadata
+        id: build_meta
+        run: |
+          echo "::set-output name=date::$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 
   publish:
     runs-on: ubuntu-latest
@@ -59,8 +65,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           build-args: |
             build_commit_sha=${{ github.sha }}
-            build_version=testing
-            build_time=${{ needs.meta.outputs.date }}
+            build_version=${{ needs.prepare.outputs.new_tag }}
+            build_time=${{ needs.prepare.outputs.date }}
 
       - name: Create GitHub release
         uses: ncipollo/release-action@v1
