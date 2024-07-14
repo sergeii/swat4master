@@ -148,7 +148,7 @@ func Provide() Config {
 		},
 	)
 	flag.IntVar(
-		&cfg.DiscoveryRevivalRetries, "revival.retries", 2,
+		&cfg.DiscoveryRevivalRetries, "revival.retries", 4,
 		"Determines how many times a failed revival probe is retried",
 	)
 	flag.DurationVar(
