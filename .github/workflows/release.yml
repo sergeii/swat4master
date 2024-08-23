@@ -6,6 +6,10 @@ on:
     branches: [main]
     types: [completed]
 
+concurrency:
+  group: release
+  cancel-in-progress: true
+
 jobs:
   prepare:
     runs-on: ubuntu-latest

@@ -2,8 +2,9 @@ name: ci
 
 on: [push]
 
-env:
-  GOEXPERIMENT: loopvar
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   meta:
