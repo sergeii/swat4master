@@ -22,7 +22,6 @@ var (
 )
 
 type ServiceOpts struct {
-	MaxRetries   int
 	ProbeTimeout time.Duration
 }
 
@@ -120,11 +119,11 @@ func (s *Service) retry(
 	prb probe.Probe,
 	svr server.Server,
 ) error {
-	retries, ok := prb.IncRetries(s.opts.MaxRetries)
+	retries, ok := prb.IncRetries()
 	if !ok {
 		s.logger.Info().
 			Stringer("server", svr).
-			Stringer("goal", prb.Goal).Int("retries", retries).Int("max", s.opts.MaxRetries).
+			Stringer("goal", prb.Goal).Int("retries", retries).Int("max", prb.MaxRetries).
 			Msg("Max retries reached")
 		if failErr := s.fail(ctx, prober, prb, svr); failErr != nil {
 			return failErr

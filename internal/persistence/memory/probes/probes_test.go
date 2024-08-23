@@ -21,12 +21,12 @@ func TestProbesMemoryRepo_Add(t *testing.T) {
 	c := clockwork.NewFakeClock()
 	repo := probes.New(c)
 
-	err := repo.Add(ctx, probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails))
+	err := repo.Add(ctx, probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails, 0))
 	assert.NoError(t, err)
 	cnt, _ := repo.Count(ctx)
 	assert.Equal(t, 1, cnt)
 
-	err = repo.Add(ctx, probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails))
+	err = repo.Add(ctx, probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails, 0))
 	assert.NoError(t, err)
 	cnt, _ = repo.Count(ctx)
 	assert.Equal(t, 2, cnt)
@@ -51,7 +51,7 @@ func TestProbesMemoryRepo_AddBetween(t *testing.T) {
 
 	err := repo.AddBetween(
 		ctx,
-		probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails, 0),
 		now.Add(time.Millisecond*10),
 		now.Add(time.Millisecond*50),
 	)
@@ -64,7 +64,7 @@ func TestProbesMemoryRepo_AddBetween(t *testing.T) {
 
 	err = repo.AddBetween(
 		ctx,
-		probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails, 0),
 		now.Add(time.Millisecond*10),
 		now.Add(time.Millisecond*15),
 	)
@@ -72,7 +72,7 @@ func TestProbesMemoryRepo_AddBetween(t *testing.T) {
 
 	err = repo.AddBetween(
 		ctx,
-		probe.New(addr.MustNewFromDotted("3.3.3.3", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("3.3.3.3", 10480), 10480, probe.GoalDetails, 0),
 		now.Add(time.Millisecond*25),
 		now.Add(time.Millisecond*50),
 	)
@@ -126,7 +126,7 @@ func TestProbesMemoryRepo_AddBetween_After(t *testing.T) {
 
 	err := repo.AddBetween(
 		ctx,
-		probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails, 0),
 		now.Add(time.Millisecond*50),
 		repositories.NC,
 	)
@@ -139,7 +139,7 @@ func TestProbesMemoryRepo_AddBetween_After(t *testing.T) {
 
 	err = repo.AddBetween(
 		ctx,
-		probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails, 0),
 		now.Add(time.Millisecond*100),
 		repositories.NC,
 	)
@@ -184,7 +184,7 @@ func TestProbesMemoryRepo_AddBetween_AddBefore(t *testing.T) {
 
 	err := repo.AddBetween(
 		ctx,
-		probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails, 0),
 		repositories.NC,
 		now.Add(time.Millisecond*50),
 	)
@@ -192,7 +192,7 @@ func TestProbesMemoryRepo_AddBetween_AddBefore(t *testing.T) {
 
 	err = repo.AddBetween(
 		ctx,
-		probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails, 0),
 		repositories.NC,
 		now.Add(time.Millisecond*50),
 	)
@@ -234,13 +234,13 @@ func TestProbesMemoryRepo_PopExpired(t *testing.T) {
 
 	repo.AddBetween( // nolint:errcheck
 		ctx,
-		probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails, 0),
 		repositories.NC,
 		now.Add(-time.Millisecond*50),
 	)
 	repo.AddBetween( // nolint:errcheck
 		ctx,
-		probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails, 0),
 		repositories.NC,
 		now.Add(-time.Millisecond*10),
 	)
@@ -261,21 +261,21 @@ func TestProbesMemoryRepo_Pop(t *testing.T) {
 
 	repo.AddBetween( // nolint:errcheck
 		ctx,
-		probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails, 0),
 		now.Add(time.Millisecond*75),
 		repositories.NC,
 	)
 	repo.AddBetween( // nolint:errcheck
 		ctx,
-		probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails, 0),
 		now.Add(time.Millisecond*50),
 		repositories.NC,
 	)
-	repo.Add(ctx, probe.New(addr.MustNewFromDotted("3.3.3.3", 10480), 10480, probe.GoalDetails)) // nolint:errcheck
-	repo.Add(ctx, probe.New(addr.MustNewFromDotted("4.4.4.4", 10480), 10480, probe.GoalDetails)) // nolint:errcheck
-	repo.AddBetween(                                                                             // nolint:errcheck
+	repo.Add(ctx, probe.New(addr.MustNewFromDotted("3.3.3.3", 10480), 10480, probe.GoalDetails, 0)) // nolint:errcheck
+	repo.Add(ctx, probe.New(addr.MustNewFromDotted("4.4.4.4", 10480), 10480, probe.GoalDetails, 0)) // nolint:errcheck
+	repo.AddBetween(                                                                                // nolint:errcheck
 		ctx,
-		probe.New(addr.MustNewFromDotted("5.5.5.5", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("5.5.5.5", 10480), 10480, probe.GoalDetails, 0),
 		now.Add(time.Millisecond*100),
 		repositories.NC,
 	)
@@ -323,21 +323,21 @@ func TestProbesMemoryRepo_PopAny(t *testing.T) {
 
 	repo.AddBetween( // nolint:errcheck
 		ctx,
-		probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails, 0),
 		now.Add(time.Millisecond*75),
 		repositories.NC,
 	)
 	repo.AddBetween( // nolint:errcheck
 		ctx,
-		probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails, 0),
 		now.Add(time.Millisecond*50),
 		repositories.NC,
 	)
-	repo.Add(ctx, probe.New(addr.MustNewFromDotted("3.3.3.3", 10480), 10480, probe.GoalDetails)) // nolint:errcheck
-	repo.Add(ctx, probe.New(addr.MustNewFromDotted("4.4.4.4", 10480), 10480, probe.GoalDetails)) // nolint:errcheck
-	repo.AddBetween(                                                                             // nolint:errcheck
+	repo.Add(ctx, probe.New(addr.MustNewFromDotted("3.3.3.3", 10480), 10480, probe.GoalDetails, 0)) // nolint:errcheck
+	repo.Add(ctx, probe.New(addr.MustNewFromDotted("4.4.4.4", 10480), 10480, probe.GoalDetails, 0)) // nolint:errcheck
+	repo.AddBetween(                                                                                // nolint:errcheck
 		ctx,
-		probe.New(addr.MustNewFromDotted("5.5.5.5", 10480), 10480, probe.GoalDetails),
+		probe.New(addr.MustNewFromDotted("5.5.5.5", 10480), 10480, probe.GoalDetails, 0),
 		now.Add(time.Millisecond*100),
 		repositories.NC,
 	)
@@ -422,19 +422,19 @@ func TestProbesMemoryRepo_PopMany(t *testing.T) {
 
 			repo.AddBetween( // nolint:errcheck
 				ctx,
-				probe.New(addr.MustNewFromDotted("7.7.7.7", 10480), 10480, probe.GoalDetails),
+				probe.New(addr.MustNewFromDotted("7.7.7.7", 10480), 10480, probe.GoalDetails, 0),
 				repositories.NC,
 				now.Add(-time.Millisecond*1),
 			)
 			repo.AddBetween( // nolint:errcheck
 				ctx,
-				probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails),
+				probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails, 0),
 				now.Add(time.Millisecond*75),
 				repositories.NC,
 			)
 			repo.AddBetween( // nolint:errcheck
 				ctx,
-				probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails),
+				probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails, 0),
 				now.Add(time.Millisecond*50),
 				repositories.NC,
 			)
@@ -442,28 +442,29 @@ func TestProbesMemoryRepo_PopMany(t *testing.T) {
 				addr.MustNewFromDotted("3.3.3.3", 10480),
 				10480,
 				probe.GoalDetails,
+				0,
 			))
 			repo.AddBetween( // nolint:errcheck
 				ctx,
-				probe.New(addr.MustNewFromDotted("4.4.4.4", 10480), 10480, probe.GoalDetails),
+				probe.New(addr.MustNewFromDotted("4.4.4.4", 10480), 10480, probe.GoalDetails, 0),
 				repositories.NC,
 				now.Add(time.Millisecond*150),
 			)
 			repo.AddBetween( // nolint:errcheck
 				ctx,
-				probe.New(addr.MustNewFromDotted("5.5.5.5", 10480), 10480, probe.GoalDetails),
+				probe.New(addr.MustNewFromDotted("5.5.5.5", 10480), 10480, probe.GoalDetails, 0),
 				now.Add(time.Millisecond*100),
 				repositories.NC,
 			)
 			repo.AddBetween( // nolint:errcheck
 				ctx,
-				probe.New(addr.MustNewFromDotted("6.6.6.6", 10480), 10480, probe.GoalDetails),
+				probe.New(addr.MustNewFromDotted("6.6.6.6", 10480), 10480, probe.GoalDetails, 0),
 				repositories.NC,
 				now.Add(time.Millisecond*10),
 			)
 			repo.AddBetween( // nolint:errcheck
 				ctx,
-				probe.New(addr.MustNewFromDotted("8.8.8.8", 10480), 10480, probe.GoalDetails),
+				probe.New(addr.MustNewFromDotted("8.8.8.8", 10480), 10480, probe.GoalDetails, 0),
 				repositories.NC,
 				now.Add(-time.Millisecond*10),
 			)
@@ -524,11 +525,11 @@ func TestProbesMemoryRepo_Count(t *testing.T) {
 
 	assertCount(0)
 
-	t1 := probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails)
+	t1 := probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10480, probe.GoalDetails, 0)
 	_ = repo.Add(ctx, t1)
 	assertCount(1)
 
-	t2 := probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails)
+	t2 := probe.New(addr.MustNewFromDotted("2.2.2.2", 10480), 10480, probe.GoalDetails, 0)
 	_ = repo.Add(ctx, t2)
 	assertCount(2)
 
@@ -541,7 +542,7 @@ func TestProbesMemoryRepo_Count(t *testing.T) {
 	_, _ = repo.Pop(ctx)
 	assertCount(0)
 
-	t3 := probe.New(addr.MustNewFromDotted("3.3.3.3", 10480), 10480, probe.GoalDetails)
+	t3 := probe.New(addr.MustNewFromDotted("3.3.3.3", 10480), 10480, probe.GoalDetails, 0)
 	_ = repo.Add(ctx, t3)
 	assertCount(1)
 }

@@ -20,10 +20,15 @@ import (
 
 var ErrInvalidRequestPayload = errors.New("invalid request payload")
 
+type UseCaseOptions struct {
+	MaxProbeRetries int
+}
+
 type UseCase struct {
 	serverRepo   repositories.ServerRepository
 	instanceRepo repositories.InstanceRepository
 	probeRepo    repositories.ProbeRepository
+	opts         UseCaseOptions
 	validate     *validator.Validate
 	clock        clockwork.Clock
 	logger       *zerolog.Logger
@@ -33,6 +38,7 @@ func New(
 	serverRepo repositories.ServerRepository,
 	instanceRepo repositories.InstanceRepository,
 	probeRepo repositories.ProbeRepository,
+	opts UseCaseOptions,
 	validate *validator.Validate,
 	clock clockwork.Clock,
 	logger *zerolog.Logger,
@@ -41,6 +47,7 @@ func New(
 		serverRepo:   serverRepo,
 		instanceRepo: instanceRepo,
 		probeRepo:    probeRepo,
+		opts:         opts,
 		validate:     validate,
 		clock:        clock,
 		logger:       logger,
@@ -151,7 +158,7 @@ func (uc UseCase) maybeDiscoverPort(ctx context.Context, pending server.Server) 
 		return nil
 	}
 
-	prb := probe.New(pending.Addr, pending.Addr.Port, probe.GoalPort)
+	prb := probe.New(pending.Addr, pending.Addr.Port, probe.GoalPort, uc.opts.MaxProbeRetries)
 	if err = uc.probeRepo.Add(ctx, prb); err != nil {
 		return err
 	}

@@ -38,7 +38,6 @@ func TestProber_Run(t *testing.T) {
 			return config.Config{
 				ProbeConcurrency:      5,
 				ProbePollSchedule:     time.Millisecond * 100,
-				ProbeRetries:          2,
 				ProbeTimeout:          time.Millisecond * 50,
 				DiscoveryRevivalPorts: []int{1},
 			}
@@ -161,9 +160,9 @@ func TestProber_Run(t *testing.T) {
 	svr3, _ = serverRepo.Add(ctx, svr3, repositories.ServerOnConflictIgnore)
 	svr4, _ = serverRepo.Add(ctx, svr4, repositories.ServerOnConflictIgnore)
 
-	probeRepo.Add(ctx, probe.New(svr1.Addr, svr1.QueryPort, probe.GoalDetails)) // nolint: errcheck
-	probeRepo.Add(ctx, probe.New(svr2.Addr, svr2.Addr.Port, probe.GoalPort))    // nolint: errcheck
-	probeRepo.Add(ctx, probe.New(svr3.Addr, svr3.QueryPort, probe.GoalDetails)) // nolint: errcheck
+	probeRepo.Add(ctx, probe.New(svr1.Addr, svr1.QueryPort, probe.GoalDetails, 2)) // nolint: errcheck
+	probeRepo.Add(ctx, probe.New(svr2.Addr, svr2.Addr.Port, probe.GoalPort, 2))    // nolint: errcheck
+	probeRepo.Add(ctx, probe.New(svr3.Addr, svr3.QueryPort, probe.GoalDetails, 2)) // nolint: errcheck
 
 	// run a cycle
 	<-time.After(time.Millisecond * 175)

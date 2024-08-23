@@ -2,6 +2,7 @@ package probe
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 )
@@ -23,25 +24,29 @@ func (goal Goal) String() string {
 	return fmt.Sprintf("%d", goal)
 }
 
+var NC = time.Time{} // no constraint
+
 type Probe struct {
-	Addr    addr.Addr
-	Port    int
-	Goal    Goal
-	Retries int
+	Addr       addr.Addr
+	Port       int
+	Goal       Goal
+	Retries    int
+	MaxRetries int
 }
 
 var Blank Probe // nolint: gochecknoglobals
 
-func New(addr addr.Addr, port int, goal Goal) Probe {
+func New(addr addr.Addr, port int, goal Goal, maxRetries int) Probe {
 	return Probe{
-		Addr: addr,
-		Port: port,
-		Goal: goal,
+		Addr:       addr,
+		Port:       port,
+		Goal:       goal,
+		MaxRetries: maxRetries,
 	}
 }
 
-func (t *Probe) IncRetries(maxRetries int) (int, bool) {
-	if t.Retries >= maxRetries {
+func (t *Probe) IncRetries() (int, bool) {
+	if t.Retries >= t.MaxRetries {
 		return t.Retries, false
 	}
 	t.Retries++

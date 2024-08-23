@@ -56,8 +56,13 @@ func TestRefreshServersUseCase_Success(t *testing.T) {
 	probeRepo := new(MockProbeRepository)
 	probeRepo.On("AddBetween", ctx, mock.Anything, mock.Anything, mock.Anything).Return(nil).Twice()
 
-	uc := refreshservers.New(serverRepo, probeRepo, &logger)
-	resp, err := uc.Execute(ctx, deadline)
+	ucOpts := refreshservers.UseCaseOptions{
+		MaxProbeRetries: 3,
+	}
+	uc := refreshservers.New(serverRepo, probeRepo, ucOpts, &logger)
+
+	req := refreshservers.NewRequest(deadline)
+	resp, err := uc.Execute(ctx, req)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 2, resp.Count)
@@ -82,7 +87,7 @@ func TestRefreshServersUseCase_Success(t *testing.T) {
 			t,
 			"AddBetween",
 			ctx,
-			probe.New(svr.Addr, svr.QueryPort, probe.GoalDetails),
+			probe.New(svr.Addr, svr.QueryPort, probe.GoalDetails, 3),
 			repositories.NC,
 			deadline,
 		)
@@ -100,8 +105,13 @@ func TestRefreshServersUseCase_FilterError(t *testing.T) {
 
 	probeRepo := new(MockProbeRepository)
 
-	uc := refreshservers.New(serverRepo, probeRepo, &logger)
-	resp, err := uc.Execute(ctx, time.Now())
+	ucOpts := refreshservers.UseCaseOptions{
+		MaxProbeRetries: 3,
+	}
+	uc := refreshservers.New(serverRepo, probeRepo, ucOpts, &logger)
+
+	req := refreshservers.NewRequest(time.Now())
+	resp, err := uc.Execute(ctx, req)
 
 	assert.ErrorIs(t, err, filterErr)
 	assert.Equal(t, 0, resp.Count)
@@ -128,8 +138,13 @@ func TestRefreshServersUseCase_AddProbeError(t *testing.T) {
 	probeRepo := new(MockProbeRepository)
 	probeRepo.On("AddBetween", ctx, mock.Anything, mock.Anything, mock.Anything).Return(addProbeErr).Twice()
 
-	uc := refreshservers.New(serverRepo, probeRepo, &logger)
-	resp, err := uc.Execute(ctx, time.Now())
+	ucOpts := refreshservers.UseCaseOptions{
+		MaxProbeRetries: 3,
+	}
+	uc := refreshservers.New(serverRepo, probeRepo, ucOpts, &logger)
+
+	req := refreshservers.NewRequest(time.Now())
+	resp, err := uc.Execute(ctx, req)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 0, resp.Count)

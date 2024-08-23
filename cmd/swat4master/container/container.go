@@ -3,6 +3,7 @@ package container
 import (
 	"go.uber.org/fx"
 
+	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/internal/core/usecases/addserver"
 	"github.com/sergeii/swat4master/internal/core/usecases/cleanservers"
 	"github.com/sergeii/swat4master/internal/core/usecases/getserver"
@@ -13,6 +14,32 @@ import (
 	"github.com/sergeii/swat4master/internal/core/usecases/reportserver"
 	"github.com/sergeii/swat4master/internal/core/usecases/reviveservers"
 )
+
+type UseCaseConfigs struct {
+	fx.Out
+
+	AddServerOptions      addserver.UseCaseOptions
+	ReportServerOptions   reportserver.UseCaseOptions
+	RefreshServersOptions refreshservers.UseCaseOptions
+	ReviveServersOptions  reviveservers.UseCaseOptions
+}
+
+func NewUseCaseConfigs(cfg config.Config) UseCaseConfigs {
+	return UseCaseConfigs{
+		AddServerOptions: addserver.UseCaseOptions{
+			MaxProbeRetries: cfg.DiscoveryRevivalRetries,
+		},
+		ReportServerOptions: reportserver.UseCaseOptions{
+			MaxProbeRetries: cfg.DiscoveryRevivalRetries,
+		},
+		RefreshServersOptions: refreshservers.UseCaseOptions{
+			MaxProbeRetries: cfg.DiscoveryRefreshRetries,
+		},
+		ReviveServersOptions: reviveservers.UseCaseOptions{
+			MaxProbeRetries: cfg.DiscoveryRevivalRetries,
+		},
+	}
+}
 
 type Container struct {
 	GetServer      getserver.UseCase
@@ -26,7 +53,7 @@ type Container struct {
 	ReviveServers  reviveservers.UseCase
 }
 
-func New(
+func NewContainer(
 	getServerUseCase getserver.UseCase,
 	addServerUseCase addserver.UseCase,
 	listServersUseCase listservers.UseCase,
@@ -60,5 +87,6 @@ var Module = fx.Module("container",
 	fx.Provide(cleanservers.New),
 	fx.Provide(refreshservers.New),
 	fx.Provide(reviveservers.New),
-	fx.Provide(New),
+	fx.Provide(NewUseCaseConfigs),
+	fx.Provide(NewContainer),
 )

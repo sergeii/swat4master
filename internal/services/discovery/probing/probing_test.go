@@ -66,7 +66,7 @@ func makeApp(tb fxtest.TB, extra ...fx.Option) {
 func TestProbingService_Probe_UnknownGoalType(t *testing.T) {
 	var service *probing.Service
 	makeApp(t, fx.Populate(&service))
-	prb := probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10481, probe.Goal(10))
+	prb := probe.New(addr.MustNewFromDotted("1.1.1.1", 10480), 10481, probe.Goal(10), 0)
 	err := service.Probe(context.TODO(), prb)
 	assert.ErrorContains(t, err, "no associated prober for goal '10'")
 }
@@ -144,7 +144,7 @@ func TestProbingService_ProbeDetails_OK(t *testing.T) {
 
 			serversRepo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 
-			prb := probe.New(svr.Addr, svrAddr.Port, probe.GoalDetails)
+			prb := probe.New(svr.Addr, svrAddr.Port, probe.GoalDetails, 0)
 
 			probeErr := service.Probe(ctx, prb)
 			require.NoError(t, probeErr)
@@ -283,7 +283,6 @@ func TestProbingService_ProbeDetails_RetryOnError(t *testing.T) {
 				fx.Decorate(func() probing.ServiceOpts {
 					return probing.ServiceOpts{
 						ProbeTimeout: time.Millisecond * 10,
-						MaxRetries:   3,
 					}
 				}),
 				fx.Populate(&service, &serversRepo, &probesRepo),
@@ -306,7 +305,7 @@ func TestProbingService_ProbeDetails_RetryOnError(t *testing.T) {
 				serversRepo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 			}
 
-			prb := probe.New(svr.Addr, svrAddr.Port, probe.GoalDetails)
+			prb := probe.New(svr.Addr, svrAddr.Port, probe.GoalDetails, 3)
 			probeErr := service.Probe(ctx, prb)
 
 			queueSize, _ := probesRepo.Count(ctx)
@@ -371,7 +370,6 @@ func TestProbingService_ProbeDetails_OutOfRetries(t *testing.T) {
 				fx.Decorate(func() probing.ServiceOpts {
 					return probing.ServiceOpts{
 						ProbeTimeout: time.Millisecond * 10,
-						MaxRetries:   1,
 					}
 				}),
 				fx.Populate(&service, &serversRepo, &probesRepo),
@@ -394,10 +392,10 @@ func TestProbingService_ProbeDetails_OutOfRetries(t *testing.T) {
 				serversRepo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 			}
 
-			prb := probe.New(svr.Addr, udpAddr.Port, probe.GoalDetails)
+			prb := probe.New(svr.Addr, udpAddr.Port, probe.GoalDetails, 1)
 
 			// pre-increment retry count
-			_, incremented := prb.IncRetries(1)
+			_, incremented := prb.IncRetries()
 			require.True(t, incremented)
 
 			probeErr := service.Probe(ctx, prb)
@@ -498,7 +496,7 @@ func TestService_ProbePort_OK(t *testing.T) {
 
 			serversRepo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 
-			prb := probe.New(svr.Addr, svrAddr.Port, probe.GoalPort)
+			prb := probe.New(svr.Addr, svrAddr.Port, probe.GoalPort, 0)
 
 			probeErr := service.Probe(ctx, prb)
 			require.NoError(t, probeErr)
@@ -636,7 +634,6 @@ func TestService_ProbePort_RetryOnError(t *testing.T) {
 				fx.Decorate(func() probing.ServiceOpts {
 					return probing.ServiceOpts{
 						ProbeTimeout: time.Millisecond * 10,
-						MaxRetries:   3,
 					}
 				}),
 				fx.Decorate(func() probers.PortProberOpts {
@@ -670,7 +667,7 @@ func TestService_ProbePort_RetryOnError(t *testing.T) {
 				serversRepo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 			}
 
-			prb := probe.New(svr.Addr, svrAddr.Port-4, probe.GoalPort)
+			prb := probe.New(svr.Addr, svrAddr.Port-4, probe.GoalPort, 3)
 			probeErr := service.Probe(ctx, prb)
 			queueSize, _ := probesRepo.Count(ctx)
 			updatedSvr, getErr := serversRepo.Get(ctx, svr.Addr)
@@ -751,7 +748,6 @@ func TestService_ProbePort_SelectedPortsAreTried(t *testing.T) {
 				fx.Decorate(func() probing.ServiceOpts {
 					return probing.ServiceOpts{
 						ProbeTimeout: time.Millisecond * 10,
-						MaxRetries:   3,
 					}
 				}),
 				fx.Decorate(func() probers.PortProberOpts {
@@ -787,7 +783,7 @@ func TestService_ProbePort_SelectedPortsAreTried(t *testing.T) {
 				)
 			}(responses, svr.Addr.Port)
 
-			prb := probe.New(svr.Addr, 12345, probe.GoalPort)
+			prb := probe.New(svr.Addr, 12345, probe.GoalPort, 3)
 			probeErr := service.Probe(ctx, prb)
 
 			updatedSvr, getErr := serversRepo.Get(ctx, svr.Addr)
@@ -843,7 +839,6 @@ func TestService_ProbePort_MultiplePortsAreProbed(t *testing.T) {
 		fx.Decorate(func() probing.ServiceOpts {
 			return probing.ServiceOpts{
 				ProbeTimeout: time.Millisecond * 10,
-				MaxRetries:   3,
 			}
 		}),
 		fx.Decorate(func() probers.PortProberOpts {
@@ -896,7 +891,7 @@ func TestService_ProbePort_MultiplePortsAreProbed(t *testing.T) {
 		ch <- packet
 	}(responses3, svr.Addr.Port)
 
-	prb := probe.New(svr.Addr, 12345, probe.GoalPort)
+	prb := probe.New(svr.Addr, 12345, probe.GoalPort, 3)
 	probeErr := service.Probe(ctx, prb)
 	require.NoError(t, probeErr)
 
@@ -947,7 +942,6 @@ func TestService_ProbePort_OutOfRetries(t *testing.T) {
 				fx.Decorate(func() probing.ServiceOpts {
 					return probing.ServiceOpts{
 						ProbeTimeout: time.Millisecond * 10,
-						MaxRetries:   1,
 					}
 				}),
 				fx.Decorate(func() probers.PortProberOpts {
@@ -973,9 +967,9 @@ func TestService_ProbePort_OutOfRetries(t *testing.T) {
 				serversRepo.Add(ctx, svr, repos.ServerOnConflictIgnore) // nolint: errcheck
 			}
 
-			prb := probe.New(svr.Addr, svrAddr.Port, probe.GoalPort)
+			prb := probe.New(svr.Addr, svrAddr.Port, probe.GoalPort, 1)
 			// pre-increment retry count
-			_, incremented := prb.IncRetries(1)
+			_, incremented := prb.IncRetries()
 			require.True(t, incremented)
 
 			probeErr := service.Probe(ctx, prb)

@@ -31,15 +31,16 @@ type Config struct {
 	ExporterListenAddr string
 
 	DiscoveryRefreshInterval time.Duration
+	DiscoveryRefreshRetries  int
 
 	DiscoveryRevivalInterval  time.Duration
 	DiscoveryRevivalScope     time.Duration
 	DiscoveryRevivalCountdown time.Duration
 	DiscoveryRevivalPorts     []int
+	DiscoveryRevivalRetries   int
 
 	ProbePollSchedule time.Duration
 	ProbeTimeout      time.Duration
-	ProbeRetries      int
 	ProbeConcurrency  int
 
 	CleanRetention time.Duration
@@ -110,6 +111,10 @@ func Provide() Config {
 		&cfg.DiscoveryRefreshInterval, "discovery.interval", time.Second*5,
 		"Defines how often servers' details are refreshed",
 	)
+	flag.IntVar(
+		&cfg.DiscoveryRefreshRetries, "discovery.retries", 4,
+		"Determines how many times a failed server refresh is retried",
+	)
 	flag.DurationVar(
 		&cfg.DiscoveryRevivalInterval, "revival.interval", time.Minute*10,
 		"Defines how often unlisted servers are checked for a chance of occasional revival",
@@ -142,6 +147,10 @@ func Provide() Config {
 			return nil
 		},
 	)
+	flag.IntVar(
+		&cfg.DiscoveryRevivalRetries, "revival.retries", 2,
+		"Determines how many times a failed revival probe is retried",
+	)
 	flag.DurationVar(
 		&cfg.ProbePollSchedule, "probe.schedule", time.Millisecond*50,
 		"Defines how often the discovery queue is checked for new probes",
@@ -149,10 +158,6 @@ func Provide() Config {
 	flag.DurationVar(
 		&cfg.ProbeTimeout, "probe.timeout", time.Second,
 		"Limits the maximum time a discovery probe will be waited for a complete response",
-	)
-	flag.IntVar(
-		&cfg.ProbeRetries, "probe.retries", 5,
-		"Defines how many times a failed probe is retried ",
 	)
 	flag.IntVar(
 		&cfg.ProbeConcurrency, "probe.concurrency", 25,

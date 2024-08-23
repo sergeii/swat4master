@@ -53,7 +53,7 @@ func TestProbeService_PopMany(t *testing.T) {
 	assert.Len(t, empty, 0)
 
 	for _, ipaddr := range []string{"1.1.1.1", "2.2.2.2", "3.3.3.3"} {
-		repo.Add(ctx, probe.New(addr.MustNewFromDotted(ipaddr, 10480), 10480, probe.GoalDetails)) // nolint: errcheck
+		repo.Add(ctx, probe.New(addr.MustNewFromDotted(ipaddr, 10480), 10480, probe.GoalDetails, 0)) // nolint: errcheck
 	}
 
 	probes, _ := service.PopMany(ctx, 2)

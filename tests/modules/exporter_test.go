@@ -284,8 +284,8 @@ func TestExporter_ReposMetrics(t *testing.T) {
 	instancesRepo.Add(ctx, ins1) // nolint: errcheck
 	instancesRepo.Add(ctx, ins2) // nolint: errcheck
 
-	probe1 := probe.New(svr1.Addr, svr1.QueryPort, probe.GoalDetails)
-	probe2 := probe.New(svr2.Addr, svr2.QueryPort, probe.GoalDetails)
+	probe1 := probe.New(svr1.Addr, svr1.QueryPort, probe.GoalDetails, 0)
+	probe2 := probe.New(svr2.Addr, svr2.QueryPort, probe.GoalDetails, 0)
 	probesRepo.AddBetween(ctx, probe1, time.Now().Add(time.Hour), repositories.NC) // nolint: errcheck
 	probesRepo.Add(ctx, probe2)                                                    // nolint: errcheck
 
@@ -367,7 +367,6 @@ func TestExporter_ProberMetrics(t *testing.T) {
 				CollectorInterval:     time.Millisecond,
 				ProbeConcurrency:      2,
 				ProbePollSchedule:     time.Millisecond,
-				ProbeRetries:          1,
 				ProbeTimeout:          time.Millisecond * 250,
 				DiscoveryRevivalPorts: []int{0},
 			}
@@ -420,12 +419,12 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	svr1, _ = repo.Add(ctx, svr1, repositories.ServerOnConflictIgnore)
 	svr2, _ = repo.Add(ctx, svr2, repositories.ServerOnConflictIgnore)
 
-	probe1 := probe.New(addr.NewForTesting(addr1.IP, addr1.Port), addr1.Port, probe.GoalDetails)
-	probe2 := probe.New(addr.NewForTesting(addr1.IP, addr1.Port), addr1.Port, probe.GoalPort)
-	probe3 := probe.New(addr.NewForTesting(addr2.IP, addr2.Port), addr2.Port, probe.GoalDetails)
-	probe4 := probe.New(addr.NewForTesting(addr2.IP, addr2.Port), addr2.Port, probe.GoalPort)
-	probe4.IncRetries(2)
-	probe5 := probe.New(addr.NewForTesting(addr2.IP, addr2.Port), addr2.Port, probe.GoalDetails)
+	probe1 := probe.New(addr.NewForTesting(addr1.IP, addr1.Port), addr1.Port, probe.GoalDetails, 1)
+	probe2 := probe.New(addr.NewForTesting(addr1.IP, addr1.Port), addr1.Port, probe.GoalPort, 1)
+	probe3 := probe.New(addr.NewForTesting(addr2.IP, addr2.Port), addr2.Port, probe.GoalDetails, 1)
+	probe4 := probe.New(addr.NewForTesting(addr2.IP, addr2.Port), addr2.Port, probe.GoalPort, 1)
+	probe4.IncRetries()
+	probe5 := probe.New(addr.NewForTesting(addr2.IP, addr2.Port), addr2.Port, probe.GoalDetails, 1)
 	// will be launched immediately but will expire in 1s
 	probeService.AddBefore(ctx, probe1, time.Now().Add(time.Second)) // nolint: errcheck
 	// will be launched no earlier than 100ms but will expire in 1s

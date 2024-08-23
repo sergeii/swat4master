@@ -21,20 +21,27 @@ var (
 	ErrServerHasNoQueryablePort  = errors.New("server has no queryable port")
 )
 
+type UseCaseOptions struct {
+	MaxProbeRetries int
+}
+
 type UseCase struct {
 	serverRepo repositories.ServerRepository
 	probeRepo  repositories.ProbeRepository
+	ops        UseCaseOptions
 	logger     *zerolog.Logger
 }
 
 func New(
 	serverRepo repositories.ServerRepository,
 	probeRepo repositories.ProbeRepository,
+	opts UseCaseOptions,
 	logger *zerolog.Logger,
 ) UseCase {
 	return UseCase{
 		serverRepo: serverRepo,
 		probeRepo:  probeRepo,
+		ops:        opts,
 		logger:     logger,
 	}
 }
@@ -149,7 +156,7 @@ func (uc UseCase) discoverServer(
 		return err
 	}
 
-	prb := probe.New(svr.Addr, svr.Addr.Port, probe.GoalPort)
+	prb := probe.New(svr.Addr, svr.Addr.Port, probe.GoalPort, uc.ops.MaxProbeRetries)
 	if err := uc.probeRepo.AddBetween(ctx, prb, repositories.NC, repositories.NC); err != nil {
 		uc.logger.Warn().
 			Err(err).Stringer("server", svr).

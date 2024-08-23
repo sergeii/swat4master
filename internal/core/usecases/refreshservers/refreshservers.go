@@ -13,21 +13,38 @@ import (
 	"github.com/sergeii/swat4master/internal/core/repositories"
 )
 
+type UseCaseOptions struct {
+	MaxProbeRetries int
+}
+
 type UseCase struct {
 	serverRepo repositories.ServerRepository
 	probeRepo  repositories.ProbeRepository
+	opts       UseCaseOptions
 	logger     *zerolog.Logger
 }
 
 func New(
 	serverRepo repositories.ServerRepository,
 	probeRepo repositories.ProbeRepository,
+	opts UseCaseOptions,
 	logger *zerolog.Logger,
 ) UseCase {
 	return UseCase{
 		serverRepo: serverRepo,
 		probeRepo:  probeRepo,
+		opts:       opts,
 		logger:     logger,
+	}
+}
+
+type Request struct {
+	Deadline time.Time
+}
+
+func NewRequest(deadline time.Time) Request {
+	return Request{
+		Deadline: deadline,
 	}
 }
 
@@ -37,7 +54,7 @@ type Response struct {
 
 var NoResponse = Response{}
 
-func (uc UseCase) Execute(ctx context.Context, deadline time.Time) (Response, error) {
+func (uc UseCase) Execute(ctx context.Context, req Request) (Response, error) {
 	fs := filterset.New().WithStatus(ds.Port).NoStatus(ds.DetailsRetry)
 	serversWithDetails, err := uc.serverRepo.Filter(ctx, fs)
 	if err != nil {
@@ -47,7 +64,7 @@ func (uc UseCase) Execute(ctx context.Context, deadline time.Time) (Response, er
 
 	cnt := 0
 	for _, svr := range serversWithDetails {
-		if err := uc.addProbe(ctx, svr.Addr, svr.QueryPort, deadline); err != nil {
+		if err := uc.addProbe(ctx, svr.Addr, svr.QueryPort, req.Deadline); err != nil {
 			uc.logger.Warn().
 				Err(err).Stringer("server", svr).
 				Msg("Failed to add server to details discovery queue")
@@ -65,6 +82,6 @@ func (uc UseCase) addProbe(
 	queryPort int,
 	deadline time.Time,
 ) error {
-	prb := probe.New(svrAddr, queryPort, probe.GoalDetails)
+	prb := probe.New(svrAddr, queryPort, probe.GoalDetails, uc.opts.MaxProbeRetries)
 	return uc.probeRepo.AddBetween(ctx, prb, repositories.NC, deadline)
 }
