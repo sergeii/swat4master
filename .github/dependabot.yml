@@ -12,14 +12,6 @@ updates:
       actions:
         applies-to: version-updates
         dependency-type: "production"
-  - package-ecosystem: "docker"
-    directory: "/"
-    schedule:
-      interval: "monthly"
-    reviewers:
-      - sergeii
-    commit-message:
-      prefix: "feat"
   - package-ecosystem: gomod
     directory: "/"
     schedule:
