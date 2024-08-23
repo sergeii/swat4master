@@ -107,11 +107,11 @@ func (uc UseCase) addProbe(
 	return uc.probeRepo.AddBetween(ctx, prb, countdown, deadline)
 }
 
-func selectCountdown(min, max time.Time) time.Time {
-	if !max.After(min) {
-		return min
+func selectCountdown(minVal, maxVal time.Time) time.Time {
+	if !maxVal.After(minVal) {
+		return minVal
 	}
-	spread := max.Sub(min)
+	spread := maxVal.Sub(minVal)
 	countdown := random.RandInt(0, int(spread))
-	return min.Add(time.Duration(countdown))
+	return minVal.Add(time.Duration(countdown))
 }

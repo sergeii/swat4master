@@ -14,12 +14,12 @@ func newCipherState(cryptKey [CRTL]byte) cipherState {
 	cs := cipherState{}
 	// Start with state->cards all in order, one of each.
 	for i := range 256 {
-		cs.cards[i] = uint8(i)
+		cs.cards[i] = uint8(i) // nolint:gosec
 	}
 	keypos = 0 // Start with first byte of the crypt key
 	// Swap the card at each position with some other card.
 	for i := 255; i >= 0; i-- {
-		toswap, rsum, keypos = cs.shuffle(cryptKey, uint8(i), rsum, keypos)
+		toswap, rsum, keypos = cs.shuffle(cryptKey, uint8(i), rsum, keypos) // nolint:gosec
 		cs.cards[i], cs.cards[toswap] = cs.cards[toswap], cs.cards[i]
 	}
 	// Initialize the indices and data dependencies

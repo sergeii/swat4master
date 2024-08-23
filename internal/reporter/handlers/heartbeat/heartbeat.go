@@ -87,8 +87,10 @@ func (h Handler) reportServer(
 
 	// prepare the packed client address to be used in the response
 	clientAddr := make([]byte, 7)
-	copy(clientAddr[1:5], connAddr.IP.To4()) // the first byte is supposed to be null byte, so leave it zero value
-	binary.BigEndian.PutUint16(clientAddr[5:7], uint16(connAddr.Port))
+	// the first byte is supposed to be null byte, so leave it zero value
+	copy(clientAddr[1:5], connAddr.IP.To4())
+	// the next two bytes are the port, big-endian
+	binary.BigEndian.PutUint16(clientAddr[5:7], uint16(connAddr.Port)) // nolint:gosec
 	// the last 28th byte remains zero, because the response payload is supposed to be null-terminated
 	resp := make([]byte, 28)
 	copy(resp[:3], []byte{0xfe, 0xfd, 0x01})   // initial bytes, 3 of them
