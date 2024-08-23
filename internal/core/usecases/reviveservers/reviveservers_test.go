@@ -60,8 +60,12 @@ func TestReviveServersUseCase_Success(t *testing.T) {
 	probeRepo := new(MockProbeRepository)
 	probeRepo.On("AddBetween", ctx, mock.Anything, mock.Anything, mock.Anything).Return(nil).Twice()
 
+	ucOpts := reviveservers.UseCaseOptions{
+		MaxProbeRetries: 3,
+	}
+	uc := reviveservers.New(serverRepo, probeRepo, ucOpts, &logger)
+
 	req := reviveservers.NewRequest(minScope, maxScope, minCountdown, maxCountdown, deadline)
-	uc := reviveservers.New(serverRepo, probeRepo, &logger)
 	resp, err := uc.Execute(ctx, req)
 
 	assert.NoError(t, err)
@@ -89,7 +93,7 @@ func TestReviveServersUseCase_Success(t *testing.T) {
 			t,
 			"AddBetween",
 			ctx,
-			probe.New(svr.Addr, svr.Addr.Port, probe.GoalPort),
+			probe.New(svr.Addr, svr.Addr.Port, probe.GoalPort, 3),
 			mock.MatchedBy(func(countdown time.Time) bool {
 				gteMinCountdown := countdown.Equal(req.MinCountdown) || countdown.After(req.MinCountdown)
 				lteMaxCountdown := countdown.Equal(req.MaxCountdown) || countdown.Before(req.MaxCountdown)
@@ -112,6 +116,11 @@ func TestReviveServersUseCase_FilterError(t *testing.T) {
 
 	probeRepo := new(MockProbeRepository)
 
+	ucOpts := reviveservers.UseCaseOptions{
+		MaxProbeRetries: 3,
+	}
+	uc := reviveservers.New(serverRepo, probeRepo, ucOpts, &logger)
+
 	req := reviveservers.NewRequest(
 		now.Add(-time.Hour),
 		now.Add(-time.Minute*10),
@@ -119,7 +128,6 @@ func TestReviveServersUseCase_FilterError(t *testing.T) {
 		now.Add(time.Minute*5),
 		now.Add(time.Minute*10),
 	)
-	uc := reviveservers.New(serverRepo, probeRepo, &logger)
 	resp, err := uc.Execute(ctx, req)
 
 	assert.ErrorIs(t, err, filterErr)
@@ -148,6 +156,11 @@ func TestReviveServersUseCase_AddProbeError(t *testing.T) {
 	probeRepo := new(MockProbeRepository)
 	probeRepo.On("AddBetween", ctx, mock.Anything, mock.Anything, mock.Anything).Return(addProbeErr).Twice()
 
+	ucOpts := reviveservers.UseCaseOptions{
+		MaxProbeRetries: 3,
+	}
+	uc := reviveservers.New(serverRepo, probeRepo, ucOpts, &logger)
+
 	req := reviveservers.NewRequest(
 		now.Add(-time.Hour),
 		now.Add(-time.Minute*10),
@@ -155,7 +168,6 @@ func TestReviveServersUseCase_AddProbeError(t *testing.T) {
 		now.Add(time.Minute*5),
 		now.Add(time.Minute*10),
 	)
-	uc := reviveservers.New(serverRepo, probeRepo, &logger)
 	resp, err := uc.Execute(ctx, req)
 
 	assert.NoError(t, err)

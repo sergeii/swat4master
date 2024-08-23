@@ -96,7 +96,11 @@ func TestReportServerUseCase_ReportNewServer(t *testing.T) {
 	probeRepo := new(MockProbeRepository)
 	probeRepo.On("Add", ctx, mock.Anything).Return(nil)
 
-	uc := reportserver.New(serverRepo, instanceRepo, probeRepo, validate, clock, &logger)
+	ucOpts := reportserver.UseCaseOptions{
+		MaxProbeRetries: 3,
+	}
+	uc := reportserver.New(serverRepo, instanceRepo, probeRepo, ucOpts, validate, clock, &logger)
+
 	req := reportserver.NewRequest(svrAddr, svrQueryPort, "foo", svrParams)
 	err := uc.Execute(ctx, req)
 	assert.NoError(t, err)
@@ -136,7 +140,8 @@ func TestReportServerUseCase_ReportNewServer(t *testing.T) {
 			hasAddr := createdProbe.Addr == svrAddr
 			hasPort := createdProbe.Port == svrAddr.Port
 			hasGoal := createdProbe.Goal == probe.GoalPort
-			return hasAddr && hasPort && hasGoal
+			hasMaxRetries := createdProbe.MaxRetries == 3
+			return hasAddr && hasPort && hasGoal && hasMaxRetries
 		}),
 	)
 
@@ -220,7 +225,10 @@ func TestReportServerUseCase_ReportExistingServer(t *testing.T) {
 
 			updatedParams := testutils.GenExtraServerParams(map[string]string{"mapname": "The Wolcott Projects"})
 
-			uc := reportserver.New(serverRepo, instanceRepo, probeRepo, validate, clock, &logger)
+			ucOpts := reportserver.UseCaseOptions{
+				MaxProbeRetries: 3,
+			}
+			uc := reportserver.New(serverRepo, instanceRepo, probeRepo, ucOpts, validate, clock, &logger)
 			req := reportserver.NewRequest(svr.Addr, svr.QueryPort, "foo", updatedParams)
 			err := uc.Execute(ctx, req)
 			assert.NoError(t, err)
@@ -261,7 +269,8 @@ func TestReportServerUseCase_ReportExistingServer(t *testing.T) {
 						hasAddr := createdProbe.Addr == svr.Addr
 						hasPort := createdProbe.Port == svr.Addr.Port
 						hasGoal := createdProbe.Goal == probe.GoalPort
-						return hasAddr && hasPort && hasGoal
+						hasMaxRetries := createdProbe.MaxRetries == 3
+						return hasAddr && hasPort && hasGoal && hasMaxRetries
 					}),
 				)
 				serverRepo.AssertCalled(
@@ -326,7 +335,10 @@ func TestReportServerUseCase_InvalidFields(t *testing.T) {
 			instanceRepo := new(MockInstanceRepository)
 			probeRepo := new(MockProbeRepository)
 
-			uc := reportserver.New(serverRepo, instanceRepo, probeRepo, validate, clock, &logger)
+			ucOpts := reportserver.UseCaseOptions{
+				MaxProbeRetries: 3,
+			}
+			uc := reportserver.New(serverRepo, instanceRepo, probeRepo, ucOpts, validate, clock, &logger)
 			req := reportserver.NewRequest(svrAddr, svrQueryPort, "foo", tt.params)
 			err := uc.Execute(ctx, req)
 			assert.ErrorIs(t, err, reportserver.ErrInvalidRequestPayload)

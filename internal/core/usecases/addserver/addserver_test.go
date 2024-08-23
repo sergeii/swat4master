@@ -140,7 +140,10 @@ func TestAddServerUseCase_ServerExists(t *testing.T) {
 			probeRepo := new(MockProbeRepository)
 			probeRepo.On("AddBetween", ctx, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
-			uc := addserver.New(serverRepo, probeRepo, &logger)
+			ucOpts := addserver.UseCaseOptions{
+				MaxProbeRetries: 3,
+			}
+			uc := addserver.New(serverRepo, probeRepo, ucOpts, &logger)
 			addedSvr, err := uc.Execute(ctx, addr.MustNewPublicAddr(svrAddr))
 
 			if tt.wantErr != nil {
@@ -172,7 +175,7 @@ func TestAddServerUseCase_ServerExists(t *testing.T) {
 					t,
 					"AddBetween",
 					ctx,
-					probe.New(svr.Addr, 10480, probe.GoalPort),
+					probe.New(svr.Addr, 10480, probe.GoalPort, 3),
 					repositories.NC,
 					repositories.NC,
 				)
@@ -199,7 +202,10 @@ func TestAddServerUseCase_ServerDoesNotExist(t *testing.T) {
 	probeRepo := new(MockProbeRepository)
 	probeRepo.On("AddBetween", ctx, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
-	uc := addserver.New(serverRepo, probeRepo, &logger)
+	ucOpts := addserver.UseCaseOptions{
+		MaxProbeRetries: 3,
+	}
+	uc := addserver.New(serverRepo, probeRepo, ucOpts, &logger)
 	_, err := uc.Execute(ctx, addr.MustNewPublicAddr(svrAddr))
 	assert.ErrorIs(t, err, addserver.ErrServerDiscoveryInProgress)
 
@@ -219,7 +225,7 @@ func TestAddServerUseCase_ServerDoesNotExist(t *testing.T) {
 		t,
 		"AddBetween",
 		ctx,
-		probe.New(svrAddr, 10480, probe.GoalPort),
+		probe.New(svrAddr, 10480, probe.GoalPort, 3),
 		repositories.NC,
 		repositories.NC,
 	)

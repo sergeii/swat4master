@@ -133,7 +133,6 @@ var Module = fx.Module("prober",
 		fx.Private,
 		func(cfg config.Config) probing.ServiceOpts {
 			return probing.ServiceOpts{
-				MaxRetries:   cfg.ProbeRetries,
 				ProbeTimeout: cfg.ProbeTimeout,
 			}
 		},

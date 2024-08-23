@@ -50,24 +50,33 @@ func makeAppWithReporter(extra ...fx.Option) (*fx.App, func()) {
 }
 
 func TestReporter_Available_OK(t *testing.T) {
+	var metrics *monitoring.MetricService
+
 	ctx := context.TODO()
-	app, cancel := makeAppWithReporter()
+	app, cancel := makeAppWithReporter(fx.Populate(&metrics))
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
 
 	resp := testutils.SendUDP("127.0.0.1:33811", []byte{0x09}) // nolint: errcheck
 	assert.Equal(t, []byte{0xfe, 0xfd, 0x09, 0x00, 0x00, 0x00, 0x00}, resp)
+
+	metricValue := testutil.ToFloat64(metrics.ReporterRequests)
+	assert.Equal(t, float64(1), metricValue)
 }
 
 func TestReporter_Challenge_OK(t *testing.T) {
-	ctx := context.TODO()
+	var metrics *monitoring.MetricService
 
-	app, cancel := makeAppWithReporter()
+	ctx := context.TODO()
+	app, cancel := makeAppWithReporter(fx.Populate(&metrics))
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
 
 	resp := testutils.SendUDP("127.0.0.1:33811", []byte{0x01, 0xfa, 0xca, 0xde, 0xaf}) // nolint: errcheck
 	assert.Equal(t, []byte{0xfe, 0xfd, 0x0a, 0xfa, 0xca, 0xde, 0xaf}, resp)
+
+	metricValue := testutil.ToFloat64(metrics.ReporterRequests)
+	assert.Equal(t, float64(1), metricValue)
 }
 
 func TestReporter_Challenge_InvalidInstanceID(t *testing.T) {
@@ -123,10 +132,11 @@ func TestReporter_Heartbeat_OK(t *testing.T) {
 	var serverRepo repositories.ServerRepository
 	var instanceRepo repositories.InstanceRepository
 	var probeRepo repositories.ProbeRepository
+	var metrics *monitoring.MetricService
 
 	ctx := context.TODO()
 	app, cancel := makeAppWithReporter(
-		fx.Populate(&serverRepo, &instanceRepo, &probeRepo),
+		fx.Populate(&serverRepo, &instanceRepo, &probeRepo, &metrics),
 	)
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
@@ -147,6 +157,9 @@ func TestReporter_Heartbeat_OK(t *testing.T) {
 	assert.Equal(t, "127.0.0.1", net.IPv4(respAddr[1], respAddr[2], respAddr[3], respAddr[4]).String())
 	assert.Equal(t, client.LocalAddr.Port, int(binary.BigEndian.Uint16(respAddr[5:7])))
 	assert.Equal(t, uint8(0x00), resp[27])
+
+	metricValue := testutil.ToFloat64(metrics.ReporterRequests)
+	assert.Equal(t, float64(1), metricValue)
 }
 
 func TestReporter_Heartbeat_ServerIsAddedAndThenUpdated(t *testing.T) {
@@ -401,10 +414,11 @@ func TestReporter_Heartbeat_ServerIsRefreshed(t *testing.T) {
 
 func TestReporter_Heartbeat_ServerIsRemoved(t *testing.T) {
 	var serverRepo repositories.ServerRepository
+	var metrics *monitoring.MetricService
 
 	ctx := context.TODO()
 	app, cancel := makeAppWithReporter(
-		fx.Populate(&serverRepo),
+		fx.Populate(&serverRepo, &metrics),
 	)
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
@@ -437,6 +451,11 @@ func TestReporter_Heartbeat_ServerIsRemoved(t *testing.T) {
 
 	serverCount, _ = serverRepo.Count(ctx)
 	assert.Equal(t, 0, serverCount)
+
+	removalMetricValue := testutil.ToFloat64(metrics.ReporterRemovals)
+	assert.Equal(t, float64(1), removalMetricValue)
+	requestMetricValue := testutil.ToFloat64(metrics.ReporterRequests)
+	assert.Equal(t, float64(2), requestMetricValue)
 }
 
 func TestReporter_Heartbeat_ServerRemovalIsValidated(t *testing.T) {
@@ -603,10 +622,11 @@ func TestReporter_Heartbeat_InvalidPayload(t *testing.T) {
 
 func TestReporter_Keepalive_ServerIsRefreshed(t *testing.T) {
 	var serverRepo repositories.ServerRepository
+	var metrics *monitoring.MetricService
 
 	ctx := context.TODO()
 	app, cancel := makeAppWithReporter(
-		fx.Populate(&serverRepo),
+		fx.Populate(&serverRepo, &metrics),
 	)
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
@@ -645,6 +665,9 @@ func TestReporter_Keepalive_ServerIsRefreshed(t *testing.T) {
 		filterset.New().ActiveAfter(afterInitial).WithStatus(ds.Master),
 	)
 	assert.Len(t, updatedBeforeInitialRepeated, 1)
+
+	collectedMetrics := testutil.CollectAndCount(metrics.ReporterRequests)
+	assert.Equal(t, 2, collectedMetrics)
 }
 
 func TestReporter_Keepalive_Errors(t *testing.T) {

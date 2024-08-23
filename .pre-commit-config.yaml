@@ -5,7 +5,13 @@ repos:
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
+
   - repo: https://github.com/golangci/golangci-lint
-    rev: v1.59.1
+    rev: v1.60.3
     hooks:
       - id: golangci-lint
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v3.29.0
+    hooks:
+      - id: commitizen

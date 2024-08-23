@@ -14,20 +14,27 @@ import (
 	"github.com/sergeii/swat4master/pkg/random"
 )
 
+type UseCaseOptions struct {
+	MaxProbeRetries int
+}
+
 type UseCase struct {
 	serverRepo repositories.ServerRepository
 	probeRepo  repositories.ProbeRepository
+	opts       UseCaseOptions
 	logger     *zerolog.Logger
 }
 
 func New(
 	serverRepo repositories.ServerRepository,
 	probeRepo repositories.ProbeRepository,
+	opts UseCaseOptions,
 	logger *zerolog.Logger,
 ) UseCase {
 	return UseCase{
 		serverRepo: serverRepo,
 		probeRepo:  probeRepo,
+		opts:       opts,
 		logger:     logger,
 	}
 }
@@ -96,7 +103,7 @@ func (uc UseCase) addProbe(
 	countdown time.Time,
 	deadline time.Time,
 ) error {
-	prb := probe.New(svrAddr, svrAddr.Port, probe.GoalPort)
+	prb := probe.New(svrAddr, svrAddr.Port, probe.GoalPort, uc.opts.MaxProbeRetries)
 	return uc.probeRepo.AddBetween(ctx, prb, countdown, deadline)
 }
 

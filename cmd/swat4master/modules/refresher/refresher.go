@@ -80,7 +80,8 @@ func refresh(
 	// make sure the probes don't run beyond the next cycle of discovery
 	deadline := clock.Now().Add(cfg.DiscoveryRefreshInterval)
 
-	result, err := uc.Execute(ctx, deadline)
+	ucRequest := refreshservers.NewRequest(deadline)
+	result, err := uc.Execute(ctx, ucRequest)
 	if err != nil {
 		logger.Warn().Err(err).Msg("Unable to refresh details for servers")
 		return
