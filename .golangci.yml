@@ -27,6 +27,7 @@ linters:
     - mnd
     - inamedparam
     - testifylint
+    - exportloopref
 linters-settings:
   cyclop:
     max-complexity: 10

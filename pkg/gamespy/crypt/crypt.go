@@ -57,12 +57,12 @@ func Encrypt(gameSecret [GMSL]byte, challenge [CCHL]byte, data []byte) []byte {
 	// init crypt header and fill it with random
 	// bytes 9-23 will be the crypt key xor'ed with the game secret and the client's challenge
 	for i := range HDRL {
-		payload[i] = uint8(random.RandInt(1, 255)) ^ gameSecret[i%GMSL] ^ challenge[i%CCHL]
+		payload[i] = uint8(random.RandInt(1, 255)) ^ gameSecret[i%GMSL] ^ challenge[i%CCHL] // nolint:gosec
 	}
 	svrChallenge := payload[9:HDRL]
 	copy(cryptKey[:], challenge[:])
 	for i, b := range svrChallenge {
-		cryptKey[(uint8(i)*gameSecret[i%GMSL])%CCHL] ^= (cryptKey[i%CCHL] ^ b) & 0xFF
+		cryptKey[(uint8(i)*gameSecret[i%GMSL])%CCHL] ^= (cryptKey[i%CCHL] ^ b) & 0xFF // nolint:gosec
 	}
 	payload[0] = 0xeb // ^0xec + 2 = 9 - offset of the crypt key in the resulting payload
 	payload[1] = 0x00 // this and the next byte - query backend options, short int, always zero for swat

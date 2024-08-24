@@ -146,9 +146,13 @@ func (h Handler) packServers(servers []server.Server, addr *net.TCPAddr, fields 
 	payload := make([]byte, 6, 26)
 	// the first 6 bytes are the client's IP and port
 	copy(payload[:4], addr.IP.To4())
-	binary.BigEndian.PutUint16(payload[4:6], uint16(addr.Port))
-	// the number of fields that follow
-	payload = append(payload, uint8(len(fields)), 0x00)
+	binary.BigEndian.PutUint16(payload[4:6], uint16(addr.Port)) // nolint:gosec
+	// make sure the fields slice is not bigger than 255 elements,
+	// so its length can be encoded in a single byte
+	if len(fields) > 255 {
+		fields = fields[:255]
+	}
+	payload = append(payload, uint8(len(fields)), 0x00) // nolint:gosec
 	// declare the fields
 	for _, field := range fields {
 		payload = append(payload, []byte(field)...)
@@ -167,7 +171,7 @@ func (h Handler) packServers(servers []server.Server, addr *net.TCPAddr, fields 
 		serverAddr := make([]byte, 7)
 		serverAddr[0] = 0x51
 		copy(serverAddr[1:5], svr.Addr.GetIP())
-		binary.BigEndian.PutUint16(serverAddr[5:7], uint16(svr.QueryPort))
+		binary.BigEndian.PutUint16(serverAddr[5:7], uint16(svr.QueryPort)) // nolint:gosec
 		payload = append(payload, serverAddr...)
 		// insert field values' in the same order as in the field declaration
 		for _, field := range fields {

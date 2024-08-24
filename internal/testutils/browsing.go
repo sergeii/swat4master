@@ -14,7 +14,7 @@ import (
 func GenBrowserChallenge(l uint) []byte {
 	challenge := make([]byte, l)
 	for i := range challenge {
-		challenge[i] = uint8(random.RandInt(1, 255))
+		challenge[i] = uint8(random.RandInt(1, 255)) // nolint:gosec
 	}
 	return challenge
 }
@@ -74,7 +74,7 @@ func PackBrowserRequest(
 	req = append(req, options...)
 
 	// calculate the length and insert the number into the first two bytes as an unsigned short
-	binary.BigEndian.PutUint16(req[:2], uint16(getLengthFunc(req)))
+	binary.BigEndian.PutUint16(req[:2], uint16(getLengthFunc(req))) // nolint:gosec
 
 	return req
 }

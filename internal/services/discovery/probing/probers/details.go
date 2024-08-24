@@ -55,7 +55,7 @@ func (s *DetailsProber) Probe(
 	queryPort int,
 	timeout time.Duration,
 ) (any, error) {
-	qAddr := netip.AddrPortFrom(netip.AddrFrom4(svr.Addr.IP), uint16(queryPort))
+	qAddr := netip.AddrPortFrom(netip.AddrFrom4(svr.Addr.IP), uint16(queryPort)) // nolint:gosec
 
 	queryStarted := time.Now()
 
