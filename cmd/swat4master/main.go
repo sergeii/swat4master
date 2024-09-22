@@ -13,8 +13,8 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/api"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/browser"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/cleaner"
-	"github.com/sergeii/swat4master/cmd/swat4master/modules/collector"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/exporter"
+	"github.com/sergeii/swat4master/cmd/swat4master/modules/observer"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/prober"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/refresher"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/reporter"
@@ -34,7 +34,7 @@ func main() {
 		reporter.Module,
 		api.Module,
 		cleaner.Module,
-		collector.Module,
+		observer.Module,
 		exporter.Module,
 		fx.WithLogger(
 			func(logger *zerolog.Logger, lvl zerolog.Level) fxevent.Logger {
@@ -65,7 +65,7 @@ func main() {
 			_ *reporter.Reporter,
 			_ *api.API,
 			_ *cleaner.Cleaner,
-			_ *collector.Collector,
+			_ *observer.Observer,
 			_ *exporter.Exporter,
 		) {
 			logger.Info().

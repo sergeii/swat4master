@@ -44,7 +44,6 @@ func TestPublicAddr(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			anyAddr := addr.MustNewFromDotted(tt.ip, 10480)
-
 			publicAddr, err := addr.NewPublicAddr(anyAddr)
 
 			if tt.want {

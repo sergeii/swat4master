@@ -11,11 +11,11 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/sergeii/swat4master/internal/core/entities/master"
-	"github.com/sergeii/swat4master/internal/services/monitoring"
+	"github.com/sergeii/swat4master/internal/metrics"
 )
 
 type Dispatcher struct {
-	metrics  *monitoring.MetricService
+	metrics  *metrics.Collector
 	clock    clockwork.Clock
 	logger   *zerolog.Logger
 	handlers map[master.Msg]Handler
@@ -23,7 +23,7 @@ type Dispatcher struct {
 }
 
 func NewDispatcher(
-	metrics *monitoring.MetricService,
+	metrics *metrics.Collector,
 	clock clockwork.Clock,
 	logger *zerolog.Logger,
 ) *Dispatcher {

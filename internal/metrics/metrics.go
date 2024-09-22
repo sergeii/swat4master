@@ -1,32 +1,18 @@
-package monitoring
+package metrics
 
 import (
 	"context"
-	"time"
+	"sync"
 
-	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/rs/zerolog"
-
-	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
-	"github.com/sergeii/swat4master/internal/core/entities/filterset"
-	"github.com/sergeii/swat4master/internal/core/repositories"
 )
 
-type ObserverConfig struct {
-	ServerLiveness time.Duration
-}
-
-type MetricService struct {
-	registry *prometheus.Registry
-	clock    clockwork.Clock
-	logger   *zerolog.Logger
-
-	servers   repositories.ServerRepository
-	instances repositories.InstanceRepository
-	probes    repositories.ProbeRepository
+type Collector struct {
+	mutex     sync.Mutex
+	registry  *prometheus.Registry
+	observers []Observer
 
 	ReporterRequests  *prometheus.CounterVec
 	ReporterErrors    *prometheus.CounterVec
@@ -66,25 +52,13 @@ type MetricService struct {
 	GamePlayers           *prometheus.GaugeVec
 }
 
-func NewMetricService(
-	servers repositories.ServerRepository,
-	instances repositories.InstanceRepository,
-	probes repositories.ProbeRepository,
-	clock clockwork.Clock,
-	logger *zerolog.Logger,
-) *MetricService {
+func New() *Collector {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	registry.MustRegister(collectors.NewGoCollector())
 
-	ms := &MetricService{
+	c := &Collector{
 		registry: registry,
-		clock:    clock,
-		logger:   logger,
-
-		servers:   servers,
-		instances: instances,
-		probes:    probes,
 
 		ReporterRequests: promauto.With(registry).NewCounterVec(prometheus.CounterOpts{
 			Name: "reporter_requests_total",
@@ -215,98 +189,21 @@ func NewMetricService(
 			Help: "The number of players currently playing",
 		}, []string{"gametype"}),
 	}
-	return ms
+	return c
 }
 
-func (ms *MetricService) GetRegistry() *prometheus.Registry {
-	return ms.registry
+func (c *Collector) GetRegistry() *prometheus.Registry {
+	return c.registry
 }
 
-func (ms *MetricService) Observe(
-	ctx context.Context,
-	config ObserverConfig,
-) {
-	go ms.observeServerRepoSize(ctx)
-	go ms.observeInstanceRepoSize(ctx)
-	go ms.observeProbeRepoSize(ctx)
-	go ms.observeActiveServers(ctx, config)
-	go ms.observeDiscoveredServers(ctx)
+func (c *Collector) AddObserver(observer Observer) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.observers = append(c.observers, observer)
 }
 
-func (ms *MetricService) observeServerRepoSize(ctx context.Context) {
-	count, err := ms.servers.Count(ctx)
-	if err != nil {
-		ms.logger.Error().Err(err).Msg("Unable to observe server count")
-		return
-	}
-	ms.ServerRepositorySize.Set(float64(count))
-}
-
-func (ms *MetricService) observeInstanceRepoSize(ctx context.Context) {
-	count, err := ms.instances.Count(ctx)
-	if err != nil {
-		ms.logger.Error().Err(err).Msg("Unable to observe instance count")
-		return
-	}
-	ms.InstanceRepositorySize.Set(float64(count))
-}
-
-func (ms *MetricService) observeProbeRepoSize(ctx context.Context) {
-	count, err := ms.probes.Count(ctx)
-	if err != nil {
-		ms.logger.Error().Err(err).Msg("Unable to observe probe count")
-		return
-	}
-	ms.ProbeRepositorySize.Set(float64(count))
-}
-
-func (ms *MetricService) observeActiveServers(
-	ctx context.Context,
-	cfg ObserverConfig,
-) {
-	players := make(map[string]int)
-	allServers := make(map[string]int)
-	playedServers := make(map[string]int)
-
-	activeSince := ms.clock.Now().Add(-cfg.ServerLiveness)
-	fs := filterset.New().ActiveAfter(activeSince).WithStatus(ds.Info)
-	activeServers, err := ms.servers.Filter(ctx, fs)
-	if err != nil {
-		ms.logger.Error().Err(err).Msg("Unable to observe active server count")
-		return
-	}
-
-	for _, s := range activeServers {
-		allServers[s.Info.GameType]++
-		if s.Info.NumPlayers > 0 {
-			players[s.Info.GameType] += s.Info.NumPlayers
-			playedServers[s.Info.GameType]++
-		}
-	}
-
-	for gametype, playerCount := range players {
-		ms.GamePlayers.WithLabelValues(gametype).Set(float64(playerCount))
-	}
-	for gametype, serverCount := range allServers {
-		ms.GameActiveServers.WithLabelValues(gametype).Set(float64(serverCount))
-	}
-	for gametype, serverCount := range playedServers {
-		ms.GamePlayedServers.WithLabelValues(gametype).Set(float64(serverCount))
-	}
-}
-
-func (ms *MetricService) observeDiscoveredServers(ctx context.Context) {
-	countByStatus, err := ms.servers.CountByStatus(ctx)
-	if err != nil {
-		ms.logger.Error().Err(err).Msg("Unable to observe discovered server count")
-		return
-	}
-	for status, serverCount := range countByStatus {
-		switch status { // nolint: exhaustive
-		case ds.NoStatus:
-			continue
-		default:
-			ms.GameDiscoveredServers.WithLabelValues(status.BitString()).Set(float64(serverCount))
-		}
+func (c *Collector) Observe(ctx context.Context) {
+	for _, observer := range c.observers {
+		go observer.Observe(ctx, c)
 	}
 }

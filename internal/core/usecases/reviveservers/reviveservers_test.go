@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -16,6 +17,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/core/usecases/reviveservers"
+	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/internal/testutils/factories"
 )
 
@@ -42,6 +44,7 @@ func (m *MockProbeRepository) AddBetween(ctx context.Context, prb probe.Probe, c
 func TestReviveServersUseCase_Success(t *testing.T) {
 	ctx := context.TODO()
 	logger := zerolog.Nop()
+	collector := metrics.New()
 
 	now := time.Now()
 	minScope := now.Add(-time.Hour)
@@ -63,7 +66,7 @@ func TestReviveServersUseCase_Success(t *testing.T) {
 	ucOpts := reviveservers.UseCaseOptions{
 		MaxProbeRetries: 3,
 	}
-	uc := reviveservers.New(serverRepo, probeRepo, ucOpts, &logger)
+	uc := reviveservers.New(serverRepo, probeRepo, ucOpts, collector, &logger)
 
 	req := reviveservers.NewRequest(minScope, maxScope, minCountdown, maxCountdown, deadline)
 	resp, err := uc.Execute(ctx, req)
@@ -73,7 +76,6 @@ func TestReviveServersUseCase_Success(t *testing.T) {
 
 	serverRepo.AssertExpectations(t)
 	probeRepo.AssertExpectations(t)
-
 	serverRepo.AssertCalled(
 		t,
 		"Filter",
@@ -102,11 +104,15 @@ func TestReviveServersUseCase_Success(t *testing.T) {
 			deadline,
 		)
 	}
+
+	probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
+	assert.Equal(t, float64(2), probesProducedMetricValue)
 }
 
 func TestReviveServersUseCase_FilterError(t *testing.T) {
 	ctx := context.TODO()
 	logger := zerolog.Nop()
+	collector := metrics.New()
 
 	now := time.Now()
 	filterErr := errors.New("filter error")
@@ -119,7 +125,7 @@ func TestReviveServersUseCase_FilterError(t *testing.T) {
 	ucOpts := reviveservers.UseCaseOptions{
 		MaxProbeRetries: 3,
 	}
-	uc := reviveservers.New(serverRepo, probeRepo, ucOpts, &logger)
+	uc := reviveservers.New(serverRepo, probeRepo, ucOpts, collector, &logger)
 
 	req := reviveservers.NewRequest(
 		now.Add(-time.Hour),
@@ -135,13 +141,16 @@ func TestReviveServersUseCase_FilterError(t *testing.T) {
 
 	serverRepo.AssertExpectations(t)
 	probeRepo.AssertExpectations(t)
-
 	probeRepo.AssertNotCalled(t, "AddBetween", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+
+	probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
+	assert.Equal(t, float64(0), probesProducedMetricValue)
 }
 
 func TestReviveServersUseCase_AddProbeError(t *testing.T) {
 	ctx := context.TODO()
 	logger := zerolog.Nop()
+	collector := metrics.New()
 
 	now := time.Now()
 	addProbeErr := errors.New("probe error")
@@ -159,7 +168,7 @@ func TestReviveServersUseCase_AddProbeError(t *testing.T) {
 	ucOpts := reviveservers.UseCaseOptions{
 		MaxProbeRetries: 3,
 	}
-	uc := reviveservers.New(serverRepo, probeRepo, ucOpts, &logger)
+	uc := reviveservers.New(serverRepo, probeRepo, ucOpts, collector, &logger)
 
 	req := reviveservers.NewRequest(
 		now.Add(-time.Hour),
@@ -175,4 +184,7 @@ func TestReviveServersUseCase_AddProbeError(t *testing.T) {
 
 	serverRepo.AssertExpectations(t)
 	probeRepo.AssertExpectations(t)
+
+	probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
+	assert.Equal(t, float64(0), probesProducedMetricValue)
 }

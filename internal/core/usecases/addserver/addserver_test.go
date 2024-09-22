@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -15,6 +16,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/core/usecases/addserver"
+	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/internal/testutils/factories"
 )
 
@@ -129,9 +131,12 @@ func TestAddServerUseCase_ServerExists(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := zerolog.Nop()
+			collector := metrics.New()
 
-			svr := factories.BuildServer(factories.WithDiscoveryStatus(tt.status))
-			svrAddr := addr.MustNewFromDotted("1.1.1.1", 10480)
+			svr := factories.BuildServer(
+				factories.WithAddress("1.1.1.1", 10480),
+				factories.WithDiscoveryStatus(tt.status),
+			)
 
 			serverRepo := new(MockServerRepository)
 			serverRepo.On("Get", ctx, svr.Addr).Return(svr, nil)
@@ -143,8 +148,8 @@ func TestAddServerUseCase_ServerExists(t *testing.T) {
 			ucOpts := addserver.UseCaseOptions{
 				MaxProbeRetries: 3,
 			}
-			uc := addserver.New(serverRepo, probeRepo, ucOpts, &logger)
-			addedSvr, err := uc.Execute(ctx, addr.MustNewPublicAddr(svrAddr))
+			uc := addserver.New(serverRepo, probeRepo, ucOpts, collector, &logger)
+			addedSvr, err := uc.Execute(ctx, addr.MustNewPublicAddr(svr.Addr))
 
 			if tt.wantErr != nil {
 				assert.ErrorIs(t, err, tt.wantErr)
@@ -159,8 +164,9 @@ func TestAddServerUseCase_ServerExists(t *testing.T) {
 				assert.Equal(t, "1.1", addedSvr.Info.GameVersion)
 			}
 
-			serverRepo.AssertCalled(t, "Get", ctx, svrAddr)
+			serverRepo.AssertCalled(t, "Get", ctx, svr.Addr)
 
+			probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
 			if tt.wantProbe {
 				serverRepo.AssertCalled(
 					t,
@@ -179,9 +185,11 @@ func TestAddServerUseCase_ServerExists(t *testing.T) {
 					repositories.NC,
 					repositories.NC,
 				)
+				assert.Equal(t, float64(1), probesProducedMetricValue)
 			} else {
 				serverRepo.AssertNotCalled(t, "Update", ctx, mock.Anything, mock.Anything)
 				probeRepo.AssertNotCalled(t, "AddBetween", ctx, mock.Anything, mock.Anything, mock.Anything)
+				assert.Equal(t, float64(0), probesProducedMetricValue)
 			}
 		})
 	}
@@ -190,12 +198,12 @@ func TestAddServerUseCase_ServerExists(t *testing.T) {
 func TestAddServerUseCase_ServerDoesNotExist(t *testing.T) {
 	ctx := context.TODO()
 	logger := zerolog.Nop()
+	collector := metrics.New()
 
-	svrAddr := addr.MustNewFromDotted("1.1.1.1", 10480)
 	newSvr := factories.BuildServer(factories.WithAddress("1.1.1.1", 10480))
 
 	serverRepo := new(MockServerRepository)
-	serverRepo.On("Get", ctx, svrAddr).Return(server.Blank, repositories.ErrServerNotFound)
+	serverRepo.On("Get", ctx, newSvr.Addr).Return(server.Blank, repositories.ErrServerNotFound)
 	serverRepo.On("Add", ctx, mock.Anything, mock.Anything).Return(newSvr, nil)
 	serverRepo.On("Update", ctx, mock.Anything, mock.Anything).Return(newSvr, nil)
 
@@ -205,12 +213,12 @@ func TestAddServerUseCase_ServerDoesNotExist(t *testing.T) {
 	ucOpts := addserver.UseCaseOptions{
 		MaxProbeRetries: 3,
 	}
-	uc := addserver.New(serverRepo, probeRepo, ucOpts, &logger)
-	_, err := uc.Execute(ctx, addr.MustNewPublicAddr(svrAddr))
+	uc := addserver.New(serverRepo, probeRepo, ucOpts, collector, &logger)
+	_, err := uc.Execute(ctx, addr.MustNewPublicAddr(newSvr.Addr))
 	assert.ErrorIs(t, err, addserver.ErrServerDiscoveryInProgress)
 
-	serverRepo.AssertCalled(t, "Get", ctx, svrAddr)
-	serverRepo.AssertCalled(t, "Add", ctx, server.MustNewFromAddr(svrAddr, 10481), mock.Anything)
+	serverRepo.AssertCalled(t, "Get", ctx, newSvr.Addr)
+	serverRepo.AssertCalled(t, "Add", ctx, server.MustNewFromAddr(newSvr.Addr, 10481), mock.Anything)
 	serverRepo.AssertCalled(
 		t,
 		"Update",
@@ -225,8 +233,11 @@ func TestAddServerUseCase_ServerDoesNotExist(t *testing.T) {
 		t,
 		"AddBetween",
 		ctx,
-		probe.New(svrAddr, 10480, probe.GoalPort, 3),
+		probe.New(newSvr.Addr, 10480, probe.GoalPort, 3),
 		repositories.NC,
 		repositories.NC,
 	)
+
+	probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
+	assert.Equal(t, float64(1), probesProducedMetricValue)
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -33,66 +34,71 @@ func (m *MockServerRepository) Filter(ctx context.Context, fs filterset.FilterSe
 }
 
 func TestListServersUseCase_FilterParams(t *testing.T) {
-	ctx := context.TODO()
-	now := time.Now()
-
-	repoServers := []server.Server{
-		factories.BuildRandomServer(),
-		factories.BuildRandomServer(),
-	}
-
 	tests := []struct {
-		name       string
-		recentness time.Duration
-		status     ds.DiscoveryStatus
-		wantCall   func(fs filterset.FilterSet) bool
+		name            string
+		recentness      time.Duration
+		status          ds.DiscoveryStatus
+		wantCallFactory func(time.Time) func(fs filterset.FilterSet) bool
 	}{
 		{
 			"servers active in the last hour with info status",
 			time.Hour,
 			ds.Info,
-			func(fs filterset.FilterSet) bool {
-				_, activeBeforeIsSet := fs.GetActiveBefore()
-				activeAfter, activeAfterIsSet := fs.GetActiveAfter()
-				withStatus, withStatusIsSet := fs.GetWithStatus()
+			func(now time.Time) func(fs filterset.FilterSet) bool {
+				return func(fs filterset.FilterSet) bool {
+					_, activeBeforeIsSet := fs.GetActiveBefore()
+					activeAfter, activeAfterIsSet := fs.GetActiveAfter()
+					withStatus, withStatusIsSet := fs.GetWithStatus()
 
-				expectActiveBefore := !activeBeforeIsSet
-				expectActiveAfter := activeAfterIsSet && activeAfter.After(now.Add(-time.Hour))
-				expectWithStatus := withStatusIsSet && withStatus == ds.Info
+					expectActiveBefore := !activeBeforeIsSet
+					expectActiveAfter := activeAfterIsSet && activeAfter.Equal(now.Add(-time.Hour))
+					expectWithStatus := withStatusIsSet && withStatus == ds.Info
 
-				return expectActiveBefore && expectActiveAfter && expectWithStatus
+					return expectActiveBefore && expectActiveAfter && expectWithStatus
+				}
 			},
 		},
 		{
 			"servers active in the last 5 minutes with details and master status",
 			5 * time.Minute,
 			ds.Details | ds.Master,
-			func(fs filterset.FilterSet) bool {
-				_, activeBeforeIsSet := fs.GetActiveBefore()
-				activeAfter, activeAfterIsSet := fs.GetActiveAfter()
-				withStatus, withStatusIsSet := fs.GetWithStatus()
+			func(now time.Time) func(fs filterset.FilterSet) bool {
+				return func(fs filterset.FilterSet) bool {
+					_, activeBeforeIsSet := fs.GetActiveBefore()
+					activeAfter, activeAfterIsSet := fs.GetActiveAfter()
+					withStatus, withStatusIsSet := fs.GetWithStatus()
 
-				expectActiveBefore := !activeBeforeIsSet
-				expectActiveAfter := activeAfterIsSet && activeAfter.After(now.Add(-5*time.Minute))
-				expectWithStatus := withStatusIsSet && withStatus == ds.Details|ds.Master
+					expectActiveBefore := !activeBeforeIsSet
+					expectActiveAfter := activeAfterIsSet && activeAfter.Equal(now.Add(-5*time.Minute))
+					expectWithStatus := withStatusIsSet && withStatus == ds.Details|ds.Master
 
-				return expectActiveBefore && expectActiveAfter && expectWithStatus
+					return expectActiveBefore && expectActiveAfter && expectWithStatus
+				}
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.TODO()
+			clock := clockwork.NewFakeClock()
+
+			repoServers := []server.Server{
+				factories.BuildRandomServer(),
+				factories.BuildRandomServer(),
+			}
+
 			mockRepo := new(MockServerRepository)
 			mockRepo.On("Filter", ctx, mock.Anything).Return(repoServers, nil)
 
-			uc := listservers.New(mockRepo)
+			uc := listservers.New(mockRepo, clock)
 			ucRequest := listservers.NewRequest(query.Blank, tt.recentness, tt.status)
 
 			_, err := uc.Execute(ctx, ucRequest)
 			assert.NoError(t, err)
 
-			mockRepo.AssertCalled(t, "Filter", ctx, mock.MatchedBy(tt.wantCall))
+			wantCall := tt.wantCallFactory(clock.Now())
+			mockRepo.AssertCalled(t, "Filter", ctx, mock.MatchedBy(wantCall))
 		})
 	}
 }
@@ -455,11 +461,12 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.TODO()
+			clock := clockwork.NewFakeClock()
 
 			mockRepo := new(MockServerRepository)
 			mockRepo.On("Filter", ctx, mock.Anything).Return(repoServers, nil)
 
-			uc := listservers.New(mockRepo)
+			uc := listservers.New(mockRepo, clock)
 			ucRequest := listservers.NewRequest(tt.query, time.Hour, ds.Info)
 
 			result, err := uc.Execute(ctx, ucRequest)
@@ -478,8 +485,6 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 }
 
 func TestListServersUseCase_Errors(t *testing.T) {
-	ctx := context.TODO()
-
 	tests := []struct {
 		name    string
 		repoErr error
@@ -494,10 +499,13 @@ func TestListServersUseCase_Errors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.TODO()
+			clock := clockwork.NewFakeClock()
+
 			mockRepo := new(MockServerRepository)
 			mockRepo.On("Filter", ctx, mock.Anything).Return(nil, tt.repoErr)
 
-			uc := listservers.New(mockRepo)
+			uc := listservers.New(mockRepo, clock)
 			ucRequest := listservers.NewRequest(query.Blank, time.Hour, ds.Info)
 
 			_, err := uc.Execute(ctx, ucRequest)

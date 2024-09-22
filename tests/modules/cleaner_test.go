@@ -15,7 +15,7 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/cleaner"
 	"github.com/sergeii/swat4master/internal/core/entities/instance"
 	"github.com/sergeii/swat4master/internal/core/repositories"
-	"github.com/sergeii/swat4master/internal/services/monitoring"
+	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/internal/testutils/factories"
 )
 
@@ -42,11 +42,11 @@ func makeAppWithCleaner(extra ...fx.Option) (*fx.App, func()) {
 func TestCleaner_OK(t *testing.T) {
 	var serverRepo repositories.ServerRepository
 	var instanceRepo repositories.InstanceRepository
-	var metrics *monitoring.MetricService
+	var collector *metrics.Collector
 
 	ctx := context.TODO()
 	app, cancel := makeAppWithCleaner(
-		fx.Populate(&serverRepo, &instanceRepo, &metrics),
+		fx.Populate(&serverRepo, &instanceRepo, &collector),
 	)
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
@@ -121,18 +121,18 @@ func TestCleaner_OK(t *testing.T) {
 	_, err = instanceRepo.GetByID(ctx, "qux")
 	assert.NoError(t, err)
 
-	removalValue := testutil.ToFloat64(metrics.CleanerRemovals)
+	removalValue := testutil.ToFloat64(collector.CleanerRemovals)
 	assert.Equal(t, 2.0, removalValue)
-	errorValue := testutil.ToFloat64(metrics.CleanerErrors)
+	errorValue := testutil.ToFloat64(collector.CleanerErrors)
 	assert.Equal(t, 0.0, errorValue)
 }
 
 func TestCleaner_NoErrorWhenNothingToClean(t *testing.T) {
-	var metrics *monitoring.MetricService
+	var collector *metrics.Collector
 
 	ctx := context.TODO()
 	app, cancel := makeAppWithCleaner(
-		fx.Populate(&metrics),
+		fx.Populate(&collector),
 	)
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
@@ -140,8 +140,8 @@ func TestCleaner_NoErrorWhenNothingToClean(t *testing.T) {
 	// wait for cleaner to run some cycles
 	<-time.After(time.Millisecond * 100)
 
-	removalValue := testutil.ToFloat64(metrics.CleanerRemovals)
-	errorValue := testutil.ToFloat64(metrics.CleanerErrors)
+	removalValue := testutil.ToFloat64(collector.CleanerRemovals)
+	errorValue := testutil.ToFloat64(collector.CleanerErrors)
 	assert.Equal(t, 0.0, removalValue)
 	assert.Equal(t, 0.0, errorValue)
 }

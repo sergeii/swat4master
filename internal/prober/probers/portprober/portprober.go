@@ -1,4 +1,4 @@
-package probers
+package portprober
 
 import (
 	"context"
@@ -13,23 +13,23 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/rs/zerolog"
 
+	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	"github.com/sergeii/swat4master/internal/core/entities/details"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
-	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
-	"github.com/sergeii/swat4master/internal/services/discovery/probing"
-	"github.com/sergeii/swat4master/internal/services/monitoring"
+	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/gs1"
 )
 
 var (
-	ErrGlobalProbeTimeout = errors.New("global probe timeout reached")
-	ErrPortProbesFailed   = errors.New("all port probes failed")
+	ErrPortDiscoveryFailed = errors.New("port discovery probes failed")
+	ErrParseFailed         = errors.New("failed to parse discovered port response")
+	ErrValidationFailed    = errors.New("failed to validate discovered port response")
 )
 
 type Result struct {
-	details details.Details
-	port    int
+	Details details.Details
+	Port    int
 }
 
 var NoResult Result
@@ -39,46 +39,41 @@ type response struct {
 	Port     int
 }
 
-type PortProberOpts struct {
+type Opts struct {
 	Offsets []int
 }
 
 type PortProber struct {
-	metrics  *monitoring.MetricService
+	metrics  *metrics.Collector
 	validate *validator.Validate
 	clock    clockwork.Clock
 	logger   *zerolog.Logger
-	opts     PortProberOpts
+	opts     Opts
 }
 
-func NewPortProber(
-	service *probing.Service,
-	metrics *monitoring.MetricService,
+func New(
+	opts Opts,
 	validate *validator.Validate,
 	clock clockwork.Clock,
+	metrics *metrics.Collector,
 	logger *zerolog.Logger,
-	opts PortProberOpts,
-) (*PortProber, error) {
-	pp := &PortProber{
+) PortProber {
+	return PortProber{
 		metrics:  metrics,
 		validate: validate,
 		clock:    clock,
 		logger:   logger,
 		opts:     opts,
 	}
-	if err := service.Register(probe.GoalPort, pp); err != nil {
-		return nil, err
-	}
-	return pp, nil
 }
 
 // Probe attempts to discover a query port for a given server address.
 // To discover the query port, several ports are tried: public port +1, +2 and so forth.
 // In case when multiple query ports are available, the preferred port would be selected
 // according to this order: gs1 mod, admin mod, vanilla response.
-func (s *PortProber) Probe(
+func (p PortProber) Probe(
 	ctx context.Context,
-	svr server.Server,
+	svrAddr addr.Addr,
 	_ int,
 	timeout time.Duration,
 ) (any, error) {
@@ -89,10 +84,10 @@ func (s *PortProber) Probe(
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ip := netip.AddrFrom4(svr.Addr.IP)
-	for _, pIdx := range s.opts.Offsets {
+	ip := netip.AddrFrom4(svrAddr.IP)
+	for _, pIdx := range p.opts.Offsets {
 		wg.Add(1)
-		go s.probePort(ctx, wg, results, ip, svr.Addr.Port, svr.Addr.Port+pIdx, timeout)
+		go p.probePort(ctx, wg, results, ip, svrAddr.Port, svrAddr.Port+pIdx, timeout)
 	}
 
 	go func() {
@@ -100,44 +95,39 @@ func (s *PortProber) Probe(
 		close(done)
 	}()
 
-	best, ok, err := s.collectResponses(results, done, timeout)
-	if err != nil {
-		s.logger.Error().
-			Err(err).Stringer("server", svr).
-			Msg("Failed to collect port probe results")
-		return NoResult, err
-	} else if !ok {
-		return NoResult, ErrPortProbesFailed
+	best, ok := p.collectResponses(results, done, timeout)
+	if !ok {
+		return NoResult, ErrPortDiscoveryFailed
 	}
 
-	s.logger.Debug().
-		Stringer("server", svr).Stringer("version", best.Response.Version).Int("Port", best.Port).
+	p.logger.Debug().
+		Stringer("addr", svrAddr).Stringer("version", best.Response.Version).Int("Port", best.Port).
 		Msg("Selected preferred response")
 
 	det, err := details.NewDetailsFromParams(best.Response.Fields, best.Response.Players, best.Response.Objectives)
 	if err != nil {
-		s.logger.Error().
+		p.logger.Error().
 			Err(err).
-			Stringer("server", svr).Stringer("version", best.Response.Version).Int("Port", best.Port).
+			Stringer("addr", svrAddr).Stringer("version", best.Response.Version).Int("Port", best.Port).
 			Msg("Unable to parse response")
-		return NoResult, err
+		return NoResult, fmt.Errorf("%w: %w", ErrParseFailed, err)
 	}
-	if validateErr := det.Validate(s.validate); validateErr != nil {
-		s.logger.Error().
+	if validateErr := det.Validate(p.validate); validateErr != nil {
+		p.logger.Error().
 			Err(validateErr).
-			Stringer("server", svr).Stringer("version", best.Response.Version).Int("Port", best.Port).
+			Stringer("addr", svrAddr).Stringer("version", best.Response.Version).Int("Port", best.Port).
 			Msg("Failed to validate query response")
-		return details.Blank, validateErr
+		return details.Blank, fmt.Errorf("%w: %w", ErrValidationFailed, validateErr)
 	}
 
 	result := Result{
-		details: det,
-		port:    best.Port,
+		Details: det,
+		Port:    best.Port,
 	}
 	return result, nil
 }
 
-func (s *PortProber) probePort(
+func (p PortProber) probePort(
 	ctx context.Context,
 	wg *sync.WaitGroup,
 	responses chan response,
@@ -151,7 +141,7 @@ func (s *PortProber) probePort(
 
 	resp, err := gs1.Query(ctx, netip.AddrPortFrom(ip, uint16(queryPort)), timeout) // nolint:gosec
 	if err != nil {
-		s.logger.Debug().
+		p.logger.Debug().
 			Err(err).
 			Dur("timeout", timeout).Stringer("ip", ip).Int("Port", queryPort).
 			Msg("Unable to probe port")
@@ -161,13 +151,13 @@ func (s *PortProber) probePort(
 	hostPort, err := strconv.Atoi(resp.Fields["hostport"])
 	switch {
 	case err != nil:
-		s.logger.Error().
+		p.logger.Error().
 			Err(err).
 			Stringer("ip", ip).Int("port", queryPort).
 			Msg("Unable to parse server hostport")
 		return
 	case hostPort != gamePort:
-		s.logger.Warn().
+		p.logger.Warn().
 			Stringer("ip", ip).Int("port", queryPort).
 			Int("hostport", hostPort).Int("gameport", gamePort).
 			Msg("Server ports dont match")
@@ -175,8 +165,8 @@ func (s *PortProber) probePort(
 	}
 
 	queryDur := time.Since(queryStarted).Seconds()
-	s.metrics.DiscoveryQueryDurations.Observe(queryDur)
-	s.logger.Debug().
+	p.metrics.DiscoveryQueryDurations.Observe(queryDur)
+	p.logger.Debug().
 		Stringer("ip", ip).Int("port", queryPort).
 		Stringer("version", resp.Version).Float64("duration", queryDur).
 		Msg("Successfully probed port")
@@ -184,11 +174,11 @@ func (s *PortProber) probePort(
 	responses <- response{resp, queryPort}
 }
 
-func (s *PortProber) collectResponses(
+func (p PortProber) collectResponses(
 	ch chan response,
 	done chan struct{},
 	timeout time.Duration,
-) (response, bool, error) {
+) (response, bool) {
 	var best response
 	// this timeout should never trigger
 	// because we expect query goroutines to stop within configured probe timeout
@@ -198,41 +188,41 @@ func (s *PortProber) collectResponses(
 	for {
 		select {
 		case <-done:
-			return best, ok, nil
+			return best, ok
 		case result := <-ch:
-			best = s.compareResponses(best, result)
+			best = p.compareResponses(best, result)
 			ok = true
 		case <-exitTimeout:
-			return response{}, false, ErrGlobalProbeTimeout
+			return response{}, false
 		}
 	}
 }
 
-func (s *PortProber) compareResponses(this, that response) response {
+func (p PortProber) compareResponses(this, that response) response {
 	if this.Response.Version > that.Response.Version {
 		return this
 	}
 	return that
 }
 
-func (s *PortProber) HandleSuccess(res any, svr server.Server) server.Server {
+func (p PortProber) HandleSuccess(res any, svr server.Server) server.Server {
 	result, ok := res.(Result)
 	if !ok {
 		panic(fmt.Errorf("unexpected result type %T, %v", result, result))
 	}
-	svr.QueryPort = result.port
-	svr.UpdateDetails(result.details, s.clock.Now())
+	svr.QueryPort = result.Port
+	svr.UpdateDetails(result.Details, p.clock.Now())
 	svr.UpdateDiscoveryStatus(ds.Info | ds.Details | ds.Port)
 	svr.ClearDiscoveryStatus(ds.NoDetails | ds.DetailsRetry | ds.PortRetry | ds.NoPort)
 	return svr
 }
 
-func (s *PortProber) HandleRetry(svr server.Server) server.Server {
+func (p PortProber) HandleRetry(svr server.Server) server.Server {
 	svr.UpdateDiscoveryStatus(ds.PortRetry)
 	return svr
 }
 
-func (s *PortProber) HandleFailure(svr server.Server) server.Server {
+func (p PortProber) HandleFailure(svr server.Server) server.Server {
 	svr.ClearDiscoveryStatus(ds.PortRetry)
 	svr.UpdateDiscoveryStatus(ds.NoPort)
 	return svr

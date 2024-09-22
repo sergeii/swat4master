@@ -9,7 +9,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
-	"github.com/sergeii/swat4master/internal/services/monitoring"
+	"github.com/sergeii/swat4master/internal/metrics"
 	http "github.com/sergeii/swat4master/pkg/http/server"
 )
 
@@ -20,11 +20,11 @@ func NewExporter(
 	shutdowner fx.Shutdowner,
 	cfg config.Config,
 	logger *zerolog.Logger,
-	metrics *monitoring.MetricService,
+	collector *metrics.Collector,
 ) (*Exporter, error) {
 	ready := make(chan struct{})
 
-	registry := metrics.GetRegistry()
+	registry := collector.GetRegistry()
 	svr, err := http.New(
 		cfg.ExporterListenAddr,
 		http.WithShutdownTimeout(cfg.HTTPShutdownTimeout),

@@ -24,7 +24,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
-	"github.com/sergeii/swat4master/internal/services/monitoring"
+	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/internal/testutils/factories"
 )
@@ -50,32 +50,32 @@ func makeAppWithReporter(extra ...fx.Option) (*fx.App, func()) {
 }
 
 func TestReporter_Available_OK(t *testing.T) {
-	var metrics *monitoring.MetricService
+	var collector *metrics.Collector
 
 	ctx := context.TODO()
-	app, cancel := makeAppWithReporter(fx.Populate(&metrics))
+	app, cancel := makeAppWithReporter(fx.Populate(&collector))
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
 
 	resp := testutils.SendUDP("127.0.0.1:33811", []byte{0x09}) // nolint: errcheck
 	assert.Equal(t, []byte{0xfe, 0xfd, 0x09, 0x00, 0x00, 0x00, 0x00}, resp)
 
-	metricValue := testutil.ToFloat64(metrics.ReporterRequests)
+	metricValue := testutil.ToFloat64(collector.ReporterRequests)
 	assert.Equal(t, float64(1), metricValue)
 }
 
 func TestReporter_Challenge_OK(t *testing.T) {
-	var metrics *monitoring.MetricService
+	var collector *metrics.Collector
 
 	ctx := context.TODO()
-	app, cancel := makeAppWithReporter(fx.Populate(&metrics))
+	app, cancel := makeAppWithReporter(fx.Populate(&collector))
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
 
 	resp := testutils.SendUDP("127.0.0.1:33811", []byte{0x01, 0xfa, 0xca, 0xde, 0xaf}) // nolint: errcheck
 	assert.Equal(t, []byte{0xfe, 0xfd, 0x0a, 0xfa, 0xca, 0xde, 0xaf}, resp)
 
-	metricValue := testutil.ToFloat64(metrics.ReporterRequests)
+	metricValue := testutil.ToFloat64(collector.ReporterRequests)
 	assert.Equal(t, float64(1), metricValue)
 }
 
@@ -132,11 +132,11 @@ func TestReporter_Heartbeat_OK(t *testing.T) {
 	var serverRepo repositories.ServerRepository
 	var instanceRepo repositories.InstanceRepository
 	var probeRepo repositories.ProbeRepository
-	var metrics *monitoring.MetricService
+	var collector *metrics.Collector
 
 	ctx := context.TODO()
 	app, cancel := makeAppWithReporter(
-		fx.Populate(&serverRepo, &instanceRepo, &probeRepo, &metrics),
+		fx.Populate(&serverRepo, &instanceRepo, &probeRepo, &collector),
 	)
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
@@ -158,8 +158,11 @@ func TestReporter_Heartbeat_OK(t *testing.T) {
 	assert.Equal(t, client.LocalAddr.Port, int(binary.BigEndian.Uint16(respAddr[5:7])))
 	assert.Equal(t, uint8(0x00), resp[27])
 
-	metricValue := testutil.ToFloat64(metrics.ReporterRequests)
-	assert.Equal(t, float64(1), metricValue)
+	reporterRequestsMetricValue := testutil.ToFloat64(collector.ReporterRequests)
+	assert.Equal(t, float64(1), reporterRequestsMetricValue)
+
+	producedProbesMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
+	assert.Equal(t, float64(1), producedProbesMetricValue)
 }
 
 func TestReporter_Heartbeat_ServerIsAddedAndThenUpdated(t *testing.T) {
@@ -414,11 +417,11 @@ func TestReporter_Heartbeat_ServerIsRefreshed(t *testing.T) {
 
 func TestReporter_Heartbeat_ServerIsRemoved(t *testing.T) {
 	var serverRepo repositories.ServerRepository
-	var metrics *monitoring.MetricService
+	var collector *metrics.Collector
 
 	ctx := context.TODO()
 	app, cancel := makeAppWithReporter(
-		fx.Populate(&serverRepo, &metrics),
+		fx.Populate(&serverRepo, &collector),
 	)
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
@@ -452,9 +455,9 @@ func TestReporter_Heartbeat_ServerIsRemoved(t *testing.T) {
 	serverCount, _ = serverRepo.Count(ctx)
 	assert.Equal(t, 0, serverCount)
 
-	removalMetricValue := testutil.ToFloat64(metrics.ReporterRemovals)
+	removalMetricValue := testutil.ToFloat64(collector.ReporterRemovals)
 	assert.Equal(t, float64(1), removalMetricValue)
-	requestMetricValue := testutil.ToFloat64(metrics.ReporterRequests)
+	requestMetricValue := testutil.ToFloat64(collector.ReporterRequests)
 	assert.Equal(t, float64(2), requestMetricValue)
 }
 
@@ -507,11 +510,11 @@ func TestReporter_Heartbeat_ServerRemovalIsValidated(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var serverRepo repositories.ServerRepository
 			var instanceRepo repositories.InstanceRepository
-			var metrics *monitoring.MetricService
+			var collector *metrics.Collector
 
 			ctx := context.TODO()
 			app, cancel := makeAppWithReporter(
-				fx.Populate(&serverRepo, &instanceRepo, &metrics),
+				fx.Populate(&serverRepo, &instanceRepo, &collector),
 			)
 			defer cancel()
 			app.Start(ctx) // nolint: errcheck
@@ -528,7 +531,7 @@ func TestReporter_Heartbeat_ServerRemovalIsValidated(t *testing.T) {
 			client.Send(removeReq) // nolint: errcheck
 
 			serverCount, _ := serverRepo.Count(ctx)
-			metricValue := testutil.ToFloat64(metrics.ReporterRemovals)
+			metricValue := testutil.ToFloat64(collector.ReporterRemovals)
 			if tt.wantSuccess {
 				assert.Equal(t, 0, serverCount)
 				assert.Equal(t, float64(1), metricValue)
@@ -622,11 +625,11 @@ func TestReporter_Heartbeat_InvalidPayload(t *testing.T) {
 
 func TestReporter_Keepalive_ServerIsRefreshed(t *testing.T) {
 	var serverRepo repositories.ServerRepository
-	var metrics *monitoring.MetricService
+	var collector *metrics.Collector
 
 	ctx := context.TODO()
 	app, cancel := makeAppWithReporter(
-		fx.Populate(&serverRepo, &metrics),
+		fx.Populate(&serverRepo, &collector),
 	)
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
@@ -666,7 +669,7 @@ func TestReporter_Keepalive_ServerIsRefreshed(t *testing.T) {
 	)
 	assert.Len(t, updatedBeforeInitialRepeated, 1)
 
-	collectedMetrics := testutil.CollectAndCount(metrics.ReporterRequests)
+	collectedMetrics := testutil.CollectAndCount(collector.ReporterRequests)
 	assert.Equal(t, 2, collectedMetrics)
 }
 

@@ -10,7 +10,7 @@ import (
 
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/internal/core/usecases/cleanservers"
-	"github.com/sergeii/swat4master/internal/services/monitoring"
+	"github.com/sergeii/swat4master/internal/metrics"
 )
 
 type Cleaner struct{}
@@ -20,7 +20,7 @@ func Run(
 	stopped chan struct{},
 	clock clockwork.Clock,
 	logger *zerolog.Logger,
-	metrics *monitoring.MetricService,
+	metrics *metrics.Collector,
 	uc cleanservers.UseCase,
 	cfg config.Config,
 ) {
@@ -51,7 +51,7 @@ func NewCleaner(
 	lc fx.Lifecycle,
 	cfg config.Config,
 	clock clockwork.Clock,
-	metrics *monitoring.MetricService,
+	metrics *metrics.Collector,
 	uc cleanservers.UseCase,
 	logger *zerolog.Logger,
 ) *Cleaner {
@@ -77,7 +77,7 @@ func clean(
 	ctx context.Context,
 	clock clockwork.Clock,
 	logger *zerolog.Logger,
-	metrics *monitoring.MetricService,
+	metrics *metrics.Collector,
 	uc cleanservers.UseCase,
 	retention time.Duration,
 ) {

@@ -2,74 +2,39 @@ package prober
 
 import (
 	"context"
-	"time"
 
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
-	"github.com/sergeii/swat4master/internal/services/discovery/probing"
-	"github.com/sergeii/swat4master/internal/services/discovery/probing/probers"
-	"github.com/sergeii/swat4master/internal/services/monitoring"
-	ps "github.com/sergeii/swat4master/internal/services/probe"
+	"github.com/sergeii/swat4master/internal/prober/probers"
+	"github.com/sergeii/swat4master/internal/prober/probers/detailsprober"
+	"github.com/sergeii/swat4master/internal/prober/probers/portprober"
+	"github.com/sergeii/swat4master/internal/prober/proberunner"
 )
 
 type Prober struct{}
-
-func provideWorkerGroup(
-	cfg config.Config,
-	service *probing.Service,
-	metrics *monitoring.MetricService,
-	logger *zerolog.Logger,
-) *WorkerGroup {
-	return NewWorkerGroup(
-		cfg.ProbeConcurrency,
-		service,
-		metrics,
-		logger,
-	)
-}
 
 func Run(
 	stop chan struct{},
 	stopped chan struct{},
 	logger *zerolog.Logger,
-	queue *ps.Service,
-	wg *WorkerGroup,
-	cfg config.Config,
+	wp *proberunner.Runner,
 ) {
-	ticker := time.NewTicker(cfg.ProbePollSchedule)
-	defer ticker.Stop()
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	pool := wg.Run(ctx)
+	wp.Start(ctx)
 
-	logger.Info().
-		Dur("interval", cfg.ProbePollSchedule).
-		Dur("timeout", cfg.ProbeTimeout).
-		Int("concurrency", cfg.ProbeConcurrency).
-		Msg("Starting prober")
-
-	for {
-		select {
-		case <-stop:
-			logger.Info().Msg("Stopping prober")
-			close(stopped)
-			return
-		case <-ticker.C:
-			feed(ctx, logger, wg, pool, queue)
-		}
-	}
+	<-stop
+	logger.Info().Msg("Stopping prober")
+	close(stopped)
 }
 
-func NewProber(
+func New(
 	lc fx.Lifecycle,
-	cfg config.Config,
-	queue *ps.Service,
-	wg *WorkerGroup,
+	wp *proberunner.Runner,
 	logger *zerolog.Logger,
 ) *Prober {
 	stopped := make(chan struct{})
@@ -77,7 +42,7 @@ func NewProber(
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			go Run(stop, stopped, logger, queue, wg, cfg) // nolint: contextcheck
+			go Run(stop, stopped, logger, wp) // nolint: contextcheck
 			return nil
 		},
 		OnStop: func(context.Context) error {
@@ -90,69 +55,37 @@ func NewProber(
 	return &Prober{}
 }
 
-func feed(
-	ctx context.Context,
-	logger *zerolog.Logger,
-	wg *WorkerGroup,
-	pool chan probe.Probe,
-	queue *ps.Service,
-) {
-	availability := wg.Available()
-	if availability <= 0 {
-		logger.Info().Int("availability", availability).Msg("Workers are busy")
-		return
-	}
-
-	probes, err := queue.PopMany(ctx, availability)
-	if err != nil {
-		logger.Warn().
-			Err(err).Int("availability", availability).
-			Msg("Unable to fetch new probes")
-		return
-	}
-
-	if len(probes) == 0 {
-		return
-	}
-
-	logger.Debug().
-		Int("availability", availability).Int("probes", len(probes)).
-		Msg("Obtained probes")
-
-	for _, prb := range probes {
-		pool <- prb
-	}
-
-	logger.Debug().
-		Int("availability", availability).Int("probes", len(probes)).
-		Msg("Sent probes to work pool")
-}
-
 var Module = fx.Module("prober",
 	fx.Provide(
 		fx.Private,
-		func(cfg config.Config) probing.ServiceOpts {
-			return probing.ServiceOpts{
+		func(cfg config.Config) proberunner.RunnerOpts {
+			return proberunner.RunnerOpts{
+				PollInterval: cfg.ProbePollSchedule,
+				Concurrency:  cfg.ProbeConcurrency,
 				ProbeTimeout: cfg.ProbeTimeout,
 			}
 		},
-		func(cfg config.Config) probers.PortProberOpts {
-			return probers.PortProberOpts{
+		func(cfg config.Config) portprober.Opts {
+			return portprober.Opts{
 				Offsets: cfg.DiscoveryRevivalPorts,
 			}
 		},
 	),
 	fx.Provide(
-		fx.Private,
-		probing.NewService,
+		portprober.New,
+		detailsprober.New,
 	),
 	fx.Provide(
 		fx.Private,
-		provideWorkerGroup,
+		proberunner.New,
 	),
-	fx.Invoke(
-		probers.NewDetailsProber,
-		probers.NewPortProber,
+	fx.Provide(
+		func(portProber portprober.PortProber, detailsProber detailsprober.DetailsProber) probers.ForGoal {
+			return probers.ForGoal{
+				probe.GoalPort:    portProber,
+				probe.GoalDetails: detailsProber,
+			}
+		},
 	),
-	fx.Provide(NewProber),
+	fx.Provide(New),
 )

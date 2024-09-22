@@ -17,7 +17,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
-	"github.com/sergeii/swat4master/internal/services/monitoring"
+	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/internal/testutils/factories"
 )
 
@@ -76,7 +76,7 @@ func countRefresherProbes(
 func TestRefresher_OK(t *testing.T) {
 	var serverRepo repositories.ServerRepository
 	var probeRepo repositories.ProbeRepository
-	var metrics *monitoring.MetricService
+	var collector *metrics.Collector
 
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
@@ -118,7 +118,7 @@ func TestRefresher_OK(t *testing.T) {
 	)
 
 	app, cancel := makeAppWithRefresher(
-		fx.Populate(&serverRepo, &probeRepo, &metrics),
+		fx.Populate(&serverRepo, &probeRepo, &collector),
 	)
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
@@ -181,6 +181,6 @@ func TestRefresher_OK(t *testing.T) {
 	assert.Equal(t, 0, result.expired)
 	assert.Equal(t, []string{}, result.probes)
 
-	producedMetricValue := testutil.ToFloat64(metrics.DiscoveryQueueProduced)
+	producedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
 	assert.Equal(t, 12.0, producedMetricValue)
 }
