@@ -11,6 +11,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
+	"github.com/sergeii/swat4master/internal/metrics"
 )
 
 var (
@@ -29,6 +30,7 @@ type UseCase struct {
 	serverRepo repositories.ServerRepository
 	probeRepo  repositories.ProbeRepository
 	ops        UseCaseOptions
+	metrics    *metrics.Collector
 	logger     *zerolog.Logger
 }
 
@@ -36,12 +38,14 @@ func New(
 	serverRepo repositories.ServerRepository,
 	probeRepo repositories.ProbeRepository,
 	opts UseCaseOptions,
+	metrics *metrics.Collector,
 	logger *zerolog.Logger,
 ) UseCase {
 	return UseCase{
 		serverRepo: serverRepo,
 		probeRepo:  probeRepo,
 		ops:        opts,
+		metrics:    metrics,
 		logger:     logger,
 	}
 }
@@ -163,6 +167,7 @@ func (uc UseCase) discoverServer(
 			Msg("Unable to add server to port discovery queue")
 		return ErrUnableToDiscoverServer
 	}
+	uc.metrics.DiscoveryQueueProduced.Inc()
 
 	return nil
 }

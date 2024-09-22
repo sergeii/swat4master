@@ -19,8 +19,8 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/browser"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/cleaner"
-	"github.com/sergeii/swat4master/cmd/swat4master/modules/collector"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/exporter"
+	"github.com/sergeii/swat4master/cmd/swat4master/modules/observer"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/prober"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/reporter"
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
@@ -30,7 +30,6 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
-	ps "github.com/sergeii/swat4master/internal/services/probe"
 	"github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/gs1"
 )
@@ -140,15 +139,15 @@ func TestExporter_ServerMetrics(t *testing.T) {
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
-				ExporterListenAddr:    "localhost:11338",
-				BrowserServerLiveness: time.Second * 10,
-				CollectorInterval:     time.Millisecond,
+				ExporterListenAddr:     "localhost:11338",
+				BrowserServerLiveness:  time.Second * 10,
+				MetricObserverInterval: time.Millisecond,
 			}
 		}),
 		exporter.Module,
-		collector.Module,
+		observer.Module,
 		fx.NopLogger,
-		fx.Invoke(func(*exporter.Exporter, *collector.Collector) {}),
+		fx.Invoke(func(*exporter.Exporter, *observer.Observer) {}),
 		fx.Populate(&repo),
 	)
 	app.Start(context.TODO()) // nolint: errcheck
@@ -259,14 +258,14 @@ func TestExporter_ReposMetrics(t *testing.T) {
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
-				ExporterListenAddr: "localhost:11338",
-				CollectorInterval:  time.Millisecond,
+				ExporterListenAddr:     "localhost:11338",
+				MetricObserverInterval: time.Millisecond,
 			}
 		}),
 		exporter.Module,
-		collector.Module,
+		observer.Module,
 		fx.NopLogger,
-		fx.Invoke(func(*exporter.Exporter, *collector.Collector) {}),
+		fx.Invoke(func(*exporter.Exporter, *observer.Observer) {}),
 		fx.Populate(&serversRepo, &instancesRepo, &probesRepo),
 	)
 
@@ -314,17 +313,17 @@ func TestExporter_CleanerMetrics(t *testing.T) {
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
-				CleanRetention:     time.Millisecond * 10,
-				CleanInterval:      time.Millisecond * 20,
-				ExporterListenAddr: "localhost:11338",
-				CollectorInterval:  time.Millisecond,
+				CleanRetention:         time.Millisecond * 10,
+				CleanInterval:          time.Millisecond * 20,
+				ExporterListenAddr:     "localhost:11338",
+				MetricObserverInterval: time.Millisecond,
 			}
 		}),
 		exporter.Module,
-		collector.Module,
+		observer.Module,
 		cleaner.Module,
 		fx.NopLogger,
-		fx.Invoke(func(*exporter.Exporter, *collector.Collector, *cleaner.Cleaner) {}),
+		fx.Invoke(func(*exporter.Exporter, *observer.Observer, *cleaner.Cleaner) {}),
 		fx.Populate(&repo),
 	)
 
@@ -356,27 +355,27 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
-	var repo repositories.ServerRepository
-	var probeService *ps.Service
+	var serverRepo repositories.ServerRepository
+	var probeRepo repositories.ProbeRepository
 
 	app := fx.New(
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
-				ExporterListenAddr:    "localhost:11338",
-				CollectorInterval:     time.Millisecond,
-				ProbeConcurrency:      2,
-				ProbePollSchedule:     time.Millisecond,
-				ProbeTimeout:          time.Millisecond * 250,
-				DiscoveryRevivalPorts: []int{0},
+				ExporterListenAddr:     "localhost:11338",
+				MetricObserverInterval: time.Millisecond,
+				ProbeConcurrency:       2,
+				ProbePollSchedule:      time.Millisecond,
+				ProbeTimeout:           time.Millisecond * 250,
+				DiscoveryRevivalPorts:  []int{0},
 			}
 		}),
 		exporter.Module,
-		collector.Module,
+		observer.Module,
 		prober.Module,
 		fx.NopLogger,
-		fx.Invoke(func(*exporter.Exporter, *collector.Collector, *prober.Prober) {}),
-		fx.Populate(&repo, &probeService),
+		fx.Invoke(func(*exporter.Exporter, *observer.Observer, *prober.Prober) {}),
+		fx.Populate(&serverRepo, &probeRepo),
 	)
 	app.Start(context.TODO()) // nolint: errcheck
 	defer func() {
@@ -416,8 +415,8 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	require.NoError(t, err)
 	svr2.UpdateDiscoveryStatus(ds.Port)
 
-	svr1, _ = repo.Add(ctx, svr1, repositories.ServerOnConflictIgnore)
-	svr2, _ = repo.Add(ctx, svr2, repositories.ServerOnConflictIgnore)
+	svr1, _ = serverRepo.Add(ctx, svr1, repositories.ServerOnConflictIgnore)
+	svr2, _ = serverRepo.Add(ctx, svr2, repositories.ServerOnConflictIgnore)
 
 	probe1 := probe.New(addr.NewForTesting(addr1.IP, addr1.Port), addr1.Port, probe.GoalDetails, 1)
 	probe2 := probe.New(addr.NewForTesting(addr1.IP, addr1.Port), addr1.Port, probe.GoalPort, 1)
@@ -426,25 +425,25 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	probe4.IncRetries()
 	probe5 := probe.New(addr.NewForTesting(addr2.IP, addr2.Port), addr2.Port, probe.GoalDetails, 1)
 	// will be launched immediately but will expire in 1s
-	probeService.AddBefore(ctx, probe1, time.Now().Add(time.Second)) // nolint: errcheck
+	probeRepo.AddBetween(ctx, probe1, repositories.NC, time.Now().Add(time.Second)) // nolint: errcheck
 	// will be launched no earlier than 100ms but will expire in 1s
-	probeService.AddBetween( // nolint: errcheck
+	probeRepo.AddBetween( // nolint: errcheck
 		ctx,
 		probe2,
 		time.Now().Add(time.Millisecond*100),
 		time.Now().Add(time.Second),
 	)
-	probeService.AddAfter(ctx, probe3, time.Now().Add(time.Millisecond*300)) // nolint: errcheck
-	probeService.AddAfter(ctx, probe4, time.Now().Add(time.Millisecond*300)) // nolint: errcheck
+	probeRepo.AddBetween(ctx, probe3, time.Now().Add(time.Millisecond*300), repositories.NC) // nolint: errcheck
+	probeRepo.AddBetween(ctx, probe4, time.Now().Add(time.Millisecond*300), repositories.NC) // nolint: errcheck
 	// already expired
-	probeService.AddBefore(ctx, probe5, time.Now().Add(-time.Millisecond)) // nolint: errcheck
+	probeRepo.AddBetween(ctx, probe5, repositories.NC, time.Now().Add(-time.Millisecond)) // nolint: errcheck
 
 	<-time.After(time.Millisecond * 50)
 	// 1 probe is picked and the worker is busy waiting for response
 	mf := getMetrics(t)
 	assert.Equal(t, 1, int(mf["discovery_busy_workers"].Metric[0].Gauge.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_available_workers"].Metric[0].Gauge.GetValue()))
-	assert.Equal(t, 5, int(mf["discovery_queue_produced_total"].Metric[0].Counter.GetValue()))
+	assert.Equal(t, 0, int(mf["discovery_queue_produced_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_queue_consumed_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_queue_expired_total"].Metric[0].Counter.GetValue()))
 	assert.Nil(t, mf["discovery_probes_total"])
@@ -454,7 +453,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	mf = getMetrics(t)
 	assert.Equal(t, 1, int(mf["discovery_busy_workers"].Metric[0].Gauge.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_available_workers"].Metric[0].Gauge.GetValue()))
-	assert.Equal(t, 5, int(mf["discovery_queue_produced_total"].Metric[0].Counter.GetValue()))
+	assert.Equal(t, 0, int(mf["discovery_queue_produced_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 2, int(mf["discovery_queue_consumed_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_queue_expired_total"].Metric[0].Counter.GetValue()))
 
@@ -475,7 +474,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	mf = getMetrics(t)
 	assert.Equal(t, 2, int(mf["discovery_busy_workers"].Metric[0].Gauge.GetValue()))
 	assert.Equal(t, 0, int(mf["discovery_available_workers"].Metric[0].Gauge.GetValue()))
-	assert.Equal(t, 5, int(mf["discovery_queue_produced_total"].Metric[0].Counter.GetValue()))
+	assert.Equal(t, 0, int(mf["discovery_queue_produced_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 4, int(mf["discovery_queue_consumed_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_queue_expired_total"].Metric[0].Counter.GetValue()))
 
@@ -494,10 +493,11 @@ func TestExporter_ProberMetrics(t *testing.T) {
 
 	<-time.After(time.Millisecond * 200)
 	// both probes failed due to timeout
+	// one is retried, and the other one is considered failed
 	mf = getMetrics(t)
 	assert.Equal(t, 0, int(mf["discovery_busy_workers"].Metric[0].Gauge.GetValue()))
 	assert.Equal(t, 2, int(mf["discovery_available_workers"].Metric[0].Gauge.GetValue()))
-	assert.Equal(t, 6, int(mf["discovery_queue_produced_total"].Metric[0].Counter.GetValue()))
+	assert.Equal(t, 1, int(mf["discovery_queue_produced_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 4, int(mf["discovery_queue_consumed_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 1, int(mf["discovery_queue_expired_total"].Metric[0].Counter.GetValue()))
 

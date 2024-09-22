@@ -11,6 +11,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/filterset"
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/repositories"
+	"github.com/sergeii/swat4master/internal/metrics"
 )
 
 type UseCaseOptions struct {
@@ -21,6 +22,7 @@ type UseCase struct {
 	serverRepo repositories.ServerRepository
 	probeRepo  repositories.ProbeRepository
 	opts       UseCaseOptions
+	metrics    *metrics.Collector
 	logger     *zerolog.Logger
 }
 
@@ -28,12 +30,14 @@ func New(
 	serverRepo repositories.ServerRepository,
 	probeRepo repositories.ProbeRepository,
 	opts UseCaseOptions,
+	metrics *metrics.Collector,
 	logger *zerolog.Logger,
 ) UseCase {
 	return UseCase{
 		serverRepo: serverRepo,
 		probeRepo:  probeRepo,
 		opts:       opts,
+		metrics:    metrics,
 		logger:     logger,
 	}
 }
@@ -62,7 +66,7 @@ func (uc UseCase) Execute(ctx context.Context, req Request) (Response, error) {
 		return NoResponse, err
 	}
 
-	cnt := 0
+	probeCount := 0
 	for _, svr := range serversWithDetails {
 		if err := uc.addProbe(ctx, svr.Addr, svr.QueryPort, req.Deadline); err != nil {
 			uc.logger.Warn().
@@ -70,10 +74,14 @@ func (uc UseCase) Execute(ctx context.Context, req Request) (Response, error) {
 				Msg("Failed to add server to details discovery queue")
 			continue
 		}
-		cnt++
+		probeCount++
 	}
 
-	return Response{cnt}, nil
+	if probeCount != 0 {
+		uc.metrics.DiscoveryQueueProduced.Add(float64(probeCount))
+	}
+
+	return Response{probeCount}, nil
 }
 
 func (uc UseCase) addProbe(

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/entities/filterset"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
@@ -16,13 +18,16 @@ var ErrUnableToObtainServers = errors.New("unable to obtain servers from reposit
 
 type UseCase struct {
 	serverRepo repositories.ServerRepository
+	clock      clockwork.Clock
 }
 
 func New(
 	serverRepo repositories.ServerRepository,
+	clock clockwork.Clock,
 ) UseCase {
 	return UseCase{
 		serverRepo: serverRepo,
+		clock:      clock,
 	}
 }
 
@@ -46,7 +51,7 @@ func NewRequest(
 
 func (uc UseCase) Execute(ctx context.Context, req Request) ([]server.Server, error) {
 	fs := filterset.New().
-		ActiveAfter(time.Now().Add(-req.recentness)).
+		ActiveAfter(uc.clock.Now().Add(-req.recentness)).
 		WithStatus(req.discoveryStatus)
 
 	recent, err := uc.serverRepo.Filter(ctx, fs)

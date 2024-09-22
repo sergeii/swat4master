@@ -13,7 +13,7 @@ import (
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/usecases/listservers"
-	"github.com/sergeii/swat4master/internal/services/monitoring"
+	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing"
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query"
 	"github.com/sergeii/swat4master/pkg/gamespy/crypt"
@@ -27,7 +27,7 @@ type HandlerOpts struct {
 }
 
 type Handler struct {
-	metrics *monitoring.MetricService
+	metrics *metrics.Collector
 	logger  *zerolog.Logger
 	clock   clockwork.Clock
 	uc      listservers.UseCase
@@ -36,7 +36,7 @@ type Handler struct {
 }
 
 func NewHandler(
-	metrics *monitoring.MetricService,
+	metrics *metrics.Collector,
 	logger *zerolog.Logger,
 	clock clockwork.Clock,
 	uc listservers.UseCase,

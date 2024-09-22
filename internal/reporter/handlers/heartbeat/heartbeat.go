@@ -14,8 +14,8 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/master"
 	"github.com/sergeii/swat4master/internal/core/usecases/removeserver"
 	"github.com/sergeii/swat4master/internal/core/usecases/reportserver"
+	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/internal/reporter"
-	"github.com/sergeii/swat4master/internal/services/monitoring"
 	"github.com/sergeii/swat4master/pkg/binutils"
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query/filter"
 )
@@ -23,12 +23,12 @@ import (
 type Handler struct {
 	reportServerUC reportserver.UseCase
 	removeServerUC removeserver.UseCase
-	metrics        *monitoring.MetricService
+	metrics        *metrics.Collector
 }
 
 func New(
 	dispatcher *reporter.Dispatcher,
-	metrics *monitoring.MetricService,
+	metrics *metrics.Collector,
 	reportServerUC reportserver.UseCase,
 	removeServerUC removeserver.UseCase,
 ) (Handler, error) {

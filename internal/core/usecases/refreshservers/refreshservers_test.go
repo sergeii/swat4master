@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -16,6 +17,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/core/usecases/refreshservers"
+	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/internal/testutils/factories"
 )
 
@@ -42,6 +44,7 @@ func (m *MockProbeRepository) AddBetween(ctx context.Context, prb probe.Probe, c
 func TestRefreshServersUseCase_Success(t *testing.T) {
 	ctx := context.TODO()
 	logger := zerolog.Nop()
+	collector := metrics.New()
 
 	now := time.Now()
 	deadline := now.Add(time.Minute * 10)
@@ -59,7 +62,7 @@ func TestRefreshServersUseCase_Success(t *testing.T) {
 	ucOpts := refreshservers.UseCaseOptions{
 		MaxProbeRetries: 3,
 	}
-	uc := refreshservers.New(serverRepo, probeRepo, ucOpts, &logger)
+	uc := refreshservers.New(serverRepo, probeRepo, ucOpts, collector, &logger)
 
 	req := refreshservers.NewRequest(deadline)
 	resp, err := uc.Execute(ctx, req)
@@ -92,11 +95,15 @@ func TestRefreshServersUseCase_Success(t *testing.T) {
 			deadline,
 		)
 	}
+
+	probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
+	assert.Equal(t, float64(2), probesProducedMetricValue)
 }
 
 func TestRefreshServersUseCase_FilterError(t *testing.T) {
 	ctx := context.TODO()
 	logger := zerolog.Nop()
+	collector := metrics.New()
 
 	filterErr := errors.New("filter error")
 
@@ -108,7 +115,7 @@ func TestRefreshServersUseCase_FilterError(t *testing.T) {
 	ucOpts := refreshservers.UseCaseOptions{
 		MaxProbeRetries: 3,
 	}
-	uc := refreshservers.New(serverRepo, probeRepo, ucOpts, &logger)
+	uc := refreshservers.New(serverRepo, probeRepo, ucOpts, collector, &logger)
 
 	req := refreshservers.NewRequest(time.Now())
 	resp, err := uc.Execute(ctx, req)
@@ -120,11 +127,15 @@ func TestRefreshServersUseCase_FilterError(t *testing.T) {
 	probeRepo.AssertExpectations(t)
 
 	probeRepo.AssertNotCalled(t, "AddBetween", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+
+	probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
+	assert.Equal(t, float64(0), probesProducedMetricValue)
 }
 
 func TestRefreshServersUseCase_AddProbeError(t *testing.T) {
 	ctx := context.TODO()
 	logger := zerolog.Nop()
+	collector := metrics.New()
 
 	addProbeErr := errors.New("probe error")
 
@@ -141,7 +152,7 @@ func TestRefreshServersUseCase_AddProbeError(t *testing.T) {
 	ucOpts := refreshservers.UseCaseOptions{
 		MaxProbeRetries: 3,
 	}
-	uc := refreshservers.New(serverRepo, probeRepo, ucOpts, &logger)
+	uc := refreshservers.New(serverRepo, probeRepo, ucOpts, collector, &logger)
 
 	req := refreshservers.NewRequest(time.Now())
 	resp, err := uc.Execute(ctx, req)
@@ -151,4 +162,7 @@ func TestRefreshServersUseCase_AddProbeError(t *testing.T) {
 
 	serverRepo.AssertExpectations(t)
 	probeRepo.AssertExpectations(t)
+
+	probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
+	assert.Equal(t, float64(0), probesProducedMetricValue)
 }

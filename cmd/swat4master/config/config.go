@@ -26,7 +26,7 @@ type Config struct {
 	HTTPWriteTimeout    time.Duration
 	HTTPShutdownTimeout time.Duration
 
-	CollectorInterval time.Duration
+	MetricObserverInterval time.Duration
 
 	ExporterListenAddr string
 
@@ -100,8 +100,8 @@ func Provide() Config {
 		"Limits the time it takes from reading the body of a request till the end of the response",
 	)
 	flag.DurationVar(
-		&cfg.CollectorInterval, "collector.interval", time.Second,
-		"Defines the interval between periodic metric collector runs",
+		&cfg.MetricObserverInterval, "observer.interval", time.Second,
+		"Defines the interval between periodic metric observer runs",
 	)
 	flag.StringVar(
 		&cfg.ExporterListenAddr, "exporter.address", ":9000",

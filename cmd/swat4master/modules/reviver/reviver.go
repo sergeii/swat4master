@@ -9,7 +9,6 @@ import (
 
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/internal/core/usecases/reviveservers"
-	"github.com/sergeii/swat4master/internal/services/monitoring"
 )
 
 type Reviver struct{}
@@ -19,7 +18,6 @@ func Run(
 	stopped chan struct{},
 	clock clockwork.Clock,
 	logger *zerolog.Logger,
-	metrics *monitoring.MetricService,
 	uc reviveservers.UseCase,
 	cfg config.Config,
 ) {
@@ -43,7 +41,7 @@ func Run(
 			close(stopped)
 			return
 		case <-reviverCh:
-			revive(ctx, clock, logger, metrics, uc, cfg)
+			revive(ctx, clock, logger, uc, cfg)
 		}
 	}
 }
@@ -52,7 +50,6 @@ func NewReviver(
 	lc fx.Lifecycle,
 	cfg config.Config,
 	clock clockwork.Clock,
-	metrics *monitoring.MetricService,
 	uc reviveservers.UseCase,
 	logger *zerolog.Logger,
 ) *Reviver {
@@ -61,7 +58,7 @@ func NewReviver(
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			go Run(stop, stopped, clock, logger, metrics, uc, cfg) // nolint: contextcheck
+			go Run(stop, stopped, clock, logger, uc, cfg) // nolint: contextcheck
 			return nil
 		},
 		OnStop: func(context.Context) error {
@@ -78,7 +75,6 @@ func revive(
 	ctx context.Context,
 	clock clockwork.Clock,
 	logger *zerolog.Logger,
-	metrics *monitoring.MetricService,
 	uc reviveservers.UseCase,
 	cfg config.Config,
 ) {
@@ -101,7 +97,6 @@ func revive(
 	}
 
 	if result.Count > 0 {
-		metrics.DiscoveryQueueProduced.Add(float64(result.Count))
 		logger.Info().Int("count", result.Count).Msg("Added servers to revival discovery queue")
 	} else {
 		logger.Debug().Msg("Added no servers to revival discovery queue")

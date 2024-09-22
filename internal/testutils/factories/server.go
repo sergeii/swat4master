@@ -38,6 +38,16 @@ func WithQueryPort(queryPort int) BuildServerOption {
 	}
 }
 
+func WithRandomAddress() BuildServerOption {
+	return func(p *BuildServerParams) {
+		randomIP := testutils.GenRandomIP()
+		randPort := random.RandInt(1, 65534)
+		p.IP = randomIP.String()
+		p.Port = randPort
+		p.QueryPort = randPort + 1
+	}
+}
+
 func WithDiscoveryStatus(status status.DiscoveryStatus) BuildServerOption {
 	return func(p *BuildServerParams) {
 		p.DiscoveryStatus = status
@@ -99,12 +109,7 @@ func BuildServer(opts ...BuildServerOption) server.Server {
 }
 
 func BuildRandomServer() server.Server {
-	randomIP := testutils.GenRandomIP()
-	randPort := random.RandInt(1, 65534)
-	return BuildServer(
-		WithAddress(randomIP.String(), randPort),
-		WithQueryPort(randPort+1),
-	)
+	return BuildServer(WithRandomAddress())
 }
 
 func SaveServer(

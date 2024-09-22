@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -18,6 +19,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/core/usecases/reportserver"
+	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/internal/testutils/factories"
 	"github.com/sergeii/swat4master/internal/validation"
@@ -76,6 +78,7 @@ func TestReportServerUseCase_ReportNewServer(t *testing.T) {
 	logger := zerolog.Nop()
 	clock := clockwork.NewFakeClock()
 	validate := validation.MustNew()
+	collector := metrics.New()
 
 	clock.Advance(time.Second)
 	passedTime := clock.Now()
@@ -99,7 +102,7 @@ func TestReportServerUseCase_ReportNewServer(t *testing.T) {
 	ucOpts := reportserver.UseCaseOptions{
 		MaxProbeRetries: 3,
 	}
-	uc := reportserver.New(serverRepo, instanceRepo, probeRepo, ucOpts, validate, clock, &logger)
+	uc := reportserver.New(serverRepo, instanceRepo, probeRepo, ucOpts, validate, collector, clock, &logger)
 
 	req := reportserver.NewRequest(svrAddr, svrQueryPort, "foo", svrParams)
 	err := uc.Execute(ctx, req)
@@ -155,13 +158,12 @@ func TestReportServerUseCase_ReportNewServer(t *testing.T) {
 		}),
 		mock.Anything,
 	)
+
+	probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
+	assert.Equal(t, float64(1), probesProducedMetricValue)
 }
 
 func TestReportServerUseCase_ReportExistingServer(t *testing.T) {
-	ctx := context.TODO()
-	logger := zerolog.Nop()
-	validate := validation.MustNew()
-
 	tests := []struct {
 		name            string
 		discoveryStatus ds.DiscoveryStatus
@@ -191,7 +193,12 @@ func TestReportServerUseCase_ReportExistingServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.TODO()
+			logger := zerolog.Nop()
+			validate := validation.MustNew()
 			clock := clockwork.NewFakeClock()
+			collector := metrics.New()
+
 			now := clock.Now()
 
 			svrPlayers := []map[string]string{
@@ -228,7 +235,7 @@ func TestReportServerUseCase_ReportExistingServer(t *testing.T) {
 			ucOpts := reportserver.UseCaseOptions{
 				MaxProbeRetries: 3,
 			}
-			uc := reportserver.New(serverRepo, instanceRepo, probeRepo, ucOpts, validate, clock, &logger)
+			uc := reportserver.New(serverRepo, instanceRepo, probeRepo, ucOpts, validate, collector, clock, &logger)
 			req := reportserver.NewRequest(svr.Addr, svr.QueryPort, "foo", updatedParams)
 			err := uc.Execute(ctx, req)
 			assert.NoError(t, err)
@@ -260,6 +267,8 @@ func TestReportServerUseCase_ReportExistingServer(t *testing.T) {
 				}),
 			)
 
+			probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
+
 			if tt.wantProbe {
 				probeRepo.AssertCalled(
 					t,
@@ -283,20 +292,17 @@ func TestReportServerUseCase_ReportExistingServer(t *testing.T) {
 					}),
 					mock.Anything,
 				)
+				assert.Equal(t, float64(1), probesProducedMetricValue)
 			} else {
 				probeRepo.AssertNotCalled(t, "Add", mock.Anything, mock.Anything)
 				serverRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything)
+				assert.Equal(t, float64(0), probesProducedMetricValue)
 			}
 		})
 	}
 }
 
 func TestReportServerUseCase_InvalidFields(t *testing.T) {
-	ctx := context.TODO()
-	logger := zerolog.Nop()
-	validate := validation.MustNew()
-	clock := clockwork.NewFakeClock()
-
 	tests := []struct {
 		name   string
 		params map[string]string
@@ -326,6 +332,12 @@ func TestReportServerUseCase_InvalidFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.TODO()
+			logger := zerolog.Nop()
+			validate := validation.MustNew()
+			clock := clockwork.NewFakeClock()
+			collector := metrics.New()
+
 			svrAddr := addr.MustNewFromDotted("1.1.1.1", 10480)
 			svrQueryPort := 10481
 
@@ -338,7 +350,7 @@ func TestReportServerUseCase_InvalidFields(t *testing.T) {
 			ucOpts := reportserver.UseCaseOptions{
 				MaxProbeRetries: 3,
 			}
-			uc := reportserver.New(serverRepo, instanceRepo, probeRepo, ucOpts, validate, clock, &logger)
+			uc := reportserver.New(serverRepo, instanceRepo, probeRepo, ucOpts, validate, collector, clock, &logger)
 			req := reportserver.NewRequest(svrAddr, svrQueryPort, "foo", tt.params)
 			err := uc.Execute(ctx, req)
 			assert.ErrorIs(t, err, reportserver.ErrInvalidRequestPayload)
@@ -348,6 +360,9 @@ func TestReportServerUseCase_InvalidFields(t *testing.T) {
 			instanceRepo.AssertNotCalled(t, "Add", mock.Anything, mock.Anything)
 			probeRepo.AssertNotCalled(t, "Add", mock.Anything, mock.Anything)
 			serverRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything)
+
+			probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
+			assert.Equal(t, float64(0), probesProducedMetricValue)
 		})
 	}
 }

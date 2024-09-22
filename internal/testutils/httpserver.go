@@ -12,8 +12,14 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/application"
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/api"
-	"github.com/sergeii/swat4master/internal/persistence"
+	"github.com/sergeii/swat4master/internal/core/repositories"
 )
+
+type TestServerRepositories struct {
+	Servers   repositories.ServerRepository
+	Instances repositories.InstanceRepository
+	Probes    repositories.ProbeRepository
+}
 
 func PrepareTestServer(tb fxtest.TB, extra ...fx.Option) (*httptest.Server, func()) {
 	gin.SetMode(gin.ReleaseMode) // prevent gin from overwriting middlewares
@@ -50,8 +56,8 @@ func PrepareTestServer(tb fxtest.TB, extra ...fx.Option) (*httptest.Server, func
 func PrepareTestServerWithRepos(
 	tb fxtest.TB,
 	extra ...fx.Option,
-) (*httptest.Server, persistence.Repositories, func()) {
-	var repos persistence.Repositories
+) (*httptest.Server, TestServerRepositories, func()) {
+	var repos TestServerRepositories
 	extra = append(
 		extra,
 		fx.Populate(&repos.Servers, &repos.Instances, &repos.Probes),

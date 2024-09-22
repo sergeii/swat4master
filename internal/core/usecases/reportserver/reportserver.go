@@ -16,6 +16,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
+	"github.com/sergeii/swat4master/internal/metrics"
 )
 
 var ErrInvalidRequestPayload = errors.New("invalid request payload")
@@ -29,6 +30,7 @@ type UseCase struct {
 	instanceRepo repositories.InstanceRepository
 	probeRepo    repositories.ProbeRepository
 	opts         UseCaseOptions
+	metrics      *metrics.Collector
 	validate     *validator.Validate
 	clock        clockwork.Clock
 	logger       *zerolog.Logger
@@ -40,6 +42,7 @@ func New(
 	probeRepo repositories.ProbeRepository,
 	opts UseCaseOptions,
 	validate *validator.Validate,
+	metrics *metrics.Collector,
 	clock clockwork.Clock,
 	logger *zerolog.Logger,
 ) UseCase {
@@ -48,6 +51,7 @@ func New(
 		instanceRepo: instanceRepo,
 		probeRepo:    probeRepo,
 		opts:         opts,
+		metrics:      metrics,
 		validate:     validate,
 		clock:        clock,
 		logger:       logger,
@@ -162,6 +166,7 @@ func (uc UseCase) maybeDiscoverPort(ctx context.Context, pending server.Server) 
 	if err = uc.probeRepo.Add(ctx, prb); err != nil {
 		return err
 	}
+	uc.metrics.DiscoveryQueueProduced.Inc()
 
 	pending.UpdateDiscoveryStatus(ds.PortRetry)
 

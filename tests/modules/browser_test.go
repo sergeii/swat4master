@@ -19,7 +19,7 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/browser"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/repositories"
-	"github.com/sergeii/swat4master/internal/services/monitoring"
+	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/internal/testutils/factories"
 	"github.com/sergeii/swat4master/pkg/binutils"
@@ -448,11 +448,11 @@ func TestBrowser_ValidateRequest(t *testing.T) {
 			var gameKey [6]byte
 			var clientChallenge [8]byte
 			var serverRepo repositories.ServerRepository
-			var metrics *monitoring.MetricService
+			var collector *metrics.Collector
 
 			ctx := context.TODO()
 			app, cancel := makeAppWithBrowser(
-				fx.Populate(&serverRepo, &metrics),
+				fx.Populate(&serverRepo, &collector),
 			)
 			defer cancel()
 			app.Start(ctx) // nolint: errcheck
@@ -491,8 +491,8 @@ func TestBrowser_ValidateRequest(t *testing.T) {
 			defer client.Close()
 			respEnc, err := client.Send(payload)
 
-			metricErrors := testutil.ToFloat64(metrics.BrowserErrors)
-			metricSent := testutil.ToFloat64(metrics.BrowserSent)
+			metricErrors := testutil.ToFloat64(collector.BrowserErrors)
+			metricSent := testutil.ToFloat64(collector.BrowserSent)
 
 			if tt.wantResp {
 				require.NoError(t, err)
@@ -537,11 +537,11 @@ func TestBrowser_IgnoreInvalidPayload(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var serverRepo repositories.ServerRepository
-			var metrics *monitoring.MetricService
+			var collector *metrics.Collector
 
 			ctx := context.TODO()
 			app, cancel := makeAppWithBrowser(
-				fx.Populate(&serverRepo, &metrics),
+				fx.Populate(&serverRepo, &collector),
 			)
 			defer cancel()
 			app.Start(ctx) // nolint: errcheck
@@ -568,8 +568,8 @@ func TestBrowser_IgnoreInvalidPayload(t *testing.T) {
 			_, err := client.Send(tt.payload)
 			assert.ErrorIs(t, err, io.EOF)
 
-			metricErrors := testutil.ToFloat64(metrics.BrowserErrors)
-			metricSent := testutil.ToFloat64(metrics.BrowserSent)
+			metricErrors := testutil.ToFloat64(collector.BrowserErrors)
+			metricSent := testutil.ToFloat64(collector.BrowserSent)
 
 			assert.Equal(t, float64(0), metricSent)
 			assert.Equal(t, float64(1), metricErrors)

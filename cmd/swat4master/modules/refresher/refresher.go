@@ -9,7 +9,6 @@ import (
 
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/internal/core/usecases/refreshservers"
-	"github.com/sergeii/swat4master/internal/services/monitoring"
 )
 
 type Refresher struct{}
@@ -19,7 +18,6 @@ func Run(
 	stopped chan struct{},
 	clock clockwork.Clock,
 	logger *zerolog.Logger,
-	metrics *monitoring.MetricService,
 	uc refreshservers.UseCase,
 	cfg config.Config,
 ) {
@@ -38,7 +36,7 @@ func Run(
 			close(stopped)
 			return
 		case <-refresher.Chan():
-			refresh(ctx, clock, logger, metrics, uc, cfg)
+			refresh(ctx, clock, logger, uc, cfg)
 		}
 	}
 }
@@ -47,7 +45,6 @@ func NewRefresher(
 	lc fx.Lifecycle,
 	cfg config.Config,
 	clock clockwork.Clock,
-	metrics *monitoring.MetricService,
 	uc refreshservers.UseCase,
 	logger *zerolog.Logger,
 ) *Refresher {
@@ -56,7 +53,7 @@ func NewRefresher(
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			go Run(stop, stopped, clock, logger, metrics, uc, cfg) // nolint: contextcheck
+			go Run(stop, stopped, clock, logger, uc, cfg) // nolint: contextcheck
 			return nil
 		},
 		OnStop: func(context.Context) error {
@@ -73,7 +70,6 @@ func refresh(
 	ctx context.Context,
 	clock clockwork.Clock,
 	logger *zerolog.Logger,
-	metrics *monitoring.MetricService,
 	uc refreshservers.UseCase,
 	cfg config.Config,
 ) {
@@ -88,7 +84,6 @@ func refresh(
 	}
 
 	if result.Count > 0 {
-		metrics.DiscoveryQueueProduced.Add(float64(result.Count))
 		logger.Info().Int("count", result.Count).Msg("Added servers to details discovery queue")
 	} else {
 		logger.Debug().Msg("Added no servers to details discovery queue")
