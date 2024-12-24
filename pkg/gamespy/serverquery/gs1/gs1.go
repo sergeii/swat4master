@@ -12,8 +12,6 @@ import (
 	"time"
 
 	"golang.org/x/text/encoding/charmap"
-
-	"github.com/sergeii/swat4master/pkg/binutils"
 )
 
 var (
@@ -28,6 +26,11 @@ const (
 	VerVanilla
 	VerAM
 	VerGS1
+)
+
+const (
+	FINAL = "\\final\\"
+	EOF   = "\\eof\\"
 )
 
 func (ver QueryVersion) String() string {
@@ -55,6 +58,13 @@ type Response struct {
 type Param struct {
 	Name  []byte
 	Value []byte
+}
+
+type fragment struct {
+	isFinal bool
+	order   int
+	version QueryVersion
+	data    []byte
 }
 
 var Blank Response
@@ -93,7 +103,7 @@ func Query(ctx context.Context, addr netip.AddrPort, timeout time.Duration) (Res
 }
 
 func getResponse(conn *net.UDPConn) (Response, error) {
-	packets := make([][]byte, 0, 4)
+	fragments := make([][]byte, 0, 4)
 	for {
 		buffer := make([]byte, bufferSize)
 		n, _, err := conn.ReadFromUDP(buffer)
@@ -101,13 +111,13 @@ func getResponse(conn *net.UDPConn) (Response, error) {
 			return Blank, err
 		}
 
-		packet := buffer[:n]
-		if len(packet) == 0 {
+		rawFragment := buffer[:n]
+		if len(rawFragment) == 0 {
 			return Blank, ErrResponseIncomplete
 		}
 
-		packets = append(packets, packet)
-		payload, version, err := collectPayload(packets)
+		fragments = append(fragments, rawFragment)
+		payload, version, err := collectPayload(fragments)
 		if err != nil {
 			if errors.Is(err, ErrResponseIncomplete) {
 				continue
@@ -127,10 +137,10 @@ func getResponse(conn *net.UDPConn) (Response, error) {
 func inspectStatusResponse(paramVal []byte) (int, QueryVersion, error) {
 	intValue, err := strconv.Atoi(string(paramVal))
 	if err != nil {
-		return -1, VerUnknown, err
+		return -1, VerUnknown, fmt.Errorf("%w: failed to parse statusresponse value", ErrResponseMalformed)
 	}
 	if intValue < 0 {
-		return -1, VerUnknown, ErrResponseMalformed
+		return -1, VerUnknown, fmt.Errorf("%w: statusresponse value is negative", ErrResponseMalformed)
 	}
 	// normally, statusresponse field is a sign of AMMod's response
 	return intValue + 1, VerAM, nil
@@ -143,67 +153,129 @@ func inspectQueryID(paramVal []byte) (int, QueryVersion, error) {
 		// point-notation of queryid is a sign of vanilla response
 		return 1, VerVanilla, nil // nolint: nilerr
 	case intValue <= 0:
-		return -1, VerUnknown, ErrResponseMalformed
+		return -1, VerUnknown, fmt.Errorf("%w: queryid value is not positive", ErrResponseMalformed)
 	default:
-		// packets are properly indexed by GS1 mod
+		// GS1 fragments are zero indexed
 		return intValue, VerGS1, nil
 	}
 }
 
-func inspectPacket(packet []byte) (int, bool, QueryVersion, error) {
+func inspectFragment(payload []byte) (fragment, error) {
+	// vanilla response
+	if bytes.HasSuffix(payload, []byte("\\queryid\\1.1")) {
+		inspected := fragment{
+			isFinal: true,
+			version: VerVanilla,
+			order:   1,
+			data:    payload,
+		}
+		return inspected, nil
+	}
+
+	// AMMod response
+	if bytes.HasPrefix(payload, []byte("\\statusresponse\\")) {
+		return inspectAmModFragment(payload)
+	}
+
+	// Treat any other payload as GS1
+	return inspectGS1Fragment(payload)
+}
+
+func inspectAmModFragment(payload []byte) (fragment, error) {
+	var isFinal bool
+	var param Param
 	var err error
 
-	version := VerUnknown
-	order := -1
-	isFinal := false
+	// drop the trailing \eof\ token
+	payload = bytes.TrimSuffix(payload, []byte(EOF))
 
-	for _, param := range parseParams(packet) {
-		// this is the final packet, so we should expect as many packets
-		// as the number of the final packet
-		if bytes.Equal(param.Name, []byte("final")) {
-			isFinal = true
-		}
-		// the order for this packet has already been determined
-		if order != -1 {
-			continue
-		}
-		// \statusresponse\1
-		if bytes.Equal(param.Name, []byte("statusresponse")) {
-			order, version, err = inspectStatusResponse(param.Value)
-			if err != nil {
-				return -1, false, VerUnknown, err
-			}
-		} else if bytes.Equal(param.Name, []byte("queryid")) { // \queryid\1 or \queryid\1.1
-			order, version, err = inspectQueryID(param.Value)
-			if err != nil {
-				return -1, false, VerUnknown, err
-			}
+	// determine the fragment number from the leading statusresponse field
+	// typically present in the AdminMod's query response
+	param, payload, err = consumeParam(payload)
+	if err != nil || !bytes.Equal(param.Name, []byte("statusresponse")) {
+		return fragment{}, fmt.Errorf("%w: statusresponse field is missing or malformed", ErrResponseMalformed)
+	}
+
+	order, version, err := inspectStatusResponse(param.Value)
+	if err != nil {
+		return fragment{}, err
+	}
+
+	// Some AMMod responses may not have a trailing queryid field.
+	// Try to remove it from the fragment body
+	if lastParam, rest, consumeErr := consumeParamFromRight(payload); consumeErr == nil {
+		if bytes.Equal(lastParam.Name, []byte("queryid")) {
+			payload = rest
 		}
 	}
 
-	return order, isFinal, version, nil
+	if bytes.HasSuffix(payload, []byte(FINAL)) {
+		isFinal = true
+		payload = bytes.TrimSuffix(payload, []byte(FINAL))
+	}
+
+	inspected := fragment{
+		isFinal: isFinal,
+		version: version,
+		order:   order,
+		data:    payload,
+	}
+
+	return inspected, nil
 }
 
-func collectPayload(packets [][]byte) ([]byte, QueryVersion, error) {
+func inspectGS1Fragment(payload []byte) (fragment, error) {
+	var isFinal bool
+	var param Param
+	var err error
+
+	if bytes.HasSuffix(payload, []byte(FINAL)) {
+		isFinal = true
+		payload = bytes.TrimSuffix(payload, []byte(FINAL))
+	}
+
+	// determine the fragment number from the trailing queryid field and its numeric value
+	param, payload, err = consumeParamFromRight(payload)
+	if err != nil || !bytes.Equal(param.Name, []byte("queryid")) {
+		return fragment{}, fmt.Errorf("%w: queryid field is missing or malformed", ErrResponseMalformed)
+	}
+
+	order, version, err := inspectQueryID(param.Value)
+	if err != nil {
+		return fragment{}, err
+	}
+
+	inspected := fragment{
+		isFinal: isFinal,
+		version: version,
+		order:   order,
+		data:    payload,
+	}
+
+	return inspected, nil
+}
+
+func collectPayload(fragments [][]byte) ([]byte, QueryVersion, error) {
 	var version QueryVersion
 
 	payloadSize := 0
 	count := -1
 	ordered := make(map[int][]byte)
 
-	for _, packet := range packets {
-		order, isFinal, ver, err := inspectPacket(packet)
+	for _, rawFragment := range fragments {
+		inspected, err := inspectFragment(rawFragment)
 		if err != nil {
 			return nil, VerUnknown, err
 		}
-		if order == -1 {
-			return nil, VerUnknown, ErrResponseMalformed
-		} else if isFinal {
-			count = order
+		if inspected.order == -1 {
+			return nil, VerUnknown, fmt.Errorf("%w: fragment order missing", ErrResponseMalformed)
 		}
-		version = ver
-		ordered[order] = packet
-		payloadSize += len(packet)
+		if inspected.isFinal {
+			count = inspected.order
+		}
+		version = inspected.version
+		ordered[inspected.order] = inspected.data
+		payloadSize += len(inspected.data)
 	}
 
 	if count == -1 || count != len(ordered) {
@@ -212,8 +284,7 @@ func collectPayload(packets [][]byte) ([]byte, QueryVersion, error) {
 
 	payload := make([]byte, 0, payloadSize)
 	for i := 1; i <= count; i++ {
-		packet := normalizePacket(ordered[i])
-		payload = append(payload, packet...)
+		payload = append(payload, ordered[i]...)
 	}
 
 	return payload, version, nil
@@ -265,15 +336,17 @@ func expandPayload(payload []byte, version QueryVersion) (Response, error) {
 func parseParams(data []byte) []Param {
 	var field []byte
 	fields := make([][]byte, 0, 16)
-	unparsed := data[1:] // skip leading \
-	for unparsed != nil {
-		field, unparsed = binutils.ConsumeString(unparsed, '\\')
+
+	for unparsed := data; unparsed != nil; {
+		field, unparsed = consumeField(unparsed)
 		fields = append(fields, field)
 	}
+
 	params := make([]Param, 0, (len(fields)/2)+1)
 	for i := 1; i < len(fields); i += 2 {
 		params = append(params, Param{fields[i-1], fields[i]})
 	}
+
 	return params
 }
 
@@ -293,19 +366,67 @@ func collectPlayers(playersByID map[int]map[string]string) []map[string]string {
 	return players
 }
 
-func normalizePacket(packet []byte) []byte {
-	// remove the leading \statusresponse\ field and its value
-	if bytes.Equal(packet[:16], []byte("\\statusresponse\\")) {
-		packet = packet[16:]
-		if i := bytes.IndexByte(packet, '\\'); i != -1 {
-			packet = packet[i:]
-		}
+func consumeField(payload []byte) ([]byte, []byte) {
+	if len(payload) == 0 {
+		return nil, nil
 	}
-	// remove the trailing \eof\ token
-	if bytes.Equal(packet[len(packet)-5:], []byte("\\eof\\")) {
-		packet = packet[:len(packet)-5]
+	consumed := payload[1:]
+	// \field1\field2
+	if i := bytes.IndexByte(consumed, '\\'); i != -1 {
+		return consumed[:i], consumed[i:]
 	}
-	return packet
+	return consumed, nil
+}
+
+func consumeFieldFromRight(payload []byte) ([]byte, []byte) {
+	if len(payload) == 0 {
+		return nil, nil
+	}
+	consumed := payload
+	// \field1\field2\...\fieldN
+	if i := bytes.LastIndexByte(consumed, '\\'); i != -1 {
+		return consumed[i+1:], consumed[:i]
+	}
+	return consumed, nil
+}
+
+func consumeParam(payload []byte) (Param, []byte, error) {
+	var name, value []byte
+
+	rest := payload
+
+	// when consuming a param, we expect at least two fields
+	name, rest = consumeField(rest)
+	if rest == nil {
+		return Param{}, nil, errors.New("not enough fields for a param")
+	}
+	if len(name) == 0 {
+		return Param{}, nil, errors.New("param name is empty")
+	}
+
+	// the value and the rest of the payload can be empty
+	value, rest = consumeField(rest)
+
+	return Param{name, value}, rest, nil
+}
+
+func consumeParamFromRight(payload []byte) (Param, []byte, error) {
+	var name, value []byte
+
+	rest := payload
+
+	// when consuming a param, we expect at least two fields
+	value, rest = consumeFieldFromRight(rest)
+	if rest == nil {
+		return Param{}, nil, errors.New("not enough fields for a param")
+	}
+
+	name, rest = consumeFieldFromRight(rest)
+	if len(name) == 0 {
+		return Param{}, nil, errors.New("param name is empty")
+	}
+
+	return Param{name, value}, rest, nil
 }
 
 func latin1(bytes []byte) string {
