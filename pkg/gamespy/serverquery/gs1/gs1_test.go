@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/gs1"
 )
@@ -21,15 +22,15 @@ func TestQuery_QueryIDIsNotZeroBased(t *testing.T) {
 	}()
 	server, cancel := gs1.PrepareGS1Server(responses)
 	defer cancel()
+
 	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
-	assert.NoError(t, err)
-	assert.Contains(t, resp.Fields, "final")
-	assert.Equal(t, "", resp.Fields["final"])
+	require.NoError(t, err)
+
 	assert.Equal(t, "10480", resp.Fields["hostport"])
 	assert.Equal(t, "test", resp.Fields["hostname"])
 }
 
-func TestQuery_VanillaProtocolIsSupported(t *testing.T) {
+func TestQuery_VanillaServerQueryResponse(t *testing.T) {
 	responses := make(chan []byte)
 	go func() {
 		responses <- b(
@@ -43,8 +44,10 @@ func TestQuery_VanillaProtocolIsSupported(t *testing.T) {
 	}()
 	server, cancel := gs1.PrepareGS1Server(responses)
 	defer cancel()
+
 	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
-	assert.NoError(t, err)
+	require.NoError(t, err)
+
 	assert.Equal(t, "[C=FFFF00]WWW.HOUSEOFPAiN.TK (Antics)", resp.Fields["hostname"])
 	assert.Equal(t, "4", resp.Fields["numplayers"])
 	assert.Equal(t, "1.1", resp.Fields["queryid"])
@@ -54,7 +57,7 @@ func TestQuery_VanillaProtocolIsSupported(t *testing.T) {
 	assert.Equal(t, gs1.VerVanilla, resp.Version)
 }
 
-func TestQuery_AdminModServerQueryIsSupported(t *testing.T) {
+func TestQuery_AdminModFragmentedResponse(t *testing.T) {
 	responses := make(chan []byte)
 	go func() {
 		responses <- b(
@@ -83,8 +86,10 @@ func TestQuery_AdminModServerQueryIsSupported(t *testing.T) {
 	}()
 	server, cancel := gs1.PrepareGS1Server(responses)
 	defer cancel()
+
 	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
-	assert.NoError(t, err)
+	require.NoError(t, err)
+
 	assert.Equal(t,
 		"[C=FF0000][c=33CCCC]>|S[C=FFFFFF]S|<[c=ffff00]Arg[C=ffffff]en[c=33CCCC]tina®[c=ff0000]-By FNXgaming.com",
 		resp.Fields["hostname"],
@@ -92,7 +97,6 @@ func TestQuery_AdminModServerQueryIsSupported(t *testing.T) {
 	assert.Equal(t, "10780", resp.Fields["hostport"])
 	assert.Equal(t, "10", resp.Fields["numplayers"])
 	assert.Equal(t, "AMv1", resp.Fields["queryid"])
-	assert.Contains(t, resp.Fields, "final")
 	assert.Len(t, resp.Players, 10)
 	assert.Equal(t, "«|FAL|cucuso", resp.Players[3]["player"])
 	assert.Equal(t, "14", resp.Players[4]["kills"])
@@ -103,15 +107,15 @@ func TestQuery_AdminModServerQueryIsSupported(t *testing.T) {
 	assert.Equal(t, gs1.VerAM, resp.Version)
 }
 
-func TestQuery_AdminModSplitServerQueryIsSupported(t *testing.T) {
+func TestQuery_AdminModFragmentedAndSplitResponse(t *testing.T) {
 	responses := make(chan []byte)
 	go func() {
-		// last packet comes first and so forth
+		// last fragment comes first and so forth
 		responses <- b(
 			"\\statusresponse\\2\\kills_13\\1\\kills_14\\1\\deaths_1\\1\\deaths_2\\1\\deaths_4\\1\\deaths_5\\1" +
 				"\\deaths_9\\1\\deaths_14\\1\\queryid\\AMv1\\final\\\\eof\\",
 		)
-		// key, value of score_0 from statusresponse=0 are split
+		// the first field (0) is the value of score_0 from the other fragment
 		responses <- b(
 			"\\statusresponse\\1\\0\\score_1\\0\\score_2\\1\\score_3\\0\\score_4\\0\\score_5\\0\\score_6\\0" +
 				"\\score_7\\0\\score_8\\1\\score_9\\0\\score_10\\0\\score_11\\0\\score_12\\2\\score_13\\1" +
@@ -133,13 +137,14 @@ func TestQuery_AdminModSplitServerQueryIsSupported(t *testing.T) {
 	}()
 	server, cancel := gs1.PrepareGS1Server(responses)
 	defer cancel()
+
 	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
-	assert.NoError(t, err)
+	require.NoError(t, err)
+
 	assert.Equal(t, "{FAB} Clan Server", resp.Fields["hostname"])
 	assert.Equal(t, "10580", resp.Fields["hostport"])
 	assert.Equal(t, "VIP Escort", resp.Fields["gametype"])
 	assert.Equal(t, "AMv1", resp.Fields["queryid"])
-	assert.Contains(t, resp.Fields, "final")
 	assert.Len(t, resp.Players, 15)
 	assert.Equal(t, "0", resp.Players[0]["score"])
 	assert.Equal(t, "163", resp.Players[3]["ping"])
@@ -149,10 +154,138 @@ func TestQuery_AdminModSplitServerQueryIsSupported(t *testing.T) {
 	assert.Equal(t, gs1.VerAM, resp.Version)
 }
 
-func TestQuery_GS1ModServerQueryIsSupported(t *testing.T) {
+func TestQuery_ExtendedAdminModUnfragmentedResponse(t *testing.T) {
 	responses := make(chan []byte)
 	go func() {
-		// last packet comes first and so forth
+		responses <- b(
+			"\\statusresponse\\0" +
+				"\\hostname\\|WM| WorldMafia.net | [c=10d0ff]Competitive Gaming" +
+				"\\numplayers\\0\\maxplayers\\16\\gametype\\VIP Escort\\gamevariant\\SWAT 4" +
+				"\\mapname\\The Wolcott Projects\\hostport\\10480\\password\\0\\gamever\\1.1" +
+				"\\statsenabled\\0\\swatwon\\0\\suspectswon\\0\\round\\1\\numrounds\\5" +
+				"\\queryid\\0\\final\\",
+		)
+	}()
+	server, cancel := gs1.PrepareGS1Server(responses)
+	defer cancel()
+
+	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
+	require.NoError(t, err)
+
+	assert.Equal(t,
+		"|WM| WorldMafia.net | [c=10d0ff]Competitive Gaming",
+		resp.Fields["hostname"],
+	)
+	assert.Equal(t, "10480", resp.Fields["hostport"])
+	assert.Equal(t, "0", resp.Fields["numplayers"])
+	assert.Equal(t, "16", resp.Fields["maxplayers"])
+	assert.Equal(t, "5", resp.Fields["numrounds"])
+	assert.Equal(t, "0", resp.Fields["statsenabled"])
+	assert.Len(t, resp.Players, 0)
+	assert.Equal(t, gs1.VerAM, resp.Version)
+}
+
+func TestQuery_ExtendedAdminModFragmentedResponse(t *testing.T) {
+	responses := make(chan []byte)
+	go func() {
+		responses <- b(
+			"\\statusresponse\\0" +
+				"\\hostname\\|WM| WorldMafia.net | [c=10d0ff]Competitive Gaming\\numplayers\\16" +
+				"\\maxplayers\\16\\gametype\\VIP Escort\\gamevariant\\SWAT 4\\mapname\\Fairfax Residence" +
+				"\\hostport\\10480\\password\\0\\gamever\\1.1\\statsenabled\\0\\swatwon\\1\\suspectswon\\2" +
+				"\\round\\4\\numrounds\\5\\player_0\\Bobo_CZECH\\player_1\\|WM|\\player_2\\|WM|bravo" +
+				"\\player_3\\zuoty\\player_4\\|WM|TC(GER)\\player_5\\Lio\\player_6\\jewngleballs" +
+				"\\player_7\\JingleKat\\player_8\\whore\\player_9\\{WRS}|H|unt_fitcoach" +
+				"\\player_10\\SK\\player_11\\Crystalcastles\\player_12\\{Mopnc}\\player_13" +
+				"\\queryid\\0",
+		)
+		responses <- b(
+			"\\statusresponse\\2" +
+				"\\0\\team_12\\1\\team_13\\0\\team_14\\0\\team_15\\1\\kills_0\\2" +
+				"\\kills_1\\3\\kills_2\\2\\kills_3\\1\\kills_5\\4\\kills_6\\8\\kills_7\\3\\kills_8\\10\\kills_9\\1" +
+				"\\kills_11\\3\\kills_12\\2\\kills_14\\3\\kills_15\\1\\deaths_0\\5\\deaths_1\\3\\deaths_2\\5" +
+				"\\deaths_3\\4\\deaths_5\\2\\deaths_6\\2\\deaths_7\\3\\deaths_8\\5\\deaths_9\\4\\deaths_10\\2" +
+				"\\deaths_11\\3\\deaths_12\\3\\deaths_13\\1\\deaths_15\\2" +
+				"\\queryid\\2" +
+				"\\final\\",
+		)
+		responses <- b(
+			"\\statusresponse\\1" +
+				"\\Gery\\player_14\\Pepper_boi\\player_15\\DavidR\\score_0\\2" +
+				"\\score_1\\3\\score_2\\2\\score_3\\1\\score_4\\0\\score_5\\4\\score_6\\8\\score_7\\3" +
+				"\\score_8\\10\\score_9\\1\\score_10\\0\\score_11\\3\\score_12\\2\\score_13\\0\\score_14\\3" +
+				"\\score_15\\1\\ping_0\\10\\ping_1\\36\\ping_2\\60\\ping_3\\22\\ping_4\\15\\ping_5\\39" +
+				"\\ping_6\\14\\ping_7\\23\\ping_8\\31\\ping_9\\210\\ping_10\\23\\ping_11\\25\\ping_12\\88" +
+				"\\ping_13\\14\\ping_14\\28\\ping_15\\39\\team_0\\0\\team_1\\1\\team_2\\0\\team_3\\1" +
+				"\\team_4\\0\\team_5\\1\\team_6\\1\\team_7\\1\\team_8\\0\\team_9\\0\\team_10\\1\\team_11" +
+				"\\queryid\\1",
+		)
+	}()
+	server, cancel := gs1.PrepareGS1Server(responses)
+	defer cancel()
+
+	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
+	require.NoError(t, err)
+
+	assert.Equal(t,
+		"|WM| WorldMafia.net | [c=10d0ff]Competitive Gaming",
+		resp.Fields["hostname"],
+	)
+	assert.Equal(t, "10480", resp.Fields["hostport"])
+	assert.Equal(t, "16", resp.Fields["numplayers"])
+	assert.Equal(t, "5", resp.Fields["numrounds"])
+	assert.Len(t, resp.Players, 16)
+	assert.Equal(t, gs1.VerAM, resp.Version)
+
+	playerNames := make([]string, 0)
+	for _, player := range resp.Players {
+		playerNames = append(playerNames, player["player"])
+	}
+	assert.Equal(t, playerNames, []string{
+		"Bobo_CZECH", "|WM|", "|WM|bravo", "zuoty", "|WM|TC(GER)", "Lio", "jewngleballs", "JingleKat",
+		"whore", "{WRS}|H|unt_fitcoach", "SK", "Crystalcastles", "{Mopnc}", "Gery", "Pepper_boi", "DavidR",
+	})
+
+	assert.Equal(t, "Gery", resp.Players[13]["player"])
+	assert.Equal(t, "14", resp.Players[13]["ping"])
+	assert.Equal(t, "1", resp.Players[13]["deaths"])
+
+	assert.Equal(t, "Crystalcastles", resp.Players[11]["player"])
+	assert.Equal(t, "0", resp.Players[11]["team"])
+}
+
+func TestQuery_GS1ModUnfragmentedResponse(t *testing.T) {
+	responses := make(chan []byte)
+	go func() {
+		// last fragment comes first and so forth
+		responses <- b(
+			"\\hostname\\-==MYT World Svr==-\\numplayers\\0\\maxplayers\\16\\gametype\\VIP Escort" +
+				"\\gamevariant\\SWAT 4\\mapname\\Enverstar Power Plant\\hostport\\10580" +
+				"\\password\\false\\gamever\\1.1\\round\\2\\numrounds\\5\\timeleft\\109" +
+				"\\timespecial\\0\\swatscore\\0\\suspectsscore\\0\\swatwon\\0\\suspectswon\\0" +
+				"\\queryid\\1\\final\\",
+		)
+	}()
+	server, cancel := gs1.PrepareGS1Server(responses)
+	defer cancel()
+
+	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
+	require.NoError(t, err)
+
+	assert.Equal(t, "-==MYT World Svr==-", resp.Fields["hostname"])
+	assert.Equal(t, "10580", resp.Fields["hostport"])
+	assert.Equal(t, "0", resp.Fields["numplayers"])
+	assert.Equal(t, "16", resp.Fields["maxplayers"])
+	assert.Equal(t, "5", resp.Fields["numrounds"])
+	assert.Equal(t, "109", resp.Fields["timeleft"])
+	assert.Equal(t, "0", resp.Fields["suspectswon"])
+	assert.Equal(t, gs1.VerGS1, resp.Version)
+}
+
+func TestQuery_GS1ModFragmentedResponse(t *testing.T) {
+	responses := make(chan []byte)
+	go func() {
+		// last fragment comes first and so forth
 		responses <- b(
 			"\\player_3\\Morgan\\score_3\\6\\ping_3\\53\\team_3\\1\\kills_3\\6\\deaths_3\\7" +
 				"\\arrested_3\\1\\player_4\\Jericho\\score_4\\3\\ping_4\\46\\team_4\\0\\kills_4\\3" +
@@ -181,8 +314,10 @@ func TestQuery_GS1ModServerQueryIsSupported(t *testing.T) {
 	}()
 	server, cancel := gs1.PrepareGS1Server(responses)
 	defer cancel()
+
 	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
-	assert.NoError(t, err)
+	require.NoError(t, err)
+
 	assert.Equal(t, "-==MYT Team Svr==-", resp.Fields["hostname"])
 	assert.Equal(t, "13", resp.Fields["numplayers"])
 	assert.Equal(t, "36", resp.Fields["suspectsscore"])
@@ -190,7 +325,6 @@ func TestQuery_GS1ModServerQueryIsSupported(t *testing.T) {
 	assert.Equal(t, "2", resp.Fields["suspectswon"])
 	assert.Equal(t, "10480", resp.Fields["hostport"])
 	assert.Equal(t, "VIP Escort", resp.Fields["gametype"])
-	assert.Contains(t, resp.Fields, "final")
 	assert.Len(t, resp.Players, 13)
 	assert.Equal(t, "0", resp.Players[12]["score"])
 	assert.Equal(t, "Morgan", resp.Players[3]["player"])
@@ -198,14 +332,14 @@ func TestQuery_GS1ModServerQueryIsSupported(t *testing.T) {
 	assert.Equal(t, gs1.VerGS1, resp.Version)
 }
 
-func TestQuery_GS1ModServerObjectivesAreSupported(t *testing.T) {
+func TestQuery_GS1ModObjectivesAreSupported(t *testing.T) {
 	tests := []struct {
 		name       string
-		packets    [][]byte
+		fragments  [][]byte
 		objectives []string
 	}{
 		{
-			"single packet",
+			"single fragment",
 			[][]byte{
 				b("\\hostname\\-==MYT Co-op Svr==-\\numplayers\\0\\maxplayers\\5\\gametype\\CO-OP" +
 					"\\gamevariant\\SWAT 4\\mapname\\DuPlessis Diamond Center\\hostport\\10880\\password\\false" +
@@ -217,7 +351,7 @@ func TestQuery_GS1ModServerObjectivesAreSupported(t *testing.T) {
 			[]string{"Neutralize_All_Enemies", "Rescue_All_Hostages"},
 		},
 		{
-			"multiple packets",
+			"multiple fragments",
 			[][]byte{
 				b("\\hostname\\[c=0099ff]SEF 7.0 EU [c=ffffff]www.swat4.tk\\numplayers\\2\\maxplayers\\10" +
 					"\\gametype\\CO-OP\\gamevariant\\SEF\\mapname\\Mt. Threshold Research Center" +
@@ -236,7 +370,7 @@ func TestQuery_GS1ModServerObjectivesAreSupported(t *testing.T) {
 			},
 		},
 		{
-			"multiple reversed packets",
+			"multiple reversed fragments",
 			[][]byte{
 				b("\\obj_Rescue_Sterling\\0\\obj_Neutralize_TerrorLeader\\0\\obj_Secure_Briefcase\\0" +
 					"\\tocreports\\21/25\\weaponssecured\\5/8\\player_0\\Soup\\score_0\\0\\ping_0\\65" +
@@ -271,14 +405,14 @@ func TestQuery_GS1ModServerObjectivesAreSupported(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			responses := make(chan []byte)
 			go func() {
-				for _, packet := range tt.packets {
-					responses <- packet
+				for _, fragment := range tt.fragments {
+					responses <- fragment
 				}
 			}()
 			server, cancel := gs1.PrepareGS1Server(responses)
 			defer cancel()
 			resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			objectives := make([]string, 0, len(resp.Objectives))
 			for _, obj := range resp.Objectives {
 				objectives = append(objectives, obj["name"])
@@ -289,7 +423,7 @@ func TestQuery_GS1ModServerObjectivesAreSupported(t *testing.T) {
 
 	responses := make(chan []byte)
 	go func() {
-		// last packet comes first and so forth
+		// last fragment comes first and so forth
 		responses <- b(
 			"\\player_3\\Morgan\\score_3\\6\\ping_3\\53\\team_3\\1\\kills_3\\6\\deaths_3\\7" +
 				"\\arrested_3\\1\\player_4\\Jericho\\score_4\\3\\ping_4\\46\\team_4\\0\\kills_4\\3" +
@@ -318,8 +452,10 @@ func TestQuery_GS1ModServerObjectivesAreSupported(t *testing.T) {
 	}()
 	server, cancel := gs1.PrepareGS1Server(responses)
 	defer cancel()
+
 	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
-	assert.NoError(t, err)
+	require.NoError(t, err)
+
 	assert.Equal(t, "-==MYT Team Svr==-", resp.Fields["hostname"])
 	assert.Equal(t, "13", resp.Fields["numplayers"])
 	assert.Equal(t, "36", resp.Fields["suspectsscore"])
@@ -327,7 +463,6 @@ func TestQuery_GS1ModServerObjectivesAreSupported(t *testing.T) {
 	assert.Equal(t, "2", resp.Fields["suspectswon"])
 	assert.Equal(t, "10480", resp.Fields["hostport"])
 	assert.Equal(t, "VIP Escort", resp.Fields["gametype"])
-	assert.Contains(t, resp.Fields, "final")
 	assert.Len(t, resp.Players, 13)
 	assert.Equal(t, "0", resp.Players[12]["score"])
 	assert.Equal(t, "Morgan", resp.Players[3]["player"])
@@ -337,8 +472,8 @@ func TestQuery_GS1ModServerObjectivesAreSupported(t *testing.T) {
 
 func TestQuery_QueryIDMayBeNotInteger(t *testing.T) {
 	tests := []struct {
-		name    string
-		packets [][]byte
+		name      string
+		fragments [][]byte
 	}{
 		{
 			"gs",
@@ -357,16 +492,14 @@ func TestQuery_QueryIDMayBeNotInteger(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			responses := make(chan []byte)
 			go func() {
-				for _, packet := range tt.packets {
-					responses <- packet
+				for _, fragment := range tt.fragments {
+					responses <- fragment
 				}
 			}()
 			server, cancel := gs1.PrepareGS1Server(responses)
 			defer cancel()
 			resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
-			assert.NoError(t, err)
-			assert.Contains(t, resp.Fields, "final")
-			assert.Equal(t, "", resp.Fields["final"])
+			require.NoError(t, err)
 			assert.Equal(t, "10480", resp.Fields["hostport"])
 			assert.Equal(t, "test", resp.Fields["hostname"])
 			assert.Equal(t, gs1.VerVanilla, resp.Version)
@@ -383,18 +516,16 @@ func TestQuery_StatusResponseIsZeroBased(t *testing.T) {
 	server, cancel := gs1.PrepareGS1Server(responses)
 	defer cancel()
 	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
-	assert.NoError(t, err)
-	assert.Contains(t, resp.Fields, "final")
-	assert.Equal(t, "", resp.Fields["final"])
+	require.NoError(t, err)
 	assert.Equal(t, "10480", resp.Fields["hostport"])
 	assert.Equal(t, "test", resp.Fields["hostname"])
 	assert.Equal(t, gs1.VerAM, resp.Version)
 }
 
-func TestQuery_VariablePacketOrder(t *testing.T) {
+func TestQuery_VariableFragmentOrder(t *testing.T) {
 	tests := []struct {
-		name    string
-		packets [][]byte
+		name      string
+		fragments [][]byte
 	}{
 		{
 			"normal order",
@@ -415,16 +546,14 @@ func TestQuery_VariablePacketOrder(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			responses := make(chan []byte)
 			go func() {
-				for _, packet := range tt.packets {
-					responses <- packet
+				for _, fragment := range tt.fragments {
+					responses <- fragment
 				}
 			}()
 			server, cancel := gs1.PrepareGS1Server(responses)
 			defer cancel()
 			resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
-			assert.NoError(t, err)
-			assert.Contains(t, resp.Fields, "final")
-			assert.Equal(t, "", resp.Fields["final"])
+			require.NoError(t, err)
 			assert.Equal(t, "10480", resp.Fields["hostport"])
 			assert.Equal(t, "test", resp.Fields["hostname"])
 		})
@@ -433,12 +562,12 @@ func TestQuery_VariablePacketOrder(t *testing.T) {
 
 func TestQuery_NoProperResponse(t *testing.T) {
 	tests := []struct {
-		name    string
-		packets [][]byte
-		wantErr error
+		name      string
+		fragments [][]byte
+		wantErr   error
 	}{
 		{
-			"no packets",
+			"no fragments",
 			nil,
 			os.ErrDeadlineExceeded,
 		},
@@ -451,7 +580,7 @@ func TestQuery_NoProperResponse(t *testing.T) {
 			os.ErrDeadlineExceeded,
 		},
 		{
-			"no packet order",
+			"no fragment order",
 			[][]byte{
 				b("\\hostname\\test\\hostport\\10480\\final\\"),
 			},
@@ -461,7 +590,7 @@ func TestQuery_NoProperResponse(t *testing.T) {
 			"inconsistent order #1",
 			[][]byte{
 				b("\\hostname\\test\\queryid\\1"),
-				b("\\hostport\\10480\\queryid\\2\\"),
+				b("\\hostport\\10480\\queryid\\2"),
 				b("\\gametype\\VIP Escort\\queryid\\4\\final\\"),
 			},
 			os.ErrDeadlineExceeded,
@@ -470,7 +599,7 @@ func TestQuery_NoProperResponse(t *testing.T) {
 			"inconsistent order #2",
 			[][]byte{
 				b("\\hostname\\test\\queryid\\2"),
-				b("\\hostport\\10480\\queryid\\3\\"),
+				b("\\hostport\\10480\\queryid\\3"),
 				b("\\gametype\\VIP Escort\\queryid\\4\\final\\"),
 			},
 			os.ErrDeadlineExceeded,
@@ -493,12 +622,79 @@ func TestQuery_NoProperResponse(t *testing.T) {
 			gs1.ErrResponseMalformed,
 		},
 		{
+			"queryid must be followed by the value",
+			[][]byte{
+				b("\\hostname\\test\\queryid\\final\\"),
+			},
+			gs1.ErrResponseMalformed,
+		},
+		{
+			"queryid must be followed by the value",
+			[][]byte{
+				b("\\hostname\\test\\queryid\\final\\"),
+			},
+			gs1.ErrResponseMalformed,
+		},
+		{
+			"statusresponse is an integer",
+			[][]byte{
+				b("\\statusresponse\\1.0\\hostname\\test\\queryid\\AMv1\\eof\\"),
+				b("\\statusresponse\\2.0\\hostport\\10480\\queryid\\AMv1\\final\\\\eof\\"),
+			},
+			gs1.ErrResponseMalformed,
+		},
+		{
+			"statusresponse cannot be empty",
+			[][]byte{
+				b("\\statusresponse\\\\hostname\\test\\queryid\\AMv1\\eof\\"),
+				b("\\statusresponse\\\\hostport\\10480\\queryid\\AMv1\\final\\\\eof\\"),
+			},
+			gs1.ErrResponseMalformed,
+		},
+		{
+			"statusresponse cannot be omitted",
+			[][]byte{
+				b("\\statusresponse\\hostname\\test\\queryid\\AMv1\\eof\\"),
+				b("\\statusresponse\\hostport\\10480\\queryid\\AMv1\\final\\\\eof\\"),
+			},
+			gs1.ErrResponseMalformed,
+		},
+		{
+			"statusresponse is out of order integer",
+			[][]byte{
+				b("\\statusresponse\\0\\hostname\\test\\queryid\\AMv1\\eof\\"),
+				b("\\statusresponse\\2\\hostport\\10480\\queryid\\AMv1\\final\\\\eof\\"),
+			},
+			os.ErrDeadlineExceeded,
+		},
+		{
 			"statusresponse is zero based",
 			[][]byte{
 				b("\\statusresponse\\1\\hostname\\test\\queryid\\AMv1\\eof\\"),
 				b("\\statusresponse\\2\\hostport\\10480\\queryid\\AMv1\\final\\\\eof\\"),
 			},
 			os.ErrDeadlineExceeded,
+		},
+		{
+			"statusresponse cannot be the only field",
+			[][]byte{
+				b("\\statusresponse\\"),
+			},
+			gs1.ErrResponseMalformed,
+		},
+		{
+			"final cannot be the only field",
+			[][]byte{
+				b("\\final\\"),
+			},
+			gs1.ErrResponseMalformed,
+		},
+		{
+			"final followed by eof cannot be the only fields",
+			[][]byte{
+				b("\\final\\\\eof\\"),
+			},
+			gs1.ErrResponseMalformed,
 		},
 		{
 			"invalid player id",
@@ -519,11 +715,11 @@ func TestQuery_NoProperResponse(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			responses := make(chan []byte)
-			go func(packets [][]byte) {
-				for _, packet := range packets {
-					responses <- packet
+			go func(fragments [][]byte) {
+				for _, fragment := range fragments {
+					responses <- fragment
 				}
-			}(tt.packets)
+			}(tt.fragments)
 			server, cancel := gs1.PrepareGS1Server(responses)
 			defer cancel()
 			_, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*50)
@@ -557,13 +753,15 @@ func TestQuery_ReadTimeout(t *testing.T) {
 				<-time.After(delay)
 				responses <- b("\\statusresponse\\1\\hostport\\10480\\queryid\\AMv1\\final\\\\eof\\")
 			}(tt.delay)
+
 			server, cancel := gs1.PrepareGS1Server(responses)
 			defer cancel()
+
 			_, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*50)
 			if tt.wantErr != nil {
 				assert.ErrorIs(t, err, tt.wantErr)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
