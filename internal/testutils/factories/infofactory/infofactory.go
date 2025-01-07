@@ -1,13 +1,15 @@
-package factories
+package infofactory
 
 import (
 	"github.com/sergeii/swat4master/internal/core/entities/details"
 	"github.com/sergeii/swat4master/pkg/slice"
 )
 
-type BuildInfoOption func(map[string]string)
+type F map[string]string
 
-func WithFields(extra map[string]string) BuildInfoOption {
+type BuildOption func(map[string]string)
+
+func WithFields(extra F) BuildOption {
 	return func(fields map[string]string) {
 		for k, v := range extra {
 			fields[k] = v
@@ -15,7 +17,7 @@ func WithFields(extra map[string]string) BuildInfoOption {
 	}
 }
 
-func BuildInfo(opts ...BuildInfoOption) details.Info {
+func Build(opts ...BuildOption) details.Info {
 	fields := map[string]string{
 		"hostname": slice.RandomChoice([]string{
 			"Swat4 Server",
@@ -31,6 +33,8 @@ func BuildInfo(opts ...BuildInfoOption) details.Info {
 		"gamever":     slice.RandomChoice([]string{"1.0", "1.1"}),
 		"gamevariant": slice.RandomChoice([]string{"SWAT 4", "SEF", "SWAT 4X"}),
 		"gametype":    slice.RandomChoice([]string{"VIP Escort", "Rapid Deployment", "Barricaded Suspects", "CO-OP"}),
+		"numplayers":  "0",
+		"maxplayers":  "16",
 	}
 
 	for _, opt := range opts {

@@ -15,7 +15,9 @@ func GenRandomIP() net.IP {
 		if !randIP.IsGlobalUnicast() || randIP.IsPrivate() {
 			continue
 		}
-		log.Printf("generated random IP %s with %d attempts", randIP, i+1)
+		if i > 0 {
+			log.Printf("generated random IP %s with %d attempts", randIP, i+1)
+		}
 		return randIP
 	}
 	panic("unable to generate random IP")

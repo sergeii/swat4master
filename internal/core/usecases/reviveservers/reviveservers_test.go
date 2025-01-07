@@ -18,7 +18,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/core/usecases/reviveservers"
 	"github.com/sergeii/swat4master/internal/metrics"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 )
 
 type MockServerRepository struct {
@@ -53,8 +53,8 @@ func TestReviveServersUseCase_Success(t *testing.T) {
 	maxCountdown := now.Add(time.Minute * 5)
 	deadline := now.Add(time.Minute * 10)
 
-	svr1 := factories.BuildRandomServer()
-	svr2 := factories.BuildRandomServer()
+	svr1 := serverfactory.BuildRandom()
+	svr2 := serverfactory.BuildRandom()
 	serversToRevive := []server.Server{svr1, svr2}
 
 	serverRepo := new(MockServerRepository)
@@ -155,8 +155,8 @@ func TestReviveServersUseCase_AddProbeError(t *testing.T) {
 	now := time.Now()
 	addProbeErr := errors.New("probe error")
 
-	svr1 := factories.BuildRandomServer()
-	svr2 := factories.BuildRandomServer()
+	svr1 := serverfactory.BuildRandom()
+	svr2 := serverfactory.BuildRandom()
 	serversToRevive := []server.Server{svr1, svr2}
 
 	serverRepo := new(MockServerRepository)

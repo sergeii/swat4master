@@ -18,11 +18,13 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/metrics"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
+	"github.com/sergeii/swat4master/tests/testapp"
 )
 
 func makeAppWithReviver(extra ...fx.Option) (*fx.App, func()) {
 	fxopts := []fx.Option{
+		fx.Provide(testapp.ProvidePersistence),
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
@@ -84,35 +86,35 @@ func TestReviver_OK(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
-	gs1 := factories.BuildServer(
-		factories.WithAddress("1.1.1.1", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Master),
+	gs1 := serverfactory.Build(
+		serverfactory.WithAddress("1.1.1.1", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Master),
 	)
-	gs2 := factories.BuildServer(
-		factories.WithAddress("2.2.2.2", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Port),
+	gs2 := serverfactory.Build(
+		serverfactory.WithAddress("2.2.2.2", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Port),
 	)
-	gs3 := factories.BuildServer(
-		factories.WithAddress("3.3.3.3", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Master|ds.Details|ds.Port),
+	gs3 := serverfactory.Build(
+		serverfactory.WithAddress("3.3.3.3", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Details|ds.Port),
 	)
-	gs4 := factories.BuildServer(
-		factories.WithAddress("4.4.4.4", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.DetailsRetry),
+	gs4 := serverfactory.Build(
+		serverfactory.WithAddress("4.4.4.4", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.DetailsRetry),
 	)
-	gs5 := factories.BuildServer(
-		factories.WithAddress("5.5.5.5", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Master|ds.Info|ds.Details),
+	gs5 := serverfactory.Build(
+		serverfactory.WithAddress("5.5.5.5", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Info|ds.Details),
 	)
-	gs6 := factories.BuildServer(
-		factories.WithAddress("6.6.6.6", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Master|ds.PortRetry),
+	gs6 := serverfactory.Build(
+		serverfactory.WithAddress("6.6.6.6", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.PortRetry),
 	)
 
 	app, cancel := makeAppWithReviver(
@@ -122,7 +124,7 @@ func TestReviver_OK(t *testing.T) {
 	app.Start(ctx) // nolint: errcheck
 
 	for _, gs := range []server.Server{gs1, gs2, gs3, gs4, gs5, gs6} {
-		factories.SaveServer(ctx, serverRepo, gs)
+		serverfactory.Save(ctx, serverRepo, gs)
 	}
 
 	// let refresher run a cycle
@@ -133,7 +135,9 @@ func TestReviver_OK(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 3, result.count)
 	assert.Equal(t, 0, result.expired)
-	assert.Equal(t, []string{"5.5.5.5:10480", "4.4.4.4:10480", "1.1.1.1:10480"}, result.probes)
+	// because probes are inserted by the use case with a random readiness time,
+	// we can't predict the order of the probes
+	assert.ElementsMatch(t, []string{"5.5.5.5:10480", "4.4.4.4:10480", "1.1.1.1:10480"}, result.probes)
 
 	// make gs3 non-revivable
 	gs3.ClearDiscoveryStatus(ds.Port)
@@ -145,7 +149,7 @@ func TestReviver_OK(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 4, result.count)
 	assert.Equal(t, 0, result.expired)
-	assert.Equal(t, []string{"3.3.3.3:10480", "5.5.5.5:10480", "4.4.4.4:10480", "1.1.1.1:10480"}, result.probes)
+	assert.ElementsMatch(t, []string{"3.3.3.3:10480", "5.5.5.5:10480", "4.4.4.4:10480", "1.1.1.1:10480"}, result.probes)
 
 	// run a couple of cycles, expect some probes to expire
 	<-time.After(time.Millisecond * 200)
@@ -153,7 +157,7 @@ func TestReviver_OK(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 8, result.count)
 	assert.Equal(t, 4, result.expired)
-	assert.Equal(t, []string{"3.3.3.3:10480", "5.5.5.5:10480", "4.4.4.4:10480", "1.1.1.1:10480"}, result.probes)
+	assert.ElementsMatch(t, []string{"3.3.3.3:10480", "5.5.5.5:10480", "4.4.4.4:10480", "1.1.1.1:10480"}, result.probes)
 
 	// make the remaining servers non-revivable
 	gs1.UpdateDiscoveryStatus(ds.Port)

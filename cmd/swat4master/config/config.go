@@ -14,6 +14,8 @@ type Config struct {
 	LogLevel  string
 	LogOutput string
 
+	RedisURL string
+
 	ReporterListenAddr string
 	ReporterBufferSize int
 
@@ -62,6 +64,10 @@ func Provide() Config {
 	flag.StringVar(
 		&cfg.LogOutput, "log.output", "console",
 		"Output format of log messages. Available options: console, stdout, json",
+	)
+	flag.StringVar(
+		&cfg.RedisURL, "redis.url", "redis://localhost:6379",
+		"URL to connect to the Redis server",
 	)
 	flag.StringVar(
 		&cfg.ReporterListenAddr, "reporter.address", ":27900",
@@ -152,7 +158,7 @@ func Provide() Config {
 		"Determines how many times a failed revival probe is retried",
 	)
 	flag.DurationVar(
-		&cfg.ProbePollSchedule, "probe.schedule", time.Millisecond*50,
+		&cfg.ProbePollSchedule, "probe.schedule", time.Millisecond*250,
 		"Defines how often the discovery queue is checked for new probes",
 	)
 	flag.DurationVar(

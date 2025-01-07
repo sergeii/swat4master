@@ -14,7 +14,7 @@ import (
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/testutils"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 )
 
 type serverAddReqSchema struct {
@@ -81,7 +81,7 @@ func TestAPI_AddServer_SubmitNew(t *testing.T) {
 
 	prbCount, _ := repos.Probes.Count(ctx)
 	assert.Equal(t, 1, prbCount)
-	addedPrb, err := repos.Probes.PopAny(ctx)
+	addedPrb, err := repos.Probes.Peek(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, probe.GoalPort, addedPrb.Goal)
 	assert.Equal(t, "1.1.1.1:10480", addedPrb.Addr.String())
@@ -160,12 +160,12 @@ func TestAPI_AddServer_SubmitExisting(t *testing.T) {
 			ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 			defer cancel()
 
-			factories.CreateServer(
+			serverfactory.Create(
 				ctx,
 				repos.Servers,
-				factories.WithAddress("1.1.1.1", 10480),
-				factories.WithQueryPort(10484),
-				factories.WithDiscoveryStatus(tt.initStatus),
+				serverfactory.WithAddress("1.1.1.1", 10480),
+				serverfactory.WithQueryPort(10484),
+				serverfactory.WithDiscoveryStatus(tt.initStatus),
 			)
 
 			payload, _ := json.Marshal(serverAddReqSchema{
@@ -189,7 +189,7 @@ func TestAPI_AddServer_SubmitExisting(t *testing.T) {
 			require.NoError(t, err)
 			if tt.queued {
 				assert.Equal(t, 1, prbCount)
-				addedPrb, err := repos.Probes.PopAny(ctx)
+				addedPrb, err := repos.Probes.Peek(ctx)
 				require.NoError(t, err)
 				assert.Equal(t, probe.GoalPort, addedPrb.Goal)
 				assert.Equal(t, "1.1.1.1:10480", addedPrb.Addr.String())
@@ -225,13 +225,13 @@ func TestAPI_AddServer_AlreadyDiscovered(t *testing.T) {
 		"suspectswon":   "2",
 	}
 
-	factories.CreateServer(
+	serverfactory.Create(
 		ctx,
 		repos.Servers,
-		factories.WithAddress("1.1.1.1", 10480),
-		factories.WithQueryPort(10484),
-		factories.WithDiscoveryStatus(ds.Details),
-		factories.WithInfo(fields),
+		serverfactory.WithAddress("1.1.1.1", 10480),
+		serverfactory.WithQueryPort(10484),
+		serverfactory.WithDiscoveryStatus(ds.Details),
+		serverfactory.WithInfo(fields),
 	)
 
 	payload, _ := json.Marshal(serverAddReqSchema{ // nolint: errchkjson

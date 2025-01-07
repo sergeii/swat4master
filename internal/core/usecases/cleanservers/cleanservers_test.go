@@ -15,7 +15,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/core/usecases/cleanservers"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 )
 
 type MockServerRepository struct {
@@ -62,8 +62,8 @@ func TestCleanServersUseCase_Success(t *testing.T) {
 	until := time.Now().Add(-24 * time.Hour) // Example time filter
 
 	outdatedServers := []server.Server{
-		factories.BuildRandomServer(),
-		factories.BuildRandomServer(),
+		serverfactory.BuildRandom(),
+		serverfactory.BuildRandom(),
 	}
 
 	serverRepo := new(MockServerRepository)
@@ -132,9 +132,9 @@ func TestCleanServersUseCase_RemoveErrors(t *testing.T) {
 
 	until := time.Now().Add(-24 * time.Hour) // Example time filter
 
-	svr1 := factories.BuildRandomServer()
-	svr2 := factories.BuildRandomServer()
-	svr3 := factories.BuildRandomServer()
+	svr1 := serverfactory.BuildRandom()
+	svr2 := serverfactory.BuildRandom()
+	svr3 := serverfactory.BuildRandom()
 	outdatedServers := []server.Server{svr1, svr2, svr3}
 
 	serverRepo := new(MockServerRepository)

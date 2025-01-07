@@ -1,4 +1,4 @@
-package factories
+package serverfactory
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"github.com/sergeii/swat4master/pkg/random"
 )
 
-type BuildServerParams struct {
+type BuildParams struct {
 	IP              string
 	Port            int
 	QueryPort       int
@@ -23,23 +23,23 @@ type BuildServerParams struct {
 	Objectives      []map[string]string
 }
 
-type BuildServerOption func(*BuildServerParams)
+type BuildOption func(*BuildParams)
 
-func WithAddress(ip string, port int) BuildServerOption {
-	return func(p *BuildServerParams) {
+func WithAddress(ip string, port int) BuildOption {
+	return func(p *BuildParams) {
 		p.IP = ip
 		p.Port = port
 	}
 }
 
-func WithQueryPort(queryPort int) BuildServerOption {
-	return func(p *BuildServerParams) {
+func WithQueryPort(queryPort int) BuildOption {
+	return func(p *BuildParams) {
 		p.QueryPort = queryPort
 	}
 }
 
-func WithRandomAddress() BuildServerOption {
-	return func(p *BuildServerParams) {
+func WithRandomAddress() BuildOption {
+	return func(p *BuildParams) {
 		randomIP := testutils.GenRandomIP()
 		randPort := random.RandInt(1, 65534)
 		p.IP = randomIP.String()
@@ -48,38 +48,38 @@ func WithRandomAddress() BuildServerOption {
 	}
 }
 
-func WithDiscoveryStatus(status status.DiscoveryStatus) BuildServerOption {
-	return func(p *BuildServerParams) {
+func WithDiscoveryStatus(status status.DiscoveryStatus) BuildOption {
+	return func(p *BuildParams) {
 		p.DiscoveryStatus = status
 	}
 }
 
-func WithInfo(fields map[string]string) BuildServerOption {
-	return func(p *BuildServerParams) {
+func WithInfo(fields map[string]string) BuildOption {
+	return func(p *BuildParams) {
 		p.Info = fields
 	}
 }
 
-func WithNoInfo() BuildServerOption {
-	return func(p *BuildServerParams) {
+func WithNoInfo() BuildOption {
+	return func(p *BuildParams) {
 		p.Info = nil
 	}
 }
 
-func WithPlayers(players []map[string]string) BuildServerOption {
-	return func(p *BuildServerParams) {
+func WithPlayers(players []map[string]string) BuildOption {
+	return func(p *BuildParams) {
 		p.Players = players
 	}
 }
 
-func WithObjectives(objectives []map[string]string) BuildServerOption {
-	return func(p *BuildServerParams) {
+func WithObjectives(objectives []map[string]string) BuildOption {
+	return func(p *BuildParams) {
 		p.Objectives = objectives
 	}
 }
 
-func BuildServer(opts ...BuildServerOption) server.Server {
-	params := BuildServerParams{
+func Build(opts ...BuildOption) server.Server {
+	params := BuildParams{
 		IP:              "1.1.1.1",
 		Port:            10480,
 		QueryPort:       10481,
@@ -108,11 +108,11 @@ func BuildServer(opts ...BuildServerOption) server.Server {
 	return svr
 }
 
-func BuildRandomServer() server.Server {
-	return BuildServer(WithRandomAddress())
+func BuildRandom() server.Server {
+	return Build(WithRandomAddress())
 }
 
-func SaveServer(
+func Save(
 	ctx context.Context,
 	repo repositories.ServerRepository,
 	svr server.Server,
@@ -124,11 +124,11 @@ func SaveServer(
 	return savedSvr
 }
 
-func CreateServer(
+func Create(
 	ctx context.Context,
 	repo repositories.ServerRepository,
-	opts ...BuildServerOption,
+	opts ...BuildOption,
 ) server.Server {
-	svr := BuildServer(opts...)
-	return SaveServer(ctx, repo, svr)
+	svr := Build(opts...)
+	return Save(ctx, repo, svr)
 }

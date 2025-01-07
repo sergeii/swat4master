@@ -16,11 +16,14 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/instance"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/metrics"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/instancefactory"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
+	"github.com/sergeii/swat4master/tests/testapp"
 )
 
 func makeAppWithCleaner(extra ...fx.Option) (*fx.App, func()) {
 	fxopts := []fx.Option{
+		fx.Provide(testapp.ProvidePersistence),
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
@@ -55,27 +58,27 @@ func TestCleaner_OK(t *testing.T) {
 	ins2 := instance.MustNew("bar", net.ParseIP("3.3.3.3"), 10480)
 	ins4 := instance.MustNew("baz", net.ParseIP("4.4.4.4"), 10480)
 
-	factories.SaveInstance(ctx, instanceRepo, ins1)
-	factories.SaveInstance(ctx, instanceRepo, ins2)
-	factories.SaveInstance(ctx, instanceRepo, ins4)
+	instancefactory.Save(ctx, instanceRepo, ins1)
+	instancefactory.Save(ctx, instanceRepo, ins2)
+	instancefactory.Save(ctx, instanceRepo, ins4)
 
-	gs1 := factories.CreateServer(
+	gs1 := serverfactory.Create(
 		ctx,
 		serverRepo,
-		factories.WithAddress("1.1.1.1", 10480),
-		factories.WithQueryPort(10481),
+		serverfactory.WithAddress("1.1.1.1", 10480),
+		serverfactory.WithQueryPort(10481),
 	)
-	factories.CreateServer(
+	serverfactory.Create(
 		ctx,
 		serverRepo,
-		factories.WithAddress("2.2.2.2", 10480),
-		factories.WithQueryPort(10481),
+		serverfactory.WithAddress("2.2.2.2", 10480),
+		serverfactory.WithQueryPort(10481),
 	)
-	factories.CreateServer(
+	serverfactory.Create(
 		ctx,
 		serverRepo,
-		factories.WithAddress("3.3.3.3", 10480),
-		factories.WithQueryPort(10481),
+		serverfactory.WithAddress("3.3.3.3", 10480),
+		serverfactory.WithQueryPort(10481),
 	)
 
 	// wait for cleaner to run some cycles
@@ -86,15 +89,15 @@ func TestCleaner_OK(t *testing.T) {
 	serverRepo.Update(ctx, gs1, repositories.ServerOnConflictIgnore) // nolint: errcheck
 
 	// add a new server with an instance, it should not be cleaned right away
-	gs5 := factories.CreateServer(
+	gs5 := serverfactory.Create(
 		ctx,
 		serverRepo,
-		factories.WithAddress("5.5.5.5", 10480),
-		factories.WithQueryPort(10481),
+		serverfactory.WithAddress("5.5.5.5", 10480),
+		serverfactory.WithQueryPort(10481),
 	)
 
 	ins5 := instance.MustNew("qux", net.ParseIP("5.5.5.5"), 10480)
-	factories.SaveInstance(ctx, instanceRepo, ins5)
+	instancefactory.Save(ctx, instanceRepo, ins5)
 
 	// wait for cleaner to clean servers 2 and 3
 	<-time.After(time.Millisecond * 150)

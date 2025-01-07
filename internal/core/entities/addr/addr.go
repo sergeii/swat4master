@@ -9,8 +9,8 @@ import (
 )
 
 type Addr struct {
-	IP   [4]byte
-	Port int
+	IP   [4]byte `json:"ip"`
+	Port int     `json:"port"`
 }
 
 var Blank Addr // nolint: gochecknoglobals

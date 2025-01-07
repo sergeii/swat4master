@@ -169,7 +169,11 @@ func (r *Runner) schedule(ctx context.Context) {
 
 	probes, expired, err := r.probeRepo.PopMany(ctx, availability)
 	if err != nil {
-		r.logger.Warn().Err(err).Int("availability", availability).Msg("Unable to fetch new probes")
+		r.metrics.DiscoveryQueueErrors.Inc()
+		r.logger.Warn().
+			Err(err).
+			Int("availability", availability).
+			Msg("Unable to fetch new probes")
 		return
 	}
 	r.metrics.DiscoveryQueueConsumed.Add(float64(len(probes)))

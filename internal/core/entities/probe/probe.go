@@ -27,11 +27,11 @@ func (goal Goal) String() string {
 var NC = time.Time{} // no constraint
 
 type Probe struct {
-	Addr       addr.Addr
-	Port       int
-	Goal       Goal
-	Retries    int
-	MaxRetries int
+	Addr       addr.Addr `json:"addr"`
+	Port       int       `json:"port"`
+	Goal       Goal      `json:"goal"`
+	Retries    int       `json:"retries"`
+	MaxRetries int       `json:"max_retries"`
 }
 
 var Blank Probe // nolint: gochecknoglobals

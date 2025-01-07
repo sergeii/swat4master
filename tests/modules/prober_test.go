@@ -21,8 +21,9 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/gs1"
+	"github.com/sergeii/swat4master/tests/testapp"
 )
 
 func TestProber_Run(t *testing.T) {
@@ -33,6 +34,7 @@ func TestProber_Run(t *testing.T) {
 	defer cancel()
 
 	app := fx.New(
+		fx.Provide(testapp.ProvidePersistence),
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
@@ -143,7 +145,7 @@ func TestProber_Run(t *testing.T) {
 	svr3.UpdateInfo(info, time.Now())
 	svr3.UpdateDiscoveryStatus(ds.Master | ds.Port)
 
-	svr4 := factories.BuildRandomServer()
+	svr4 := serverfactory.BuildRandom()
 	svr4.UpdateInfo(info, time.Now())
 	svr4.UpdateDiscoveryStatus(ds.Master)
 
@@ -196,7 +198,7 @@ func TestProber_Run(t *testing.T) {
 	probeCount, _ := probeRepo.Count(ctx)
 	require.Equal(t, 1, probeCount)
 
-	retryProbe, _ := probeRepo.PopAny(ctx)
+	retryProbe, _ := probeRepo.Peek(ctx)
 	assert.Equal(t, svr3.Addr, retryProbe.Addr)
 	assert.Equal(t, svr3.QueryPort, retryProbe.Port)
 	assert.Equal(t, probe.GoalDetails, retryProbe.Goal)

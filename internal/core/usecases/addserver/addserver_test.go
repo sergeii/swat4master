@@ -17,7 +17,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/core/usecases/addserver"
 	"github.com/sergeii/swat4master/internal/metrics"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 )
 
 type MockServerRepository struct {
@@ -133,9 +133,9 @@ func TestAddServerUseCase_ServerExists(t *testing.T) {
 			logger := zerolog.Nop()
 			collector := metrics.New()
 
-			svr := factories.BuildServer(
-				factories.WithAddress("1.1.1.1", 10480),
-				factories.WithDiscoveryStatus(tt.status),
+			svr := serverfactory.Build(
+				serverfactory.WithAddress("1.1.1.1", 10480),
+				serverfactory.WithDiscoveryStatus(tt.status),
 			)
 
 			serverRepo := new(MockServerRepository)
@@ -200,7 +200,7 @@ func TestAddServerUseCase_ServerDoesNotExist(t *testing.T) {
 	logger := zerolog.Nop()
 	collector := metrics.New()
 
-	newSvr := factories.BuildServer(factories.WithAddress("1.1.1.1", 10480))
+	newSvr := serverfactory.Build(serverfactory.WithAddress("1.1.1.1", 10480))
 
 	serverRepo := new(MockServerRepository)
 	serverRepo.On("Get", ctx, newSvr.Addr).Return(server.Blank, repositories.ErrServerNotFound)

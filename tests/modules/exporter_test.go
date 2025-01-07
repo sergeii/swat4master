@@ -24,14 +24,15 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/prober"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/reporter"
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
-	"github.com/sergeii/swat4master/internal/core/entities/details"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/entities/instance"
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/testutils"
+	"github.com/sergeii/swat4master/internal/testutils/factories/infofactory"
 	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/gs1"
+	"github.com/sergeii/swat4master/tests/testapp"
 )
 
 func sendUDP(address string, req []byte) {
@@ -53,6 +54,7 @@ func getMetrics(t *testing.T) map[string]*dto.MetricFamily {
 
 func TestExporter_MasterMetrics(t *testing.T) {
 	app := fx.New(
+		fx.Provide(testapp.ProvidePersistence),
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
@@ -136,6 +138,7 @@ func TestExporter_ServerMetrics(t *testing.T) {
 	var repo repositories.ServerRepository
 
 	app := fx.New(
+		fx.Provide(testapp.ProvidePersistence),
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
@@ -156,53 +159,59 @@ func TestExporter_ServerMetrics(t *testing.T) {
 	}()
 
 	svr1 := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	svr1.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Swat4 Server",
-		"hostport":    "10480",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "VIP Escort",
-	}), time.Now())
+	svr1.UpdateInfo(
+		infofactory.Build(
+			infofactory.WithFields(infofactory.F{
+				"gametype": "VIP Escort",
+			},
+			),
+		),
+		time.Now(),
+	)
 	svr1.UpdateDiscoveryStatus(ds.Master | ds.Info)
 
 	svr2 := server.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
-	svr2.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Another Swat4 Server",
-		"hostport":    "10480",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.0",
-		"gamevariant": "SWAT 4",
-		"gametype":    "Barricaded Suspects",
-		"numplayers":  "12",
-		"maxplayers":  "16",
-	}), time.Now())
+	svr2.UpdateInfo(
+		infofactory.Build(
+			infofactory.WithFields(infofactory.F{
+				"gametype":   "Barricaded Suspects",
+				"numplayers": "12",
+				"maxplayers": "16",
+			},
+			),
+		),
+		time.Now(),
+	)
 	svr2.UpdateDiscoveryStatus(ds.Details | ds.Info)
 
 	svr3 := server.MustNew(net.ParseIP("3.3.3.3"), 10480, 10481)
-	svr3.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Awesome Swat4 Server",
-		"hostport":    "10480",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.0",
-		"gamevariant": "SWAT 4X",
-		"gametype":    "Smash And Grab",
-		"numplayers":  "1",
-		"maxplayers":  "10",
-	}), time.Now())
+	svr3.UpdateInfo(
+		infofactory.Build(
+			infofactory.WithFields(
+				infofactory.F{
+					"gametype":   "Smash And Grab",
+					"numplayers": "1",
+					"maxplayers": "10",
+				},
+			),
+		),
+		time.Now(),
+	)
 	svr3.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
 
 	svr4 := server.MustNew(net.ParseIP("4.4.4.4"), 10480, 10481)
-	svr4.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Other Server",
-		"hostport":    "10480",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.0",
-		"gamevariant": "SWAT 4",
-		"gametype":    "VIP Escort",
-		"numplayers":  "14",
-		"maxplayers":  "16",
-	}), time.Now())
+	svr4.UpdateInfo(
+		infofactory.Build(
+			infofactory.WithFields(
+				infofactory.F{
+					"gametype":   "VIP Escort",
+					"numplayers": "14",
+					"maxplayers": "16",
+				},
+			),
+		),
+		time.Now(),
+	)
 	svr4.UpdateDiscoveryStatus(ds.NoDetails)
 
 	svr1, _ = repo.Add(ctx, svr1, repositories.ServerOnConflictIgnore)
@@ -255,6 +264,7 @@ func TestExporter_ReposMetrics(t *testing.T) {
 	var probesRepo repositories.ProbeRepository
 
 	app := fx.New(
+		fx.Provide(testapp.ProvidePersistence),
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
@@ -310,6 +320,7 @@ func TestExporter_CleanerMetrics(t *testing.T) {
 	var repo repositories.ServerRepository
 
 	app := fx.New(
+		fx.Provide(testapp.ProvidePersistence),
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
@@ -359,6 +370,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	var probeRepo repositories.ProbeRepository
 
 	app := fx.New(
+		fx.Provide(testapp.ProvidePersistence),
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
