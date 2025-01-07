@@ -15,7 +15,7 @@ import (
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/internal/prober/probers/portprober"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 	"github.com/sergeii/swat4master/internal/validation"
 	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/gs1"
 )
@@ -346,7 +346,7 @@ func TestPortProber_HandleRetry_OK(t *testing.T) {
 
 			prober := portprober.New(portprober.Opts{}, validate, clock, collector, &logger)
 
-			svr := factories.BuildServer(factories.WithDiscoveryStatus(tt.initStatus))
+			svr := serverfactory.Build(serverfactory.WithDiscoveryStatus(tt.initStatus))
 
 			updatedSvr := prober.HandleRetry(svr)
 			assert.Equal(t, tt.wantStatus, updatedSvr.DiscoveryStatus)
@@ -391,7 +391,7 @@ func TestPortProber_HandleFailure_OK(t *testing.T) {
 
 			prober := portprober.New(portprober.Opts{}, validate, clock, collector, &logger)
 
-			svr := factories.BuildServer(factories.WithDiscoveryStatus(tt.initStatus))
+			svr := serverfactory.Build(serverfactory.WithDiscoveryStatus(tt.initStatus))
 
 			updatedSvr := prober.HandleFailure(svr)
 			assert.Equal(t, tt.wantStatus, updatedSvr.DiscoveryStatus)

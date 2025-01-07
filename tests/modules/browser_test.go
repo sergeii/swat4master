@@ -21,14 +21,16 @@ import (
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/internal/testutils"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 	"github.com/sergeii/swat4master/pkg/binutils"
 	gscrypt "github.com/sergeii/swat4master/pkg/gamespy/crypt"
 	"github.com/sergeii/swat4master/pkg/random"
+	"github.com/sergeii/swat4master/tests/testapp"
 )
 
 func makeAppWithBrowser(extra ...fx.Option) (*fx.App, func()) {
 	fxopts := []fx.Option{
+		fx.Provide(testapp.ProvidePersistence),
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
@@ -147,13 +149,13 @@ func TestBrowser_Filters(t *testing.T) {
 			defer cancel()
 			app.Start(ctx) // nolint: errcheck
 
-			factories.CreateServer(
+			serverfactory.Create(
 				ctx,
 				serverRepo,
-				factories.WithAddress("1.1.1.1", 10480),
-				factories.WithQueryPort(10481),
-				factories.WithDiscoveryStatus(ds.Master|ds.Info),
-				factories.WithInfo(map[string]string{
+				serverfactory.WithAddress("1.1.1.1", 10480),
+				serverfactory.WithQueryPort(10481),
+				serverfactory.WithDiscoveryStatus(ds.Master|ds.Info),
+				serverfactory.WithInfo(map[string]string{
 					"hostname":   "Swat4 Server",
 					"gamever":    "1.1",
 					"gametype":   "VIP Escort",
@@ -164,13 +166,13 @@ func TestBrowser_Filters(t *testing.T) {
 				}),
 			)
 
-			factories.CreateServer(
+			serverfactory.Create(
 				ctx,
 				serverRepo,
-				factories.WithAddress("2.2.2.2", 10480),
-				factories.WithQueryPort(10481),
-				factories.WithDiscoveryStatus(ds.Master|ds.Info),
-				factories.WithInfo(map[string]string{
+				serverfactory.WithAddress("2.2.2.2", 10480),
+				serverfactory.WithQueryPort(10481),
+				serverfactory.WithDiscoveryStatus(ds.Master|ds.Info),
+				serverfactory.WithInfo(map[string]string{
 					"hostname":   "Another Swat4 Server",
 					"gamever":    "1.0",
 					"gametype":   "VIP Escort",
@@ -181,13 +183,13 @@ func TestBrowser_Filters(t *testing.T) {
 				}),
 			)
 
-			factories.CreateServer(
+			serverfactory.Create(
 				ctx,
 				serverRepo,
-				factories.WithAddress("3.3.3.3", 10580),
-				factories.WithQueryPort(10584),
-				factories.WithDiscoveryStatus(ds.Master|ds.Info),
-				factories.WithInfo(map[string]string{
+				serverfactory.WithAddress("3.3.3.3", 10580),
+				serverfactory.WithQueryPort(10584),
+				serverfactory.WithDiscoveryStatus(ds.Master|ds.Info),
+				serverfactory.WithInfo(map[string]string{
 					"hostname":   "New Swat4 Server",
 					"gamever":    "1.0",
 					"gametype":   "Barricaded Suspects",
@@ -220,13 +222,13 @@ func TestBrowser_ParseResponse(t *testing.T) {
 	defer cancel()
 	app.Start(context.TODO()) // nolint: errcheck
 
-	factories.CreateServer(
+	serverfactory.Create(
 		ctx,
 		repo,
-		factories.WithAddress("20.20.20.20", 10580),
-		factories.WithQueryPort(10581),
-		factories.WithDiscoveryStatus(ds.Master),
-		factories.WithInfo(map[string]string{
+		serverfactory.WithAddress("20.20.20.20", 10580),
+		serverfactory.WithQueryPort(10581),
+		serverfactory.WithDiscoveryStatus(ds.Master),
+		serverfactory.WithInfo(map[string]string{
 			"hostname":    "Swat4 Server",
 			"hostport":    "10580",
 			"mapname":     "A-Bomb Nightclub",
@@ -236,13 +238,13 @@ func TestBrowser_ParseResponse(t *testing.T) {
 		}),
 	)
 
-	factories.CreateServer(
+	serverfactory.Create(
 		ctx,
 		repo,
-		factories.WithAddress("30.30.30.30", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Master),
-		factories.WithInfo(map[string]string{
+		serverfactory.WithAddress("30.30.30.30", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Master),
+		serverfactory.WithInfo(map[string]string{
 			"hostname":    "Another Swat4 Server",
 			"hostport":    "10480",
 			"mapname":     "A-Bomb Nightclub",
@@ -457,13 +459,13 @@ func TestBrowser_ValidateRequest(t *testing.T) {
 			defer cancel()
 			app.Start(ctx) // nolint: errcheck
 
-			factories.CreateServer(
+			serverfactory.Create(
 				ctx,
 				serverRepo,
-				factories.WithAddress("1.1.1.1", 10480),
-				factories.WithQueryPort(10481),
-				factories.WithDiscoveryStatus(ds.Master|ds.Info),
-				factories.WithInfo(map[string]string{
+				serverfactory.WithAddress("1.1.1.1", 10480),
+				serverfactory.WithQueryPort(10481),
+				serverfactory.WithDiscoveryStatus(ds.Master|ds.Info),
+				serverfactory.WithInfo(map[string]string{
 					"hostname":   "Swat4 Server",
 					"gamever":    "1.1",
 					"gametype":   "VIP Escort",
@@ -546,13 +548,13 @@ func TestBrowser_IgnoreInvalidPayload(t *testing.T) {
 			defer cancel()
 			app.Start(ctx) // nolint: errcheck
 
-			factories.CreateServer(
+			serverfactory.Create(
 				ctx,
 				serverRepo,
-				factories.WithAddress("1.1.1.1", 10480),
-				factories.WithQueryPort(10481),
-				factories.WithDiscoveryStatus(ds.Master|ds.Info),
-				factories.WithInfo(map[string]string{
+				serverfactory.WithAddress("1.1.1.1", 10480),
+				serverfactory.WithQueryPort(10481),
+				serverfactory.WithDiscoveryStatus(ds.Master|ds.Info),
+				serverfactory.WithInfo(map[string]string{
 					"hostname":   "Swat4 Server",
 					"gamever":    "1.1",
 					"gametype":   "VIP Escort",

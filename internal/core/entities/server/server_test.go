@@ -12,6 +12,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/details"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
+	"github.com/sergeii/swat4master/internal/testutils/factories/infofactory"
 )
 
 func TestServer_New(t *testing.T) {
@@ -161,14 +162,16 @@ func TestServer_InfoIsUpdated(t *testing.T) {
 	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 	assert.Equal(t, "", svr.Info.Hostname)
 
-	newInfo := details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Swat4 Server",
-		"hostport":    "10480",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "Barricaded Suspects",
-	})
+	newInfo := infofactory.Build(infofactory.WithFields(
+		infofactory.F{
+			"hostname":    "Swat4 Server",
+			"hostport":    "10480",
+			"mapname":     "A-Bomb Nightclub",
+			"gamever":     "1.1",
+			"gamevariant": "SWAT 4",
+			"gametype":    "Barricaded Suspects",
+		},
+	))
 	svr.UpdateInfo(newInfo, time.Now())
 
 	updatedInfo := svr.Info

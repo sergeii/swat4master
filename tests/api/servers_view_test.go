@@ -9,7 +9,7 @@ import (
 
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/testutils"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 )
 
 type serverDetailInfoSchema struct {
@@ -127,14 +127,14 @@ func TestAPI_ViewServer_OK(t *testing.T) {
 	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 	defer cancel()
 
-	factories.CreateServer(
+	serverfactory.Create(
 		ctx,
 		repos.Servers,
-		factories.WithAddress("1.1.1.1", 10580),
-		factories.WithQueryPort(10581),
-		factories.WithDiscoveryStatus(ds.Master|ds.Details|ds.Info),
-		factories.WithInfo(fields),
-		factories.WithPlayers(players),
+		serverfactory.WithAddress("1.1.1.1", 10580),
+		serverfactory.WithQueryPort(10581),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Details|ds.Info),
+		serverfactory.WithInfo(fields),
+		serverfactory.WithPlayers(players),
 	)
 
 	obj := serverDetailSchema{}
@@ -249,15 +249,15 @@ func TestAPI_ViewServer_Coop_OK(t *testing.T) {
 	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 	defer cancel()
 
-	factories.CreateServer(
+	serverfactory.Create(
 		ctx,
 		repos.Servers,
-		factories.WithAddress("1.1.1.1", 10880),
-		factories.WithQueryPort(10881),
-		factories.WithDiscoveryStatus(ds.Details|ds.Info),
-		factories.WithInfo(fields),
-		factories.WithPlayers(players),
-		factories.WithObjectives(objectives),
+		serverfactory.WithAddress("1.1.1.1", 10880),
+		serverfactory.WithQueryPort(10881),
+		serverfactory.WithDiscoveryStatus(ds.Details|ds.Info),
+		serverfactory.WithInfo(fields),
+		serverfactory.WithPlayers(players),
+		serverfactory.WithObjectives(objectives),
 	)
 
 	obj := serverDetailSchema{}
@@ -326,13 +326,13 @@ func TestAPI_ViewServer_MinimalInfo_OK(t *testing.T) {
 	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 	defer cancel()
 
-	factories.CreateServer(
+	serverfactory.Create(
 		ctx,
 		repos.Servers,
-		factories.WithAddress("1.1.1.1", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Details|ds.Info),
-		factories.WithInfo(fields),
+		serverfactory.WithAddress("1.1.1.1", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Details|ds.Info),
+		serverfactory.WithInfo(fields),
 	)
 
 	obj := serverDetailSchema{}
@@ -365,13 +365,13 @@ func TestAPI_ViewServer_NoInfo_OK(t *testing.T) {
 	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 	defer cancel()
 
-	factories.CreateServer(
+	serverfactory.Create(
 		ctx,
 		repos.Servers,
-		factories.WithAddress("1.1.1.1", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Details|ds.Info),
-		factories.WithNoInfo(),
+		serverfactory.WithAddress("1.1.1.1", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Details|ds.Info),
+		serverfactory.WithNoInfo(),
 	)
 
 	obj := serverDetailSchema{}
@@ -422,7 +422,7 @@ func TestAPI_ViewServer_NotFound(t *testing.T) {
 			ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 			defer cancel()
 
-			factories.CreateServer(ctx, repos.Servers, factories.WithDiscoveryStatus(ds.Details))
+			serverfactory.Create(ctx, repos.Servers, serverfactory.WithDiscoveryStatus(ds.Details))
 
 			testPath := "/api/servers/" + tt.address
 
@@ -534,7 +534,7 @@ func TestAPI_ViewServer_ValidateAddress(t *testing.T) {
 			ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 			defer cancel()
 
-			factories.CreateServer(ctx, repos.Servers, factories.WithDiscoveryStatus(ds.Details))
+			serverfactory.Create(ctx, repos.Servers, serverfactory.WithDiscoveryStatus(ds.Details))
 
 			obj := serverDetailSchema{}
 			resp := testutils.DoTestRequest(
@@ -583,13 +583,13 @@ func TestAPI_ViewServer_ValidateStatus(t *testing.T) {
 				"gamevariant": "SWAT 4",
 				"gametype":    "VIP Escort",
 			}
-			factories.CreateServer(
+			serverfactory.Create(
 				ctx,
 				repos.Servers,
-				factories.WithAddress("1.1.1.1", 10480),
-				factories.WithQueryPort(10481),
-				factories.WithDiscoveryStatus(tt.status),
-				factories.WithInfo(fields),
+				serverfactory.WithAddress("1.1.1.1", 10480),
+				serverfactory.WithQueryPort(10481),
+				serverfactory.WithDiscoveryStatus(tt.status),
+				serverfactory.WithInfo(fields),
 			)
 
 			if tt.want {

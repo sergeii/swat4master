@@ -19,6 +19,7 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/refresher"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/reporter"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/reviver"
+	"github.com/sergeii/swat4master/cmd/swat4master/persistence"
 
 	"github.com/sergeii/swat4master/cmd/swat4master/application"
 )
@@ -26,6 +27,7 @@ import (
 func main() {
 	app := fx.New(
 		fx.Provide(config.Provide),
+		fx.Provide(persistence.Provide),
 		application.Module,
 		refresher.Module,
 		reviver.Module,

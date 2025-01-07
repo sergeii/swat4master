@@ -16,6 +16,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/metrics"
+	"github.com/sergeii/swat4master/tests/testapp"
 )
 
 func TestObserver_Run(t *testing.T) {
@@ -26,6 +27,7 @@ func TestObserver_Run(t *testing.T) {
 	var collector *metrics.Collector
 
 	app := fx.New(
+		fx.Provide(testapp.ProvidePersistence),
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{

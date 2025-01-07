@@ -101,14 +101,14 @@ func (p PortProber) Probe(
 	}
 
 	p.logger.Debug().
-		Stringer("addr", svrAddr).Stringer("version", best.Response.Version).Int("Port", best.Port).
+		Stringer("addr", svrAddr).Stringer("version", best.Response.Version).Int("port", best.Port).
 		Msg("Selected preferred response")
 
 	det, err := details.NewDetailsFromParams(best.Response.Fields, best.Response.Players, best.Response.Objectives)
 	if err != nil {
 		p.logger.Error().
 			Err(err).
-			Stringer("addr", svrAddr).Stringer("version", best.Response.Version).Int("Port", best.Port).
+			Stringer("addr", svrAddr).Stringer("version", best.Response.Version).Int("port", best.Port).
 			Msg("Unable to parse response")
 		return NoResult, fmt.Errorf("%w: %w", ErrParseFailed, err)
 	}

@@ -18,11 +18,13 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/metrics"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
+	"github.com/sergeii/swat4master/tests/testapp"
 )
 
 func makeAppWithRefresher(extra ...fx.Option) (*fx.App, func()) {
 	fxopts := []fx.Option{
+		fx.Provide(testapp.ProvidePersistence),
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
@@ -81,40 +83,40 @@ func TestRefresher_OK(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
-	gs1 := factories.BuildServer(
-		factories.WithAddress("1.1.1.1", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Master),
+	gs1 := serverfactory.Build(
+		serverfactory.WithAddress("1.1.1.1", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Master),
 	)
-	gs2 := factories.BuildServer(
-		factories.WithAddress("2.2.2.2", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Port),
+	gs2 := serverfactory.Build(
+		serverfactory.WithAddress("2.2.2.2", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Port),
 	)
-	gs3 := factories.BuildServer(
-		factories.WithAddress("3.3.3.3", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Master|ds.Details|ds.Port),
+	gs3 := serverfactory.Build(
+		serverfactory.WithAddress("3.3.3.3", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Details|ds.Port),
 	)
-	gs4 := factories.BuildServer(
-		factories.WithAddress("5.5.5.5", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.DetailsRetry),
+	gs4 := serverfactory.Build(
+		serverfactory.WithAddress("5.5.5.5", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.DetailsRetry),
 	)
-	gs5 := factories.BuildServer(
-		factories.WithAddress("6.6.6.6", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Port|ds.Details|ds.DetailsRetry),
+	gs5 := serverfactory.Build(
+		serverfactory.WithAddress("6.6.6.6", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Port|ds.Details|ds.DetailsRetry),
 	)
-	gs6 := factories.BuildServer(
-		factories.WithAddress("7.7.7.7", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Master|ds.Info|ds.Details),
+	gs6 := serverfactory.Build(
+		serverfactory.WithAddress("7.7.7.7", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Info|ds.Details),
 	)
-	gs7 := factories.BuildServer(
-		factories.WithAddress("9.9.9.9", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Port|ds.PortRetry),
+	gs7 := serverfactory.Build(
+		serverfactory.WithAddress("9.9.9.9", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Port|ds.PortRetry),
 	)
 
 	app, cancel := makeAppWithRefresher(
@@ -124,7 +126,7 @@ func TestRefresher_OK(t *testing.T) {
 	app.Start(ctx) // nolint: errcheck
 
 	for _, gs := range []server.Server{gs1, gs2, gs3, gs4, gs5, gs6, gs7} {
-		factories.SaveServer(ctx, serverRepo, gs)
+		serverfactory.Save(ctx, serverRepo, gs)
 	}
 
 	// let refresher run a cycle

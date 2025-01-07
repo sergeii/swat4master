@@ -14,7 +14,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/core/usecases/removeserver"
 	"github.com/sergeii/swat4master/internal/testutils"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 )
 
 type MockServerRepository struct {
@@ -55,7 +55,7 @@ func TestRemoveServerUseCase_Success(t *testing.T) {
 	ctx := context.TODO()
 	logger := zerolog.Nop()
 
-	svr := factories.BuildRandomServer()
+	svr := serverfactory.BuildRandom()
 	inst := instance.MustNew("foo", svr.Addr.GetIP(), svr.Addr.Port)
 
 	serverRepo := new(MockServerRepository)
@@ -80,7 +80,7 @@ func TestRemoveServerUseCase_ServerAlreadyDeleted(t *testing.T) {
 	ctx := context.TODO()
 	logger := zerolog.Nop()
 
-	svr := factories.BuildRandomServer()
+	svr := serverfactory.BuildRandom()
 
 	serverRepo := new(MockServerRepository)
 	serverRepo.On("Get", ctx, svr.Addr).Return(server.Blank, repositories.ErrServerNotFound)
@@ -101,7 +101,7 @@ func TestRemoveServerUseCase_InstanceAlreadyDeleted(t *testing.T) {
 	ctx := context.TODO()
 	logger := zerolog.Nop()
 
-	svr := factories.BuildRandomServer()
+	svr := serverfactory.BuildRandom()
 
 	serverRepo := new(MockServerRepository)
 	serverRepo.On("Get", ctx, svr.Addr).Return(svr, nil)
@@ -124,7 +124,7 @@ func TestRemoveServerUseCase_InstanceAddrDoesNotMatch(t *testing.T) {
 	ctx := context.TODO()
 	logger := zerolog.Nop()
 
-	svr := factories.BuildRandomServer()
+	svr := serverfactory.BuildRandom()
 	inst := instance.MustNew("foo", testutils.GenRandomIP(), svr.Addr.Port)
 
 	serverRepo := new(MockServerRepository)

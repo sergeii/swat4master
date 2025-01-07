@@ -18,7 +18,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/internal/metrics/observers/serverobserver"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 )
 
 type MockServerRepository struct {
@@ -56,23 +56,23 @@ func TestServerObserver_Observe_OK(t *testing.T) {
 		ds.Info:   8,
 	}
 	activeServers := []server.Server{
-		factories.BuildServer(
-			factories.WithRandomAddress(),
-			factories.WithInfo(map[string]string{
+		serverfactory.Build(
+			serverfactory.WithRandomAddress(),
+			serverfactory.WithInfo(map[string]string{
 				"gametype":   "VIP Escort",
 				"numplayers": "0",
 			}),
 		),
-		factories.BuildServer(
-			factories.WithRandomAddress(),
-			factories.WithInfo(map[string]string{
+		serverfactory.Build(
+			serverfactory.WithRandomAddress(),
+			serverfactory.WithInfo(map[string]string{
 				"gametype":   "VIP Escort",
 				"numplayers": "15",
 			}),
 		),
-		factories.BuildServer(
-			factories.WithRandomAddress(),
-			factories.WithInfo(map[string]string{
+		serverfactory.Build(
+			serverfactory.WithRandomAddress(),
+			serverfactory.WithInfo(map[string]string{
 				"gametype":   "CO-OP",
 				"numplayers": "5",
 			}),

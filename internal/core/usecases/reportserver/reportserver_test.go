@@ -21,7 +21,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/usecases/reportserver"
 	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/internal/testutils"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 	"github.com/sergeii/swat4master/internal/validation"
 )
 
@@ -212,7 +212,7 @@ func TestReportServerUseCase_ReportExistingServer(t *testing.T) {
 			svrParams := testutils.GenExtraServerParams(map[string]string{"mapname": "A-Bomb Nightclub"})
 			svrDetails := details.MustNewDetailsFromParams(svrParams, svrPlayers, nil)
 
-			svr := factories.BuildRandomServer()
+			svr := serverfactory.BuildRandom()
 			svr.UpdateDetails(svrDetails, now)
 			svr.UpdateDiscoveryStatus(tt.discoveryStatus)
 

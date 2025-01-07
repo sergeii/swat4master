@@ -12,7 +12,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/core/usecases/getserver"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 )
 
 type MockServerRepository struct {
@@ -28,7 +28,7 @@ func (m *MockServerRepository) Get(ctx context.Context, addr addr.Addr) (server.
 func TestGetServerUseCase_OK(t *testing.T) {
 	ctx := context.TODO()
 
-	svr := factories.BuildServer(factories.WithDiscoveryStatus(ds.Details))
+	svr := serverfactory.Build(serverfactory.WithDiscoveryStatus(ds.Details))
 
 	mockRepo := new(MockServerRepository)
 	mockRepo.On("Get", ctx, svr.Addr).Return(svr, nil)
@@ -100,9 +100,9 @@ func TestGetServerUseCase_ValidateStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.TODO()
 
-			svr := factories.BuildServer(
-				factories.WithAddress("1.1.1.1", 10480),
-				factories.WithDiscoveryStatus(tt.status),
+			svr := serverfactory.Build(
+				serverfactory.WithAddress("1.1.1.1", 10480),
+				serverfactory.WithDiscoveryStatus(tt.status),
 			)
 
 			mockRepo := new(MockServerRepository)

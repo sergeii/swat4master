@@ -17,7 +17,7 @@ import (
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/testutils"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 )
 
 type serverListSchema struct {
@@ -76,7 +76,7 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"numrounds":   "5",
 	}), time.Now())
 	outdated.UpdateDiscoveryStatus(ds.Master)
-	factories.SaveServer(ctx, repos.Servers, outdated)
+	serverfactory.Save(ctx, repos.Servers, outdated)
 
 	noStatus := server.MustNew(net.ParseIP("4.4.4.4"), 10480, 10481)
 	noStatus.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -87,7 +87,7 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gamevariant": "SWAT 4",
 		"gametype":    "Barricaded Suspects",
 	}), time.Now())
-	factories.SaveServer(ctx, repos.Servers, noStatus)
+	serverfactory.Save(ctx, repos.Servers, noStatus)
 
 	delisted := server.MustNew(net.ParseIP("5.5.5.5"), 10480, 10481)
 	delisted.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -99,7 +99,7 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gametype":    "CO-OP",
 	}), time.Now())
 	delisted.UpdateDiscoveryStatus(ds.NoDetails)
-	factories.SaveServer(ctx, repos.Servers, delisted)
+	serverfactory.Save(ctx, repos.Servers, delisted)
 
 	noInfo := server.MustNew(net.ParseIP("6.6.6.6"), 10480, 10481)
 	noInfo.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -111,11 +111,11 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"gametype":    "CO-OP",
 	}), time.Now())
 	noInfo.UpdateDiscoveryStatus(ds.Master | ds.Details)
-	factories.SaveServer(ctx, repos.Servers, noInfo)
+	serverfactory.Save(ctx, repos.Servers, noInfo)
 
 	noRefresh := server.MustNew(net.ParseIP("7.7.7.7"), 10580, 10581)
 	noRefresh.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-	factories.SaveServer(ctx, repos.Servers, noRefresh)
+	serverfactory.Save(ctx, repos.Servers, noRefresh)
 
 	gs1 := server.MustNew(net.ParseIP("1.1.1.1"), 10580, 10581)
 	gs1.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -137,7 +137,7 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"suspectswon":   "2",
 	}), time.Now())
 	gs1.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-	factories.SaveServer(ctx, repos.Servers, gs1)
+	serverfactory.Save(ctx, repos.Servers, gs1)
 
 	gs2 := server.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
 	gs2.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -151,7 +151,7 @@ func TestAPI_ListServers_OK(t *testing.T) {
 		"maxplayers":  "5",
 	}), time.Now())
 	gs2.UpdateDiscoveryStatus(ds.Master | ds.Info)
-	factories.SaveServer(ctx, repos.Servers, gs2)
+	serverfactory.Save(ctx, repos.Servers, gs2)
 
 	respJSON := make([]serverListSchema, 0)
 	resp := testutils.DoTestRequest(
@@ -399,7 +399,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"maxplayers":  "16",
 			}), time.Now())
 			vip.UpdateDiscoveryStatus(ds.Master | ds.Info)
-			factories.SaveServer(ctx, repos.Servers, vip)
+			serverfactory.Save(ctx, repos.Servers, vip)
 
 			vip10 := server.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
 			vip10.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -414,7 +414,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"maxplayers":  "18",
 			}), time.Now())
 			vip10.UpdateDiscoveryStatus(ds.Master | ds.Info)
-			factories.SaveServer(ctx, repos.Servers, vip10)
+			serverfactory.Save(ctx, repos.Servers, vip10)
 
 			bs := server.MustNew(net.ParseIP("3.3.3.3"), 10480, 10481)
 			bs.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -429,7 +429,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"maxplayers":  "16",
 			}), time.Now())
 			bs.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-			factories.SaveServer(ctx, repos.Servers, bs)
+			serverfactory.Save(ctx, repos.Servers, bs)
 
 			coop := server.MustNew(net.ParseIP("4.4.4.4"), 10480, 10481)
 			coop.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -444,7 +444,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"maxplayers":  "5",
 			}), time.Now())
 			coop.UpdateDiscoveryStatus(ds.Details | ds.Info)
-			factories.SaveServer(ctx, repos.Servers, coop)
+			serverfactory.Save(ctx, repos.Servers, coop)
 
 			sg := server.MustNew(net.ParseIP("5.5.5.5"), 10480, 10481)
 			sg.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -459,7 +459,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"maxplayers":  "16",
 			}), time.Now())
 			sg.UpdateDiscoveryStatus(ds.Master | ds.Info | ds.NoDetails)
-			factories.SaveServer(ctx, repos.Servers, sg)
+			serverfactory.Save(ctx, repos.Servers, sg)
 
 			coopx := server.MustNew(net.ParseIP("6.6.6.6"), 10480, 10481)
 			coopx.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -474,7 +474,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"maxplayers":  "10",
 			}), time.Now())
 			coopx.UpdateDiscoveryStatus(ds.Master | ds.Info)
-			factories.SaveServer(ctx, repos.Servers, coopx)
+			serverfactory.Save(ctx, repos.Servers, coopx)
 
 			passworded := server.MustNew(net.ParseIP("7.7.7.7"), 10480, 10481)
 			passworded.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
@@ -489,7 +489,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 				"maxplayers":  "16",
 			}), time.Now())
 			passworded.UpdateDiscoveryStatus(ds.Details | ds.Info)
-			factories.SaveServer(ctx, repos.Servers, passworded)
+			serverfactory.Save(ctx, repos.Servers, passworded)
 
 			respJSON := make([]serverListSchema, 0)
 			uri := "/api/servers"

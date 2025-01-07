@@ -20,7 +20,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/usecases/probeserver"
 	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/internal/prober/probers"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 )
 
 type MockServerRepository struct {
@@ -97,7 +97,7 @@ func TestProbeServerUseCase_Success(t *testing.T) {
 	logger := zerolog.Nop()
 	collector := metrics.New()
 
-	svr := factories.BuildServer(factories.WithAddress("1.1.1.1", 10480))
+	svr := serverfactory.Build(serverfactory.WithAddress("1.1.1.1", 10480))
 	prb := probe.New(svr.Addr, svr.QueryPort, probe.GoalDetails, 3)
 	probeResult := MockProberProbeResult{Success: true}
 
@@ -153,7 +153,7 @@ func TestProbeServerUseCase_RetryOnFailure(t *testing.T) {
 			logger := zerolog.Nop()
 			collector := metrics.New()
 
-			svr := factories.BuildServer(factories.WithAddress("1.1.1.1", 10480))
+			svr := serverfactory.Build(serverfactory.WithAddress("1.1.1.1", 10480))
 			prb := probe.Probe{
 				Addr:       svr.Addr,
 				Port:       svr.QueryPort,
@@ -210,7 +210,7 @@ func TestProbeServerUseCase_FailOnOutOfRetries(t *testing.T) {
 	logger := zerolog.Nop()
 	collector := metrics.New()
 
-	svr := factories.BuildServer(factories.WithAddress("1.1.1.1", 10480))
+	svr := serverfactory.Build(serverfactory.WithAddress("1.1.1.1", 10480))
 	prb := probe.Probe{
 		Addr:       svr.Addr,
 		Port:       svr.QueryPort,

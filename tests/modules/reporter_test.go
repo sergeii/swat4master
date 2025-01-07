@@ -26,11 +26,14 @@ import (
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/internal/testutils"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
+	"github.com/sergeii/swat4master/pkg/slice"
+	"github.com/sergeii/swat4master/tests/testapp"
 )
 
 func makeAppWithReporter(extra ...fx.Option) (*fx.App, func()) {
 	fxopts := []fx.Option{
+		fx.Provide(testapp.ProvidePersistence),
 		application.Module,
 		fx.Provide(func() config.Config {
 			return config.Config{
@@ -205,7 +208,7 @@ func TestReporter_Heartbeat_ServerIsAddedAndThenUpdated(t *testing.T) {
 	assert.Equal(t, "127.0.0.1:10480", inst.Addr.String())
 
 	// probe is added to discover the server's port
-	prb, err := probeRepo.PopAny(ctx)
+	prb, err := probeRepo.Peek(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, "127.0.0.1:10480", prb.Addr.String())
 	assert.Equal(t, 10480, prb.Port)
@@ -370,7 +373,8 @@ func TestReporter_Heartbeat_ServerPortIsDiscovered(t *testing.T) {
 
 			if tt.wantDiscovered {
 				assert.Equal(t, 1, probeCount)
-				prb, err := probeRepo.Pop(ctx)
+				probes, _, err := probeRepo.PopMany(ctx, 1)
+				prb := slice.First(probes)
 				require.NoError(t, err)
 				assert.Equal(t, probe.GoalPort, prb.Goal)
 				assert.Equal(t, "127.0.0.1:10480", prb.Addr.String())
@@ -521,7 +525,7 @@ func TestReporter_Heartbeat_ServerRemovalIsValidated(t *testing.T) {
 
 			client := testutils.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
 
-			svr := factories.BuildServer(factories.WithAddress(tt.ipaddr, 10480), factories.WithQueryPort(10484))
+			svr := serverfactory.Build(serverfactory.WithAddress(tt.ipaddr, 10480), serverfactory.WithQueryPort(10484))
 			inst := instance.MustNew(string([]byte{0xfe, 0xed, 0xf0, 0x0d}), svr.Addr.GetIP(), svr.Addr.Port)
 			serverRepo.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
 			instanceRepo.Add(ctx, inst)                                   // nolint: errcheck

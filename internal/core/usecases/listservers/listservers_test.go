@@ -15,7 +15,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/core/usecases/listservers"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query"
 	"github.com/sergeii/swat4master/pkg/gamespy/browsing/query/filter"
 )
@@ -84,8 +84,8 @@ func TestListServersUseCase_FilterParams(t *testing.T) {
 			clock := clockwork.NewFakeClock()
 
 			repoServers := []server.Server{
-				factories.BuildRandomServer(),
-				factories.BuildRandomServer(),
+				serverfactory.BuildRandom(),
+				serverfactory.BuildRandom(),
 			}
 
 			mockRepo := new(MockServerRepository)
@@ -329,11 +329,11 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 		},
 	}
 
-	vip := factories.BuildServer(
-		factories.WithAddress("1.1.1.1", 10580),
-		factories.WithQueryPort(10581),
-		factories.WithDiscoveryStatus(ds.Master|ds.Info),
-		factories.WithInfo(map[string]string{
+	vip := serverfactory.Build(
+		serverfactory.WithAddress("1.1.1.1", 10580),
+		serverfactory.WithQueryPort(10581),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Info),
+		serverfactory.WithInfo(map[string]string{
 			"hostname":    "VIP Escort Swat4 Server",
 			"hostport":    "10480",
 			"gametype":    "VIP Escort",
@@ -346,11 +346,11 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 		}),
 	)
 
-	vip10 := factories.BuildServer(
-		factories.WithAddress("2.2.2.2", 10580),
-		factories.WithQueryPort(10581),
-		factories.WithDiscoveryStatus(ds.Master|ds.Info),
-		factories.WithInfo(map[string]string{
+	vip10 := serverfactory.Build(
+		serverfactory.WithAddress("2.2.2.2", 10580),
+		serverfactory.WithQueryPort(10581),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Info),
+		serverfactory.WithInfo(map[string]string{
 			"hostname":    "VIP 1.0 Swat4 Server",
 			"hostport":    "10480",
 			"gametype":    "VIP Escort",
@@ -363,11 +363,11 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 		}),
 	)
 
-	bs := factories.BuildServer(
-		factories.WithAddress("3.3.3.3", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Master|ds.Info|ds.Details),
-		factories.WithInfo(map[string]string{
+	bs := serverfactory.Build(
+		serverfactory.WithAddress("3.3.3.3", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Info|ds.Details),
+		serverfactory.WithInfo(map[string]string{
 			"hostname":    "BS Swat4 Server",
 			"hostport":    "10480",
 			"gametype":    "Barricaded Suspects",
@@ -380,11 +380,11 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 		}),
 	)
 
-	coop := factories.BuildServer(
-		factories.WithAddress("4.4.4.4", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Info|ds.Details),
-		factories.WithInfo(map[string]string{
+	coop := serverfactory.Build(
+		serverfactory.WithAddress("4.4.4.4", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Info|ds.Details),
+		serverfactory.WithInfo(map[string]string{
 			"hostname":    "COOP Swat4 Server",
 			"hostport":    "10480",
 			"gametype":    "CO-OP",
@@ -397,11 +397,11 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 		}),
 	)
 
-	sg := factories.BuildServer(
-		factories.WithAddress("5.5.5.5", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Master|ds.Info|ds.NoDetails),
-		factories.WithInfo(map[string]string{
+	sg := serverfactory.Build(
+		serverfactory.WithAddress("5.5.5.5", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Info|ds.NoDetails),
+		serverfactory.WithInfo(map[string]string{
 			"hostname":    "S&G Swat4 Server",
 			"hostport":    "10480",
 			"gametype":    "Smash And Grab",
@@ -414,11 +414,11 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 		}),
 	)
 
-	coopx := factories.BuildServer(
-		factories.WithAddress("6.6.6.6", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Master|ds.Info),
-		factories.WithInfo(map[string]string{
+	coopx := serverfactory.Build(
+		serverfactory.WithAddress("6.6.6.6", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Info),
+		serverfactory.WithInfo(map[string]string{
 			"hostname":    "TSS COOP Swat4 Server",
 			"hostport":    "10480",
 			"gametype":    "CO-OP",
@@ -431,11 +431,11 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 		}),
 	)
 
-	passworded := factories.BuildServer(
-		factories.WithAddress("7.7.7.7", 10480),
-		factories.WithQueryPort(10481),
-		factories.WithDiscoveryStatus(ds.Info|ds.Details),
-		factories.WithInfo(map[string]string{
+	passworded := serverfactory.Build(
+		serverfactory.WithAddress("7.7.7.7", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Info|ds.Details),
+		serverfactory.WithInfo(map[string]string{
 			"hostname":    "Private Swat4 Server",
 			"hostport":    "10480",
 			"gametype":    "VIP Escort",

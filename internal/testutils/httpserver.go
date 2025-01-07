@@ -1,11 +1,9 @@
 package testutils
 
 import (
-	"context"
 	"net/http/httptest"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 
@@ -13,6 +11,7 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/api"
 	"github.com/sergeii/swat4master/internal/core/repositories"
+	"github.com/sergeii/swat4master/tests/testapp"
 )
 
 type TestServerRepositories struct {
@@ -31,24 +30,22 @@ func PrepareTestServer(tb fxtest.TB, extra ...fx.Option) (*httptest.Server, func
 				HTTPListenAddr: "localhost:11337",
 			}
 		}),
+		fx.Provide(testapp.ProvidePersistence),
 		application.Module,
 		api.Module,
-		fx.Decorate(func() *zerolog.Logger {
-			logger := zerolog.Nop()
-			return &logger
-		}),
+		fx.Decorate(testapp.NoLogging),
 		fx.NopLogger,
 		fx.Populate(&router),
 	}
 	fxopts = append(fxopts, extra...)
 
 	app := fxtest.New(tb, fxopts...)
-	app.RequireStart().RequireStop()
+	app.RequireStart()
 
 	ts := httptest.NewServer(router)
 
 	return ts, func() {
-		defer app.Stop(context.TODO()) // nolint: errcheck
+		defer app.RequireStop() // nolint: errcheck
 		defer ts.Close()
 	}
 }
@@ -62,9 +59,6 @@ func PrepareTestServerWithRepos(
 		extra,
 		fx.Populate(&repos.Servers, &repos.Instances, &repos.Probes),
 	)
-	ts, cleanup := PrepareTestServer(
-		tb,
-		extra...,
-	)
+	ts, cleanup := PrepareTestServer(tb, extra...)
 	return ts, repos, cleanup
 }

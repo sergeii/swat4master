@@ -1,4 +1,4 @@
-package factories
+package instancefactory
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/repositories"
 )
 
-func SaveInstance(
+func Save(
 	ctx context.Context,
 	repo repositories.InstanceRepository,
 	ins instance.Instance,

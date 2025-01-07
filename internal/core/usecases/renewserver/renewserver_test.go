@@ -15,7 +15,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/core/usecases/renewserver"
 	"github.com/sergeii/swat4master/internal/testutils"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 )
 
 type MockServerRepository struct {
@@ -51,7 +51,7 @@ func TestRenewServerUseCase_Success(t *testing.T) {
 	ctx := context.TODO()
 	clock := clockwork.NewFakeClock()
 
-	svr := factories.BuildRandomServer()
+	svr := serverfactory.BuildRandom()
 	inst := instance.MustNew("foo", svr.Addr.GetIP(), svr.Addr.Port)
 
 	clock.Advance(time.Second)
@@ -80,7 +80,7 @@ func TestRenewServerUseCase_InstanceNotFound(t *testing.T) {
 	ctx := context.TODO()
 	clock := clockwork.NewFakeClock()
 
-	svr := factories.BuildRandomServer()
+	svr := serverfactory.BuildRandom()
 	inst := instance.MustNew("foo", svr.Addr.GetIP(), svr.Addr.Port)
 
 	serverRepo := new(MockServerRepository)
@@ -102,7 +102,7 @@ func TestRenewServerUseCase_ServerNotFound(t *testing.T) {
 	ctx := context.TODO()
 	clock := clockwork.NewFakeClock()
 
-	svr := factories.BuildRandomServer()
+	svr := serverfactory.BuildRandom()
 	inst := instance.MustNew("foo", svr.Addr.GetIP(), svr.Addr.Port)
 
 	serverRepo := new(MockServerRepository)
@@ -124,7 +124,7 @@ func TestRenewServerUseCase_InstanceAddressMismatch(t *testing.T) {
 	ctx := context.TODO()
 	clock := clockwork.NewFakeClock()
 
-	svr := factories.BuildRandomServer()
+	svr := serverfactory.BuildRandom()
 	inst := instance.MustNew("foo", testutils.GenRandomIP(), svr.Addr.Port)
 
 	serverRepo := new(MockServerRepository)

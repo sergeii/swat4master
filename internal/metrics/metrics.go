@@ -34,6 +34,7 @@ type Collector struct {
 	DiscoveryQueueProduced    prometheus.Counter
 	DiscoveryQueueConsumed    prometheus.Counter
 	DiscoveryQueueExpired     prometheus.Counter
+	DiscoveryQueueErrors      prometheus.Counter
 	DiscoveryProbes           *prometheus.CounterVec
 	DiscoveryProbeSuccess     *prometheus.CounterVec
 	DiscoveryProbeRetries     *prometheus.CounterVec
@@ -131,6 +132,10 @@ func New() *Collector {
 		DiscoveryQueueExpired: promauto.With(registry).NewCounter(prometheus.CounterOpts{
 			Name: "discovery_queue_expired_total",
 			Help: "The total number of expired probes in discovery queue",
+		}),
+		DiscoveryQueueErrors: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+			Name: "discovery_queue_errors_total",
+			Help: "The total number of errors occurred during discovery queue operations",
 		}),
 		DiscoveryProbeDurations: promauto.With(registry).NewHistogramVec(prometheus.HistogramOpts{
 			Name: "discovery_probe_duration_seconds",

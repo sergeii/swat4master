@@ -18,7 +18,7 @@ import (
 	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/internal/prober/probers/detailsprober"
 	"github.com/sergeii/swat4master/internal/testutils"
-	"github.com/sergeii/swat4master/internal/testutils/factories"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 	"github.com/sergeii/swat4master/internal/validation"
 	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/gs1"
 )
@@ -176,7 +176,7 @@ func TestDetailsProber_HandleSuccess_OK(t *testing.T) {
 
 			prober := detailsprober.New(validate, clock, collector, &logger)
 
-			svr := factories.BuildServer(factories.WithDiscoveryStatus(tt.initStatus))
+			svr := serverfactory.Build(serverfactory.WithDiscoveryStatus(tt.initStatus))
 			params := testutils.GenExtraServerParams(map[string]string{"mapname": "A-Bomb Nightclub"})
 			det := details.MustNewDetailsFromParams(params, nil, nil)
 
@@ -220,7 +220,7 @@ func TestDetailsProber_HandleRetry_OK(t *testing.T) {
 
 			prober := detailsprober.New(validate, clock, collector, &logger)
 
-			svr := factories.BuildServer(factories.WithDiscoveryStatus(tt.initStatus))
+			svr := serverfactory.Build(serverfactory.WithDiscoveryStatus(tt.initStatus))
 
 			updatedSvr := prober.HandleRetry(svr)
 			assert.Equal(t, tt.wantStatus, updatedSvr.DiscoveryStatus)
@@ -265,7 +265,7 @@ func TestDetailsProber_HandleFailure_OK(t *testing.T) {
 
 			prober := detailsprober.New(validate, clock, collector, &logger)
 
-			svr := factories.BuildServer(factories.WithDiscoveryStatus(tt.initStatus))
+			svr := serverfactory.Build(serverfactory.WithDiscoveryStatus(tt.initStatus))
 
 			updatedSvr := prober.HandleFailure(svr)
 			assert.Equal(t, tt.wantStatus, updatedSvr.DiscoveryStatus)
