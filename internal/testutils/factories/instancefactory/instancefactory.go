@@ -11,22 +11,34 @@ import (
 )
 
 type BuildParams struct {
-	ID   string
+	ID   instance.Identifier
 	IP   string
 	Port int
 }
 
 type BuildOption func(*BuildParams)
 
-func WithID(id string) BuildOption {
+func WithID(id instance.Identifier) BuildOption {
 	return func(p *BuildParams) {
 		p.ID = id
 	}
 }
 
+func WithStringID(id string) BuildOption {
+	return func(p *BuildParams) {
+		p.ID = instance.MustNewID([]byte(id))
+	}
+}
+
+func WithBytesID(id []byte) BuildOption {
+	return func(p *BuildParams) {
+		p.ID = instance.MustNewID(id)
+	}
+}
+
 func WithRandomID() BuildOption {
 	return func(p *BuildParams) {
-		p.ID = string(random.RandBytes(4))
+		p.ID = instance.MustNewID(random.RandBytes(4))
 	}
 }
 
@@ -46,7 +58,7 @@ func WithRandomServerAddress() BuildOption {
 
 func Build(opts ...BuildOption) instance.Instance {
 	params := BuildParams{
-		ID:   "foo",
+		ID:   instance.MustNewID([]byte("test")),
 		IP:   "1.1.1.1",
 		Port: 10480,
 	}
@@ -67,4 +79,13 @@ func Save(
 		panic(err)
 	}
 	return ins
+}
+
+func Create(
+	ctx context.Context,
+	repo repositories.InstanceRepository,
+	opts ...BuildOption,
+) instance.Instance {
+	svr := Build(opts...)
+	return Save(ctx, repo, svr)
 }

@@ -2,15 +2,15 @@ package cleaner
 
 import (
 	"context"
-	"time"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
-	"github.com/sergeii/swat4master/internal/core/usecases/cleanservers"
-	"github.com/sergeii/swat4master/internal/metrics"
+	"github.com/sergeii/swat4master/internal/cleanup"
+	"github.com/sergeii/swat4master/internal/cleanup/cleaners/instancecleaner"
+	"github.com/sergeii/swat4master/internal/cleanup/cleaners/servercleaner"
 )
 
 type Cleaner struct{}
@@ -20,8 +20,7 @@ func Run(
 	stopped chan struct{},
 	clock clockwork.Clock,
 	logger *zerolog.Logger,
-	metrics *metrics.Collector,
-	uc cleanservers.UseCase,
+	manager *cleanup.Manager,
 	cfg config.Config,
 ) {
 	ticker := clock.NewTicker(cfg.CleanInterval)
@@ -42,7 +41,7 @@ func Run(
 			close(stopped)
 			return
 		case <-tickerCh:
-			clean(ctx, clock, logger, metrics, uc, cfg.CleanRetention)
+			manager.Clean(ctx)
 		}
 	}
 }
@@ -51,8 +50,7 @@ func NewCleaner(
 	lc fx.Lifecycle,
 	cfg config.Config,
 	clock clockwork.Clock,
-	metrics *metrics.Collector,
-	uc cleanservers.UseCase,
+	manager *cleanup.Manager,
 	logger *zerolog.Logger,
 ) *Cleaner {
 	stopped := make(chan struct{})
@@ -60,7 +58,7 @@ func NewCleaner(
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			go Run(stop, stopped, clock, logger, metrics, uc, cfg) // nolint: contextcheck
+			go Run(stop, stopped, clock, logger, manager, cfg) // nolint: contextcheck
 			return nil
 		},
 		OnStop: func(context.Context) error {
@@ -73,24 +71,30 @@ func NewCleaner(
 	return &Cleaner{}
 }
 
-func clean(
-	ctx context.Context,
-	clock clockwork.Clock,
-	logger *zerolog.Logger,
-	metrics *metrics.Collector,
-	uc cleanservers.UseCase,
-	retention time.Duration,
-) {
-	resp, err := uc.Execute(ctx, clock.Now().Add(-retention))
-	if err != nil {
-		logger.Error().
-			Err(err).
-			Msg("Failed to clean outdated servers")
+type Opts struct {
+	fx.Out
+
+	ServerCleanerOpts   servercleaner.Opts
+	InstanceCleanerOpts instancecleaner.Opts
+}
+
+func provideCleanerConfigs(cfg config.Config) Opts {
+	return Opts{
+		ServerCleanerOpts: servercleaner.Opts{
+			Retention: cfg.CleanRetention,
+		},
+		InstanceCleanerOpts: instancecleaner.Opts{
+			Retention: cfg.CleanRetention,
+		},
 	}
-	metrics.CleanerRemovals.Add(float64(resp.Count))
-	metrics.CleanerErrors.Add(float64(resp.Errors))
 }
 
 var Module = fx.Module("cleaner",
+	fx.Provide(cleanup.NewManager),
+	fx.Provide(provideCleanerConfigs),
+	fx.Invoke(
+		servercleaner.New,
+		instancecleaner.New,
+	),
 	fx.Provide(NewCleaner),
 )

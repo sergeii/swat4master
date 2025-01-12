@@ -2,12 +2,12 @@ package modules_test
 
 import (
 	"context"
-	"net"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/sergeii/swat4master/cmd/swat4master/application"
@@ -20,6 +20,15 @@ import (
 	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 	"github.com/sergeii/swat4master/tests/testapp"
 )
+
+const (
+	DEADBEEF = "\xde\xad\xbe\xef"
+	FEEDFOOD = "\xfe\xed\xf0\x0d"
+	CAFEBABE = "\xca\xfe\xba\xbe"
+	BAADCODE = "\xba\xad\xc0\xde"
+)
+
+type b []byte
 
 func makeAppWithCleaner(extra ...fx.Option) (*fx.App, func()) {
 	fxopts := []fx.Option{
@@ -54,13 +63,24 @@ func TestCleaner_OK(t *testing.T) {
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
 
-	ins1 := instance.MustNew("foo", net.ParseIP("1.1.1.1"), 10480)
-	ins2 := instance.MustNew("bar", net.ParseIP("3.3.3.3"), 10480)
-	ins4 := instance.MustNew("baz", net.ParseIP("4.4.4.4"), 10480)
-
-	instancefactory.Save(ctx, instanceRepo, ins1)
-	instancefactory.Save(ctx, instanceRepo, ins2)
-	instancefactory.Save(ctx, instanceRepo, ins4)
+	ins1 := instancefactory.Create(
+		ctx,
+		instanceRepo,
+		instancefactory.WithStringID(DEADBEEF),
+		instancefactory.WithServerAddress("1.1.1.1", 10480),
+	)
+	instancefactory.Create(
+		ctx,
+		instanceRepo,
+		instancefactory.WithStringID(FEEDFOOD),
+		instancefactory.WithServerAddress("3.3.3.3", 10480),
+	)
+	instancefactory.Create(
+		ctx,
+		instanceRepo,
+		instancefactory.WithStringID(CAFEBABE),
+		instancefactory.WithServerAddress("4.4.4.4", 10480),
+	)
 
 	gs1 := serverfactory.Create(
 		ctx,
@@ -95,39 +115,48 @@ func TestCleaner_OK(t *testing.T) {
 		serverfactory.WithAddress("5.5.5.5", 10480),
 		serverfactory.WithQueryPort(10481),
 	)
+	instancefactory.Create(
+		ctx,
+		instanceRepo,
+		instancefactory.WithStringID(BAADCODE),
+		instancefactory.WithServerAddress("5.5.5.5", 10480),
+	)
 
-	ins5 := instance.MustNew("qux", net.ParseIP("5.5.5.5"), 10480)
-	instancefactory.Save(ctx, instanceRepo, ins5)
+	// refresh the first instance to prevent it from being cleaned
+	instanceRepo.Add(ctx, ins1) // nolint: errcheck
 
 	// wait for cleaner to clean servers 2 and 3
 	<-time.After(time.Millisecond * 150)
 
 	// check that the refreshed server and the new one are still there
 	svrCount, err := serverRepo.Count(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 2, svrCount)
 
 	_, err = serverRepo.Get(ctx, gs1.Addr)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_, err = serverRepo.Get(ctx, gs5.Addr)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	// no instance was removed
+	// 2 instances should be cleaned up
 	insCount, err := instanceRepo.Count(ctx)
-	assert.NoError(t, err)
-	assert.Equal(t, 4, insCount)
+	require.NoError(t, err)
+	assert.Equal(t, 2, insCount)
 
-	_, err = instanceRepo.Get(ctx, "foo")
-	assert.NoError(t, err)
-	_, err = instanceRepo.Get(ctx, "baz")
-	assert.NoError(t, err)
-	_, err = instanceRepo.Get(ctx, "qux")
-	assert.NoError(t, err)
+	_, err = instanceRepo.Get(ctx, instance.MustNewID(b(DEADBEEF)))
+	require.NoError(t, err)
+	_, err = instanceRepo.Get(ctx, instance.MustNewID(b(BAADCODE)))
+	require.NoError(t, err)
 
-	removalValue := testutil.ToFloat64(collector.CleanerRemovals)
-	assert.Equal(t, 2.0, removalValue)
-	errorValue := testutil.ToFloat64(collector.CleanerErrors)
-	assert.Equal(t, 0.0, errorValue)
+	serverRemovalsValue := testutil.ToFloat64(collector.CleanerRemovals.WithLabelValues("servers"))
+	assert.Equal(t, 2.0, serverRemovalsValue)
+	serverErrorsValue := testutil.ToFloat64(collector.CleanerErrors.WithLabelValues("servers"))
+	assert.Equal(t, 0.0, serverErrorsValue)
+
+	instanceRemovalsValue := testutil.ToFloat64(collector.CleanerRemovals.WithLabelValues("instances"))
+	assert.Equal(t, 2.0, instanceRemovalsValue)
+	instanceErrorsValue := testutil.ToFloat64(collector.CleanerErrors.WithLabelValues("instances"))
+	assert.Equal(t, 0.0, instanceErrorsValue)
 }
 
 func TestCleaner_NoErrorWhenNothingToClean(t *testing.T) {
@@ -143,8 +172,10 @@ func TestCleaner_NoErrorWhenNothingToClean(t *testing.T) {
 	// wait for cleaner to run some cycles
 	<-time.After(time.Millisecond * 100)
 
-	removalValue := testutil.ToFloat64(collector.CleanerRemovals)
-	errorValue := testutil.ToFloat64(collector.CleanerErrors)
-	assert.Equal(t, 0.0, removalValue)
-	assert.Equal(t, 0.0, errorValue)
+	for _, kind := range []string{"servers", "instances"} {
+		removalValue := testutil.ToFloat64(collector.CleanerRemovals.WithLabelValues(kind))
+		errorValue := testutil.ToFloat64(collector.CleanerErrors.WithLabelValues(kind))
+		assert.Equal(t, 0.0, removalValue)
+		assert.Equal(t, 0.0, errorValue)
+	}
 }

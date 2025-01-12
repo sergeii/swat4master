@@ -2,10 +2,10 @@ package instances
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"strconv"
 
 	"github.com/jonboulle/clockwork"
@@ -21,6 +21,12 @@ const (
 	itemsKey   = "instances:items"
 	updatesKey = "instances:updated"
 )
+
+type storedInstance struct {
+	ID   [4]byte `json:"id"`
+	IP   net.IP  `json:"ip"`
+	Port int     `json:"port"`
+}
 
 type Repository struct {
 	client *redis.Client
@@ -40,13 +46,12 @@ func (r *Repository) Add(ctx context.Context, ins instance.Instance) error {
 		return err
 	}
 	_, err = r.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		hexID := encodeID(ins.ID)
 		// Add or update the instance in the hash set
-		pipe.HSet(ctx, itemsKey, hexID, item)
+		pipe.HSet(ctx, itemsKey, ins.ID.Hex(), item)
 		// Update the timestamp in the sorted set
 		pipe.ZAdd(ctx, updatesKey, redis.Z{
 			Score:  float64(r.clock.Now().UnixNano()),
-			Member: hexID,
+			Member: ins.ID.Hex(),
 		})
 		return nil
 	})
@@ -56,8 +61,8 @@ func (r *Repository) Add(ctx context.Context, ins instance.Instance) error {
 	return nil
 }
 
-func (r *Repository) Get(ctx context.Context, id string) (instance.Instance, error) {
-	item, err := r.client.HGet(ctx, itemsKey, encodeID(id)).Result()
+func (r *Repository) Get(ctx context.Context, id instance.Identifier) (instance.Instance, error) {
+	item, err := r.client.HGet(ctx, itemsKey, id.Hex()).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return instance.Blank, repositories.ErrInstanceNotFound
@@ -67,11 +72,10 @@ func (r *Repository) Get(ctx context.Context, id string) (instance.Instance, err
 	return decodeInstance(item)
 }
 
-func (r *Repository) Remove(ctx context.Context, id string) error {
+func (r *Repository) Remove(ctx context.Context, id instance.Identifier) error {
 	_, err := r.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		hexID := encodeID(id)
-		pipe.HDel(ctx, itemsKey, hexID)
-		pipe.ZRem(ctx, updatesKey, hexID)
+		pipe.HDel(ctx, itemsKey, id.Hex())
+		pipe.ZRem(ctx, updatesKey, id.Hex())
 		return nil
 	})
 	if err != nil {
@@ -125,21 +129,12 @@ func (r *Repository) Count(ctx context.Context) (int, error) {
 	return int(count), nil
 }
 
-func encodeID(id string) string {
-	return fmt.Sprintf("%x", id)
-}
-
-func decodeID(hexID string) (string, error) {
-	id, err := hex.DecodeString(hexID)
-	if err != nil {
-		return "", fmt.Errorf("failed to decode hex id: %w", err)
-	}
-	return string(id), nil
-}
-
 func encodeInstance(ins instance.Instance) ([]byte, error) {
-	item := newStoredItem(ins.ID, ins.Addr)
-	encoded, err := json.Marshal(item)
+	encoded, err := json.Marshal(storedInstance{
+		ID:   ins.ID,
+		IP:   ins.Addr.GetIP(),
+		Port: ins.Addr.Port,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal instance item: %w", err)
 	}
@@ -147,13 +142,13 @@ func encodeInstance(ins instance.Instance) ([]byte, error) {
 }
 
 func decodeInstance(val interface{}) (instance.Instance, error) {
-	var item storedItem
+	var decoded storedInstance
 	encoded, ok := val.(string)
 	if !ok {
 		return instance.Blank, fmt.Errorf("unexpected type %T, %v", val, val)
 	}
-	if err := json.Unmarshal([]byte(encoded), &item); err != nil {
+	if err := json.Unmarshal([]byte(encoded), &decoded); err != nil {
 		return instance.Blank, fmt.Errorf("failed to unmarshal instance item: %w", err)
 	}
-	return item.convert()
+	return instance.New(decoded.ID, decoded.IP, decoded.Port)
 }

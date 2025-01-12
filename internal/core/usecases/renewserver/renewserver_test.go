@@ -18,6 +18,10 @@ import (
 	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 )
 
+const DEADBEEF = "\xde\xad\xbe\xef"
+
+type b []byte
+
 type MockServerRepository struct {
 	mock.Mock
 	repositories.ServerRepository
@@ -42,7 +46,7 @@ type MockInstanceRepository struct {
 	repositories.InstanceRepository
 }
 
-func (m *MockInstanceRepository) Get(ctx context.Context, instanceID string) (instance.Instance, error) {
+func (m *MockInstanceRepository) Get(ctx context.Context, instanceID instance.Identifier) (instance.Instance, error) {
 	args := m.Called(ctx, instanceID)
 	return args.Get(0).(instance.Instance), args.Error(1) // nolint: forcetypeassert
 }
@@ -52,7 +56,8 @@ func TestRenewServerUseCase_Success(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
 	svr := serverfactory.BuildRandom()
-	inst := instance.MustNew("foo", svr.Addr.GetIP(), svr.Addr.Port)
+	instID := instance.MustNewID(b(DEADBEEF))
+	inst := instance.MustNew(instID, svr.Addr.GetIP(), svr.Addr.Port)
 
 	clock.Advance(time.Second)
 	passedTime := clock.Now()
@@ -65,7 +70,7 @@ func TestRenewServerUseCase_Success(t *testing.T) {
 	instanceRepo.On("Get", ctx, inst.ID).Return(inst, nil)
 
 	uc := renewserver.New(instanceRepo, serverRepo, clock)
-	err := uc.Execute(ctx, renewserver.NewRequest(inst.ID, svr.Addr.GetIP()))
+	err := uc.Execute(ctx, renewserver.NewRequest(b(DEADBEEF), svr.Addr.GetIP()))
 	assert.NoError(t, err)
 
 	updatedSvr := svr
@@ -81,7 +86,8 @@ func TestRenewServerUseCase_InstanceNotFound(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
 	svr := serverfactory.BuildRandom()
-	inst := instance.MustNew("foo", svr.Addr.GetIP(), svr.Addr.Port)
+	instID := instance.MustNewID(b(DEADBEEF))
+	inst := instance.MustNew(instID, svr.Addr.GetIP(), svr.Addr.Port)
 
 	serverRepo := new(MockServerRepository)
 	serverRepo.On("Get", ctx, svr.Addr).Return(svr, nil)
@@ -90,7 +96,7 @@ func TestRenewServerUseCase_InstanceNotFound(t *testing.T) {
 	instanceRepo.On("Get", ctx, inst.ID).Return(instance.Blank, repositories.ErrInstanceNotFound)
 
 	uc := renewserver.New(instanceRepo, serverRepo, clock)
-	err := uc.Execute(ctx, renewserver.NewRequest(inst.ID, svr.Addr.GetIP()))
+	err := uc.Execute(ctx, renewserver.NewRequest(b(DEADBEEF), svr.Addr.GetIP()))
 	assert.ErrorIs(t, err, repositories.ErrInstanceNotFound)
 
 	instanceRepo.AssertCalled(t, "Get", ctx, inst.ID)
@@ -103,7 +109,8 @@ func TestRenewServerUseCase_ServerNotFound(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
 	svr := serverfactory.BuildRandom()
-	inst := instance.MustNew("foo", svr.Addr.GetIP(), svr.Addr.Port)
+	instID := instance.MustNewID(b(DEADBEEF))
+	inst := instance.MustNew(instID, svr.Addr.GetIP(), svr.Addr.Port)
 
 	serverRepo := new(MockServerRepository)
 	serverRepo.On("Get", ctx, svr.Addr).Return(server.Blank, repositories.ErrServerNotFound)
@@ -112,7 +119,7 @@ func TestRenewServerUseCase_ServerNotFound(t *testing.T) {
 	instanceRepo.On("Get", ctx, inst.ID).Return(inst, nil)
 
 	uc := renewserver.New(instanceRepo, serverRepo, clock)
-	err := uc.Execute(ctx, renewserver.NewRequest(inst.ID, svr.Addr.GetIP()))
+	err := uc.Execute(ctx, renewserver.NewRequest(b(DEADBEEF), svr.Addr.GetIP()))
 	assert.ErrorIs(t, err, repositories.ErrServerNotFound)
 
 	instanceRepo.AssertCalled(t, "Get", ctx, inst.ID)
@@ -125,7 +132,8 @@ func TestRenewServerUseCase_InstanceAddressMismatch(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
 	svr := serverfactory.BuildRandom()
-	inst := instance.MustNew("foo", testutils.GenRandomIP(), svr.Addr.Port)
+	instID := instance.MustNewID(b(DEADBEEF))
+	inst := instance.MustNew(instID, testutils.GenRandomIP(), svr.Addr.Port)
 
 	serverRepo := new(MockServerRepository)
 	serverRepo.On("Get", ctx, svr.Addr).Return(server.Blank, repositories.ErrServerNotFound)
@@ -134,7 +142,7 @@ func TestRenewServerUseCase_InstanceAddressMismatch(t *testing.T) {
 	instanceRepo.On("Get", ctx, inst.ID).Return(inst, nil)
 
 	uc := renewserver.New(instanceRepo, serverRepo, clock)
-	err := uc.Execute(ctx, renewserver.NewRequest(inst.ID, svr.Addr.GetIP()))
+	err := uc.Execute(ctx, renewserver.NewRequest(b(DEADBEEF), svr.Addr.GetIP()))
 	assert.ErrorIs(t, err, renewserver.ErrUnknownInstanceID)
 
 	instanceRepo.AssertCalled(t, "Get", ctx, inst.ID)

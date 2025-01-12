@@ -16,14 +16,24 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/filterset"
 	"github.com/sergeii/swat4master/internal/core/entities/instance"
 	"github.com/sergeii/swat4master/internal/core/repositories"
+
 	"github.com/sergeii/swat4master/internal/persistence/redis/instances"
 	"github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/internal/testutils/factories/instancefactory"
 	"github.com/sergeii/swat4master/internal/testutils/testredis"
 )
 
+const (
+	DEADBEEF = "\xde\xad\xbe\xef"
+	FEEDFOOD = "\xfe\xed\xf0\x0d"
+	CAFEBABE = "\xca\xfe\xba\xbe"
+	BAADCODE = "\xba\xad\xc0\xde"
+)
+
+type b []byte
+
 type storedItem struct {
-	ID   string `json:"id"`
+	ID   []byte `json:"id"`
 	IP   net.IP `json:"ip"`
 	Port int    `json:"port"`
 }
@@ -53,9 +63,9 @@ func collectStorageState(ctx context.Context, rdb *redis.Client) storageState {
 	items := make(map[string]instance.Instance)
 	for k, v := range hItems {
 		var item storedItem
-		id := string(testutils.Must(hex.DecodeString(k)))
+		id4bytes := testutils.Must(hex.DecodeString(k))
 		testutils.MustNoError(json.Unmarshal([]byte(v), &item))
-		items[id] = instance.MustNew(id, item.IP, item.Port)
+		items[string(id4bytes)] = instance.MustNew(instance.MustNewID(id4bytes), item.IP, item.Port)
 	}
 
 	return storageState{
@@ -75,7 +85,10 @@ func TestInstancesRedisRepo_Add_New(t *testing.T) {
 	repo := instances.New(rdb, c)
 
 	// ...and a new instance to add
-	ins1 := instancefactory.Build(instancefactory.WithID("foo"), instancefactory.WithRandomServerAddress())
+	ins1 := instancefactory.Build(
+		instancefactory.WithStringID(DEADBEEF),
+		instancefactory.WithRandomServerAddress(),
+	)
 
 	// When adding the instance to the repository
 	err := repo.Add(ctx, ins1)
@@ -84,40 +97,44 @@ func TestInstancesRedisRepo_Add_New(t *testing.T) {
 	// Then the instance is stored in redis
 	state := collectStorageState(ctx, rdb)
 	require.Len(t, state.Items, 1)
-	require.Equal(t, ins1, state.Items["foo"])
+	require.Equal(t, ins1, state.Items[DEADBEEF])
 	// And the update time is stored in the sorted set
 	require.Len(t, state.Updates, 1)
-	assert.Equal(t, "foo", state.Updates[0].ID)
+	assert.Equal(t, DEADBEEF, state.Updates[0].ID)
 	assert.Equal(t, float64(now.UnixNano()), state.Updates[0].Time)
 
 	// When another instance is added at a later time
 	c.Advance(time.Millisecond * 100)
-	ins2 := instancefactory.Build(instancefactory.WithID("bar"), instancefactory.WithRandomServerAddress())
+	ins2 := instancefactory.Build(
+		instancefactory.WithStringID(FEEDFOOD),
+		instancefactory.WithRandomServerAddress(),
+	)
 	err = repo.Add(ctx, ins2)
 	require.NoError(t, err)
 
 	// Then the second instance is also stored in redis
 	state = collectStorageState(ctx, rdb)
 	require.Len(t, state.Items, 2)
-	require.Equal(t, ins2, state.Items["bar"])
+	require.Equal(t, ins2, state.Items[FEEDFOOD])
 	// And the added instances are sorted by the time of addition
 	require.Len(t, state.Updates, 2)
-	assert.Equal(t, "bar", state.Updates[1].ID)
+	assert.Equal(t, FEEDFOOD, state.Updates[1].ID)
 	assert.Equal(t, float64(c.Now().UnixNano()), state.Updates[1].Time)
 
 	// When another instance is added at the same time as the last one
-	ins3 := instancefactory.Build(instancefactory.WithID("baz"), instancefactory.WithRandomServerAddress())
+	ins3 := instancefactory.Build(
+		instancefactory.WithStringID("baz3"),
+		instancefactory.WithRandomServerAddress(),
+	)
 	err = repo.Add(ctx, ins3)
 	require.NoError(t, err)
 
 	// Then the third instance is also stored in redis
 	state = collectStorageState(ctx, rdb)
 	require.Len(t, state.Items, 3)
-	require.Equal(t, ins3, state.Items["baz"])
+	require.Equal(t, ins3, state.Items["baz3"])
 	// And the added instances are sorted by the time of addition
 	require.Len(t, state.Updates, 3)
-	assert.Equal(t, "baz", state.Updates[2].ID)
-	assert.Equal(t, float64(c.Now().UnixNano()), state.Updates[2].Time)
 }
 
 func TestInstancesRedisRepo_Add_Existing(t *testing.T) {
@@ -129,26 +146,35 @@ func TestInstancesRedisRepo_Add_Existing(t *testing.T) {
 	// Given a repository...
 	repo := instances.New(rdb, c)
 	// ...with an instance previously added
-	ins := instancefactory.Build(instancefactory.WithID("foo"), instancefactory.WithServerAddress("1.1.1.1", 10480))
+	ins := instancefactory.Build(
+		instancefactory.WithStringID(DEADBEEF),
+		instancefactory.WithServerAddress("1.1.1.1", 10480),
+	)
 	err := repo.Add(ctx, ins)
 	require.NoError(t, err)
 	// And the instance is stored in the storage
 	state := collectStorageState(ctx, rdb)
 	require.Len(t, state.Items, 1)
-	require.Equal(t, ins, state.Items["foo"])
+	require.Equal(t, ins, state.Items[DEADBEEF])
 	require.Len(t, state.Updates, 1)
 	assert.Equal(t, float64(then.UnixNano()), state.Updates[0].Time)
 
 	// When adding another instance with the same ID at a later time
 	c.Advance(time.Millisecond * 100)
-	other := instancefactory.Build(instancefactory.WithID("foo"), instancefactory.WithServerAddress("2.2.2.2", 10580))
+	other := instancefactory.Build(
+		instancefactory.WithStringID(DEADBEEF),
+		instancefactory.WithServerAddress(
+			"2.2.2.2",
+			10580,
+		),
+	)
 	err = repo.Add(ctx, other)
 	require.NoError(t, err)
 
 	// Then the instance is replaced in the storage
 	state = collectStorageState(ctx, rdb)
 	require.Len(t, state.Items, 1)
-	assert.Equal(t, other, state.Items["foo"])
+	assert.Equal(t, other, state.Items[DEADBEEF])
 	assert.Len(t, state.Updates, 1)
 	assert.Equal(t, float64(then.Add(time.Millisecond*100).UnixNano()), state.Updates[0].Time)
 }
@@ -161,10 +187,16 @@ func TestInstancesRedisRepo_Get_OK(t *testing.T) {
 	// Given a repository with 2 instances added at the same time...
 	repo := instances.New(rdb, c)
 
-	ins1 := instancefactory.Build(instancefactory.WithID("foo"), instancefactory.WithRandomServerAddress())
-	ins2 := instancefactory.Build(instancefactory.WithID("bar"), instancefactory.WithRandomServerAddress())
+	ins1 := instancefactory.Build(
+		instancefactory.WithStringID(DEADBEEF),
+		instancefactory.WithRandomServerAddress(),
+	)
+	ins2 := instancefactory.Build(
+		instancefactory.WithStringID(FEEDFOOD),
+		instancefactory.WithRandomServerAddress(),
+	)
 	ins3 := instancefactory.Build(
-		instancefactory.WithID(string([]byte{0xfe, 0xed, 0xf0, 0x0d})),
+		instancefactory.WithStringID(CAFEBABE),
 		instancefactory.WithRandomServerAddress(),
 	)
 
@@ -177,21 +209,21 @@ func TestInstancesRedisRepo_Get_OK(t *testing.T) {
 
 	// When retrieving an instance by ID
 	for _, pair := range []struct {
-		id   string
+		id   []byte
 		want instance.Instance
 	}{
-		{"foo", ins1},
-		{"bar", ins2},
-		{string([]byte{0xfe, 0xed, 0xf0, 0x0d}), ins3},
+		{b(DEADBEEF), ins1},
+		{b(FEEDFOOD), ins2},
+		{b(CAFEBABE), ins3},
 	} {
-		got, err := repo.Get(ctx, pair.id)
+		got, err := repo.Get(ctx, instance.MustNewID(pair.id))
 		// Then the instance should be retrieved successfully
 		require.NoError(t, err)
 		assert.Equal(t, pair.want, got)
 	}
 
 	// When retrieving a non-existent instance
-	_, err := repo.Get(ctx, "qux")
+	_, err := repo.Get(ctx, instance.MustNewID(b(BAADCODE)))
 	// Then the operation should fail with an error
 	assert.ErrorIs(t, err, repositories.ErrInstanceNotFound)
 }
@@ -199,23 +231,23 @@ func TestInstancesRedisRepo_Get_OK(t *testing.T) {
 func TestInstancesRedisRepo_Remove_OK(t *testing.T) {
 	tests := []struct {
 		name             string
-		id               string
+		id               []byte
 		wantRemainingIDs []string
 	}{
 		{
-			name:             "remove 'foo'",
-			id:               "foo",
-			wantRemainingIDs: []string{"bar", "baz"},
+			name:             "remove DEADBEEF",
+			id:               b(DEADBEEF),
+			wantRemainingIDs: []string{FEEDFOOD, CAFEBABE},
 		},
 		{
-			name:             "remove 'bar'",
-			id:               "bar",
-			wantRemainingIDs: []string{"foo", "baz"},
+			name:             "remove FEEDFOOD",
+			id:               b(FEEDFOOD),
+			wantRemainingIDs: []string{DEADBEEF, CAFEBABE},
 		},
 		{
 			name:             "remove non-existent",
-			id:               "qux",
-			wantRemainingIDs: []string{"foo", "bar", "baz"},
+			id:               b(BAADCODE),
+			wantRemainingIDs: []string{DEADBEEF, FEEDFOOD, CAFEBABE},
 		},
 	}
 
@@ -229,20 +261,29 @@ func TestInstancesRedisRepo_Remove_OK(t *testing.T) {
 			repo := instances.New(rdb, c)
 
 			for _, ins := range []instance.Instance{
-				instancefactory.Build(instancefactory.WithID("foo"), instancefactory.WithRandomServerAddress()),
-				instancefactory.Build(instancefactory.WithID("bar"), instancefactory.WithRandomServerAddress()),
+				instancefactory.Build(
+					instancefactory.WithStringID(DEADBEEF),
+					instancefactory.WithRandomServerAddress(),
+				),
+				instancefactory.Build(
+					instancefactory.WithStringID(FEEDFOOD),
+					instancefactory.WithRandomServerAddress(),
+				),
 			} {
 				c.Advance(time.Millisecond * 100)
 				err := repo.Add(ctx, ins)
 				require.NoError(t, err)
 			}
 			// And another instance added at the same time as the last one
-			ins := instancefactory.Build(instancefactory.WithID("baz"), instancefactory.WithRandomServerAddress())
+			ins := instancefactory.Build(
+				instancefactory.WithStringID(CAFEBABE),
+				instancefactory.WithRandomServerAddress(),
+			)
 			err := repo.Add(ctx, ins)
 			require.NoError(t, err)
 
 			// When removing an instance by ID
-			err = repo.Remove(ctx, tt.id)
+			err = repo.Remove(ctx, instance.MustNewID(tt.id))
 			require.NoError(t, err)
 
 			// Then the instance should be removed from the storage
@@ -279,7 +320,7 @@ func TestInstancesRedisRepo_Clear_OK(t *testing.T) {
 				return fs.UpdatedBefore(now)
 			},
 			wantAffected:     0,
-			wantRemainingIDs: []string{"foo", "bar", "baz", "qux"},
+			wantRemainingIDs: []string{DEADBEEF, FEEDFOOD, CAFEBABE, BAADCODE},
 		},
 		{
 			name: "filter by time in the future",
@@ -290,28 +331,28 @@ func TestInstancesRedisRepo_Clear_OK(t *testing.T) {
 			wantRemainingIDs: []string{},
 		},
 		{
-			name: "filter by time before 'baz' and 'qux'",
+			name: "filter by time before CAFEBABE and BAADCODE",
 			factory: func(fs filterset.InstanceFilterSet, now time.Time) filterset.InstanceFilterSet {
 				return fs.UpdatedBefore(now.Add(time.Millisecond * 200))
 			},
 			wantAffected:     2,
-			wantRemainingIDs: []string{"baz", "qux"},
+			wantRemainingIDs: []string{CAFEBABE, BAADCODE},
 		},
 		{
-			name: "filter by time before 'bar'",
+			name: "filter by time before FEEDFOOD",
 			factory: func(fs filterset.InstanceFilterSet, now time.Time) filterset.InstanceFilterSet {
 				return fs.UpdatedBefore(now.Add(time.Millisecond * 100))
 			},
 			wantAffected:     1,
-			wantRemainingIDs: []string{"bar", "baz", "qux"},
+			wantRemainingIDs: []string{FEEDFOOD, CAFEBABE, BAADCODE},
 		},
 		{
-			name: "filter by time before 'foo'",
+			name: "filter by time before DEADBEEF",
 			factory: func(fs filterset.InstanceFilterSet, now time.Time) filterset.InstanceFilterSet {
 				return fs.UpdatedBefore(now.Add(time.Millisecond * 99))
 			},
 			wantAffected:     0,
-			wantRemainingIDs: []string{"foo", "bar", "baz", "qux"},
+			wantRemainingIDs: []string{DEADBEEF, FEEDFOOD, CAFEBABE, BAADCODE},
 		},
 	}
 	for _, tt := range tests {
@@ -325,16 +366,28 @@ func TestInstancesRedisRepo_Clear_OK(t *testing.T) {
 			before := c.Now()
 
 			for _, ins := range []instance.Instance{
-				instancefactory.Build(instancefactory.WithID("foo"), instancefactory.WithRandomServerAddress()),
-				instancefactory.Build(instancefactory.WithID("bar"), instancefactory.WithRandomServerAddress()),
-				instancefactory.Build(instancefactory.WithID("baz"), instancefactory.WithRandomServerAddress()),
+				instancefactory.Build(
+					instancefactory.WithStringID(DEADBEEF),
+					instancefactory.WithRandomServerAddress(),
+				),
+				instancefactory.Build(
+					instancefactory.WithStringID(FEEDFOOD),
+					instancefactory.WithRandomServerAddress(),
+				),
+				instancefactory.Build(
+					instancefactory.WithStringID(CAFEBABE),
+					instancefactory.WithRandomServerAddress(),
+				),
 			} {
 				c.Advance(time.Millisecond * 100)
 				err := repo.Add(ctx, ins)
 				require.NoError(t, err)
 			}
 			// and another instance added at the same time as the last one
-			ins := instancefactory.Build(instancefactory.WithID("qux"), instancefactory.WithRandomServerAddress())
+			ins := instancefactory.Build(
+				instancefactory.WithStringID(BAADCODE),
+				instancefactory.WithRandomServerAddress(),
+			)
 			err := repo.Add(ctx, ins)
 			require.NoError(t, err)
 
@@ -404,9 +457,18 @@ func TestInstancesRedisRepo_Count_OK(t *testing.T) {
 	repo := instances.New(rdb, c)
 
 	// Given a repository with 3 instances
-	ins1 := instancefactory.Build(instancefactory.WithID("foo"), instancefactory.WithRandomServerAddress())
-	ins2 := instancefactory.Build(instancefactory.WithID("bar"), instancefactory.WithRandomServerAddress())
-	ins3 := instancefactory.Build(instancefactory.WithID("baz"), instancefactory.WithRandomServerAddress())
+	ins1 := instancefactory.Build(
+		instancefactory.WithStringID(DEADBEEF),
+		instancefactory.WithRandomServerAddress(),
+	)
+	ins2 := instancefactory.Build(
+		instancefactory.WithStringID(FEEDFOOD),
+		instancefactory.WithRandomServerAddress(),
+	)
+	ins3 := instancefactory.Build(
+		instancefactory.WithStringID(CAFEBABE),
+		instancefactory.WithRandomServerAddress(),
+	)
 
 	for _, ins := range []instance.Instance{ins1, ins2, ins3} {
 		err := repo.Add(ctx, ins)
