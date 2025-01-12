@@ -112,16 +112,16 @@ func TestCleaner_OK(t *testing.T) {
 	_, err = serverRepo.Get(ctx, gs5.Addr)
 	assert.NoError(t, err)
 
-	// only 1 instance was removed because only 1 of them belonged to a removed server
+	// no instance was removed
 	insCount, err := instanceRepo.Count(ctx)
 	assert.NoError(t, err)
-	assert.Equal(t, 3, insCount)
+	assert.Equal(t, 4, insCount)
 
-	_, err = instanceRepo.GetByID(ctx, "foo")
+	_, err = instanceRepo.Get(ctx, "foo")
 	assert.NoError(t, err)
-	_, err = instanceRepo.GetByID(ctx, "baz")
+	_, err = instanceRepo.Get(ctx, "baz")
 	assert.NoError(t, err)
-	_, err = instanceRepo.GetByID(ctx, "qux")
+	_, err = instanceRepo.Get(ctx, "qux")
 	assert.NoError(t, err)
 
 	removalValue := testutil.ToFloat64(collector.CleanerRemovals)

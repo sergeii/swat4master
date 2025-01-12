@@ -42,7 +42,7 @@ type MockInstanceRepository struct {
 	repositories.InstanceRepository
 }
 
-func (m *MockInstanceRepository) GetByID(ctx context.Context, instanceID string) (instance.Instance, error) {
+func (m *MockInstanceRepository) Get(ctx context.Context, instanceID string) (instance.Instance, error) {
 	args := m.Called(ctx, instanceID)
 	return args.Get(0).(instance.Instance), args.Error(1) // nolint: forcetypeassert
 }
@@ -62,7 +62,7 @@ func TestRenewServerUseCase_Success(t *testing.T) {
 	serverRepo.On("Update", ctx, mock.Anything, mock.Anything).Return(nil)
 
 	instanceRepo := new(MockInstanceRepository)
-	instanceRepo.On("GetByID", ctx, inst.ID).Return(inst, nil)
+	instanceRepo.On("Get", ctx, inst.ID).Return(inst, nil)
 
 	uc := renewserver.New(instanceRepo, serverRepo, clock)
 	err := uc.Execute(ctx, renewserver.NewRequest(inst.ID, svr.Addr.GetIP()))
@@ -71,7 +71,7 @@ func TestRenewServerUseCase_Success(t *testing.T) {
 	updatedSvr := svr
 	updatedSvr.RefreshedAt = passedTime
 
-	instanceRepo.AssertCalled(t, "GetByID", ctx, inst.ID)
+	instanceRepo.AssertCalled(t, "Get", ctx, inst.ID)
 	serverRepo.AssertCalled(t, "Get", ctx, svr.Addr)
 	serverRepo.AssertCalled(t, "Update", ctx, updatedSvr, mock.Anything)
 }
@@ -87,13 +87,13 @@ func TestRenewServerUseCase_InstanceNotFound(t *testing.T) {
 	serverRepo.On("Get", ctx, svr.Addr).Return(svr, nil)
 
 	instanceRepo := new(MockInstanceRepository)
-	instanceRepo.On("GetByID", ctx, inst.ID).Return(instance.Blank, repositories.ErrInstanceNotFound)
+	instanceRepo.On("Get", ctx, inst.ID).Return(instance.Blank, repositories.ErrInstanceNotFound)
 
 	uc := renewserver.New(instanceRepo, serverRepo, clock)
 	err := uc.Execute(ctx, renewserver.NewRequest(inst.ID, svr.Addr.GetIP()))
 	assert.ErrorIs(t, err, repositories.ErrInstanceNotFound)
 
-	instanceRepo.AssertCalled(t, "GetByID", ctx, inst.ID)
+	instanceRepo.AssertCalled(t, "Get", ctx, inst.ID)
 	serverRepo.AssertNotCalled(t, "Get", ctx, svr.Addr)
 	serverRepo.AssertNotCalled(t, "Update", ctx, mock.Anything, mock.Anything)
 }
@@ -109,13 +109,13 @@ func TestRenewServerUseCase_ServerNotFound(t *testing.T) {
 	serverRepo.On("Get", ctx, svr.Addr).Return(server.Blank, repositories.ErrServerNotFound)
 
 	instanceRepo := new(MockInstanceRepository)
-	instanceRepo.On("GetByID", ctx, inst.ID).Return(inst, nil)
+	instanceRepo.On("Get", ctx, inst.ID).Return(inst, nil)
 
 	uc := renewserver.New(instanceRepo, serverRepo, clock)
 	err := uc.Execute(ctx, renewserver.NewRequest(inst.ID, svr.Addr.GetIP()))
 	assert.ErrorIs(t, err, repositories.ErrServerNotFound)
 
-	instanceRepo.AssertCalled(t, "GetByID", ctx, inst.ID)
+	instanceRepo.AssertCalled(t, "Get", ctx, inst.ID)
 	serverRepo.AssertCalled(t, "Get", ctx, svr.Addr)
 	serverRepo.AssertNotCalled(t, "Update", ctx, mock.Anything, mock.Anything)
 }
@@ -131,13 +131,13 @@ func TestRenewServerUseCase_InstanceAddressMismatch(t *testing.T) {
 	serverRepo.On("Get", ctx, svr.Addr).Return(server.Blank, repositories.ErrServerNotFound)
 
 	instanceRepo := new(MockInstanceRepository)
-	instanceRepo.On("GetByID", ctx, inst.ID).Return(inst, nil)
+	instanceRepo.On("Get", ctx, inst.ID).Return(inst, nil)
 
 	uc := renewserver.New(instanceRepo, serverRepo, clock)
 	err := uc.Execute(ctx, renewserver.NewRequest(inst.ID, svr.Addr.GetIP()))
 	assert.ErrorIs(t, err, renewserver.ErrUnknownInstanceID)
 
-	instanceRepo.AssertCalled(t, "GetByID", ctx, inst.ID)
+	instanceRepo.AssertCalled(t, "Get", ctx, inst.ID)
 	serverRepo.AssertNotCalled(t, "Get", ctx, mock.Anything)
 	serverRepo.AssertNotCalled(t, "Update", ctx, mock.Anything, mock.Anything)
 }

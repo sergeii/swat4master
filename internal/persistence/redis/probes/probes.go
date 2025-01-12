@@ -14,14 +14,13 @@ import (
 
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/repositories"
+	"github.com/sergeii/swat4master/pkg/redisutils"
 )
 
 const (
 	queueKey = "probes:queue"
 	dataKey  = "probes:items"
 )
-
-const maxPopAttempts = 5
 
 type Repository struct {
 	client *redis.Client
@@ -111,7 +110,7 @@ func (r *Repository) Peek(ctx context.Context) (probe.Probe, error) {
 		return probe.Blank, fmt.Errorf("failed to fetch peeked probe: %w", err)
 	}
 
-	item, err := asQueueItem(value)
+	item, err := asQueuedItem(value)
 	if err != nil {
 		return probe.Blank, fmt.Errorf("failed to unmarshal probe: %w", err)
 	}
@@ -128,23 +127,20 @@ func (r *Repository) PopMany(ctx context.Context, count int) ([]probe.Probe, int
 	probes := make([]probe.Probe, 0, count)
 
 	// fetch the first n probes from the queue that are ready to be processed
-	for range maxPopAttempts {
-		items, err := r.pop(ctx, count)
-		if errors.Is(err, repositories.ErrProbeQueueIsEmpty) {
-			break
-		}
+	for len(probes) < count {
+		items, err := r.pop(ctx, count-len(probes))
 		if err != nil {
-			return nil, 0, fmt.Errorf("failed to pop probes: %w", err)
+			if errors.Is(err, repositories.ErrProbeQueueIsEmpty) {
+				break
+			}
+			return nil, 0, err
 		}
 		for _, item := range items {
-			if !item.Expires.IsZero() && item.Expires.Before(r.clock.Now()) {
+			if isItemExpired(item.Expires, r.clock.Now()) {
 				expired++
 				continue
 			}
 			probes = append(probes, item.Probe)
-		}
-		if len(probes) >= count {
-			break
 		}
 	}
 
@@ -175,7 +171,7 @@ func (r *Repository) pop(ctx context.Context, count int) ([]qItem, error) {
 	// pop the ready-to-process probes from the items set and the queue atomically
 	var result *redis.SliceCmd
 	if _, err = r.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		pipe.ZRem(ctx, queueKey, asMembers(keys)...)
+		pipe.ZRem(ctx, queueKey, redisutils.KeysToMembers(keys)...)
 		result = pipe.HMGet(ctx, dataKey, keys...)
 		pipe.HDel(ctx, dataKey, keys...)
 		return nil
@@ -189,10 +185,15 @@ func (r *Repository) pop(ctx context.Context, count int) ([]qItem, error) {
 		if val == nil {
 			continue
 		}
-		if item, err = asQueueItem(val); err != nil {
+		if item, err = asQueuedItem(val); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal probe: %w", err)
 		}
 		items = append(items, item)
+	}
+
+	// By the time we obtained the probes, some of them might have popped by other consumers
+	if len(items) == 0 {
+		return nil, repositories.ErrProbeQueueIsEmpty
 	}
 
 	return items, nil
@@ -206,7 +207,11 @@ func (r *Repository) Count(ctx context.Context) (int, error) {
 	return int(count), nil
 }
 
-func asQueueItem(val interface{}) (qItem, error) {
+func isItemExpired(expires time.Time, now time.Time) bool {
+	return !expires.IsZero() && expires.Before(now)
+}
+
+func asQueuedItem(val interface{}) (qItem, error) {
 	var item qItem
 	encoded, ok := val.(string)
 	if !ok {
@@ -216,12 +221,4 @@ func asQueueItem(val interface{}) (qItem, error) {
 		return qItem{}, fmt.Errorf("failed to unmarshal probe item: %w", err)
 	}
 	return item, nil
-}
-
-func asMembers(keys []string) []interface{} {
-	members := make([]interface{}, len(keys))
-	for i, v := range keys {
-		members[i] = v
-	}
-	return members
 }

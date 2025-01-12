@@ -25,7 +25,7 @@ type ServerRepository interface {
 	Update(ctx context.Context, server server.Server, onConflict func(*server.Server) bool) (server.Server, error)
 	AddOrUpdate(ctx context.Context, server server.Server, onConflict func(*server.Server)) (server.Server, error)
 	Remove(ctx context.Context, server server.Server, onConflict func(*server.Server) bool) error
-	Filter(ctx context.Context, fs filterset.FilterSet) ([]server.Server, error)
+	Filter(ctx context.Context, fs filterset.ServerFilterSet) ([]server.Server, error)
 	Count(ctx context.Context) (int, error)
 	CountByStatus(ctx context.Context) (map[ds.DiscoveryStatus]int, error)
 }

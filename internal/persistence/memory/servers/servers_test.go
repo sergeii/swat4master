@@ -557,13 +557,13 @@ func TestServerMemoryRepo_CountByStatus(t *testing.T) {
 func TestServerMemoryRepo_Filter(t *testing.T) {
 	tests := []struct {
 		name        string
-		fsfactory   func(time.Time, time.Time, time.Time, time.Time, time.Time, time.Time) filterset.FilterSet
+		fsfactory   func(time.Time, time.Time, time.Time, time.Time, time.Time, time.Time) filterset.ServerFilterSet
 		wantServers []string
 	}{
 		{
 			"no filter",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
-				return filterset.New()
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.ServerFilterSet {
+				return filterset.NewServerFilterSet()
 			},
 			[]string{
 				"5.5.5.5:10480",
@@ -575,8 +575,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"exclude status",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
-				return filterset.New().NoStatus(ds.Master)
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.ServerFilterSet {
+				return filterset.NewServerFilterSet().NoStatus(ds.Master)
 			},
 			[]string{
 				"5.5.5.5:10480",
@@ -586,8 +586,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"exclude multiple status",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
-				return filterset.New().NoStatus(ds.PortRetry | ds.NoDetails)
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.ServerFilterSet {
+				return filterset.NewServerFilterSet().NoStatus(ds.PortRetry | ds.NoDetails)
 			},
 			[]string{
 				"3.3.3.3:10480",
@@ -597,8 +597,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"include status",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
-				return filterset.New().WithStatus(ds.Master)
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.ServerFilterSet {
+				return filterset.NewServerFilterSet().WithStatus(ds.Master)
 			},
 			[]string{
 				"3.3.3.3:10480",
@@ -607,8 +607,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"include multiple status",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
-				return filterset.New().WithStatus(ds.Master | ds.Details)
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.ServerFilterSet {
+				return filterset.NewServerFilterSet().WithStatus(ds.Master | ds.Details)
 			},
 			[]string{
 				"3.3.3.3:10480",
@@ -616,8 +616,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by multiple status",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
-				return filterset.New().WithStatus(ds.Master | ds.Details)
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.ServerFilterSet {
+				return filterset.NewServerFilterSet().WithStatus(ds.Master | ds.Details)
 			},
 			[]string{
 				"3.3.3.3:10480",
@@ -625,8 +625,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by update date - after",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
-				return filterset.New().UpdatedAfter(t4)
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.ServerFilterSet {
+				return filterset.NewServerFilterSet().UpdatedAfter(t4)
 			},
 			[]string{
 				"5.5.5.5:10480",
@@ -635,8 +635,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by update date - before",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
-				return filterset.New().UpdatedBefore(t4)
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.ServerFilterSet {
+				return filterset.NewServerFilterSet().UpdatedBefore(t4)
 			},
 			[]string{
 				"3.3.3.3:10480",
@@ -646,8 +646,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by update date - after and before",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
-				return filterset.New().
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.ServerFilterSet {
+				return filterset.NewServerFilterSet().
 					UpdatedAfter(t4).
 					UpdatedBefore(t5)
 			},
@@ -657,15 +657,15 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by update date - no match",
-			func(now time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
-				return filterset.New().UpdatedAfter(now)
+			func(now time.Time, t1, t2, t3, t4, t5 time.Time) filterset.ServerFilterSet {
+				return filterset.NewServerFilterSet().UpdatedAfter(now)
 			},
 			[]string{},
 		},
 		{
 			"filter by refresh date - after",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
-				return filterset.New().ActiveAfter(t2)
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.ServerFilterSet {
+				return filterset.NewServerFilterSet().ActiveAfter(t2)
 			},
 			[]string{
 				"3.3.3.3:10480",
@@ -674,8 +674,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by refresh date - before",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
-				return filterset.New().ActiveBefore(t3)
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.ServerFilterSet {
+				return filterset.NewServerFilterSet().ActiveBefore(t3)
 			},
 			[]string{
 				"2.2.2.2:10480",
@@ -684,8 +684,8 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by refresh date - after and before",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
-				return filterset.New().
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.ServerFilterSet {
+				return filterset.NewServerFilterSet().
 					ActiveAfter(t2).
 					ActiveBefore(t3)
 			},
@@ -695,15 +695,15 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 		},
 		{
 			"filter by refresh date - no match",
-			func(now time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
-				return filterset.New().ActiveAfter(now)
+			func(now time.Time, t1, t2, t3, t4, t5 time.Time) filterset.ServerFilterSet {
+				return filterset.NewServerFilterSet().ActiveAfter(now)
 			},
 			[]string{},
 		},
 		{
 			"filter by multiple fields",
-			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.FilterSet {
-				return filterset.New().
+			func(_ time.Time, t1, t2, t3, t4, t5 time.Time) filterset.ServerFilterSet {
+				return filterset.NewServerFilterSet().
 					UpdatedBefore(t5).
 					ActiveAfter(t2).
 					WithStatus(ds.Master)
@@ -770,28 +770,28 @@ func TestServerMemoryRepo_Filter(t *testing.T) {
 func TestServerMemoryRepo_Filter_Empty(t *testing.T) {
 	tests := []struct {
 		name      string
-		fsfactory func(time.Time) filterset.FilterSet
+		fsfactory func(time.Time) filterset.ServerFilterSet
 	}{
 		{
 			"default filterset",
-			func(time.Time) filterset.FilterSet { return filterset.New() },
+			func(time.Time) filterset.ServerFilterSet { return filterset.NewServerFilterSet() },
 		},
 		{
 			"filter by no status",
-			func(time.Time) filterset.FilterSet {
-				return filterset.New().NoStatus(ds.Master)
+			func(time.Time) filterset.ServerFilterSet {
+				return filterset.NewServerFilterSet().NoStatus(ds.Master)
 			},
 		},
 		{
 			"filter by status",
-			func(time.Time) filterset.FilterSet {
-				return filterset.New().WithStatus(ds.Master)
+			func(time.Time) filterset.ServerFilterSet {
+				return filterset.NewServerFilterSet().WithStatus(ds.Master)
 			},
 		},
 		{
 			"filter by status and update date",
-			func(t time.Time) filterset.FilterSet {
-				return filterset.New().WithStatus(ds.Master).UpdatedBefore(t)
+			func(t time.Time) filterset.ServerFilterSet {
+				return filterset.NewServerFilterSet().WithStatus(ds.Master).UpdatedBefore(t)
 			},
 		},
 	}

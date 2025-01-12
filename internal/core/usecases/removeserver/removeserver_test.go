@@ -41,12 +41,12 @@ type MockInstanceRepository struct {
 	repositories.InstanceRepository
 }
 
-func (m *MockInstanceRepository) GetByID(ctx context.Context, instanceID string) (instance.Instance, error) {
+func (m *MockInstanceRepository) Get(ctx context.Context, instanceID string) (instance.Instance, error) {
 	args := m.Called(ctx, instanceID)
 	return args.Get(0).(instance.Instance), args.Error(1) // nolint: forcetypeassert
 }
 
-func (m *MockInstanceRepository) RemoveByID(ctx context.Context, instanceID string) error {
+func (m *MockInstanceRepository) Remove(ctx context.Context, instanceID string) error {
 	args := m.Called(ctx, instanceID)
 	return args.Error(0)
 }
@@ -63,17 +63,17 @@ func TestRemoveServerUseCase_Success(t *testing.T) {
 	serverRepo.On("Remove", ctx, svr, mock.Anything).Return(nil)
 
 	instanceRepo := new(MockInstanceRepository)
-	instanceRepo.On("GetByID", ctx, "foo").Return(inst, nil)
-	instanceRepo.On("RemoveByID", ctx, "foo").Return(nil)
+	instanceRepo.On("Get", ctx, "foo").Return(inst, nil)
+	instanceRepo.On("Remove", ctx, "foo").Return(nil)
 
 	uc := removeserver.New(serverRepo, instanceRepo, &logger)
 	err := uc.Execute(ctx, removeserver.NewRequest("foo", svr.Addr))
 	assert.NoError(t, err)
 
 	serverRepo.AssertCalled(t, "Get", ctx, svr.Addr)
-	instanceRepo.AssertCalled(t, "GetByID", ctx, "foo")
+	instanceRepo.AssertCalled(t, "Get", ctx, "foo")
 	serverRepo.AssertCalled(t, "Remove", ctx, svr, mock.Anything)
-	instanceRepo.AssertCalled(t, "RemoveByID", ctx, "foo")
+	instanceRepo.AssertCalled(t, "Remove", ctx, "foo")
 }
 
 func TestRemoveServerUseCase_ServerAlreadyDeleted(t *testing.T) {
@@ -92,9 +92,9 @@ func TestRemoveServerUseCase_ServerAlreadyDeleted(t *testing.T) {
 	assert.ErrorIs(t, err, removeserver.ErrServerNotFound)
 
 	serverRepo.AssertCalled(t, "Get", ctx, svr.Addr)
-	instanceRepo.AssertNotCalled(t, "GetByID", mock.Anything, mock.Anything)
+	instanceRepo.AssertNotCalled(t, "Get", mock.Anything, mock.Anything)
 	serverRepo.AssertNotCalled(t, "Remove", mock.Anything, mock.Anything, mock.Anything)
-	instanceRepo.AssertNotCalled(t, "RemoveByID", mock.Anything, mock.Anything)
+	instanceRepo.AssertNotCalled(t, "Remove", mock.Anything, mock.Anything)
 }
 
 func TestRemoveServerUseCase_InstanceAlreadyDeleted(t *testing.T) {
@@ -108,16 +108,16 @@ func TestRemoveServerUseCase_InstanceAlreadyDeleted(t *testing.T) {
 	serverRepo.On("Remove", ctx, svr, mock.Anything).Return(nil)
 
 	instanceRepo := new(MockInstanceRepository)
-	instanceRepo.On("GetByID", ctx, "foo").Return(instance.Blank, repositories.ErrInstanceNotFound)
+	instanceRepo.On("Get", ctx, "foo").Return(instance.Blank, repositories.ErrInstanceNotFound)
 
 	uc := removeserver.New(serverRepo, instanceRepo, &logger)
 	err := uc.Execute(ctx, removeserver.NewRequest("foo", svr.Addr))
 	assert.ErrorIs(t, err, removeserver.ErrInstanceNotFound)
 
 	serverRepo.AssertCalled(t, "Get", ctx, svr.Addr)
-	instanceRepo.AssertCalled(t, "GetByID", ctx, "foo")
+	instanceRepo.AssertCalled(t, "Get", ctx, "foo")
 	serverRepo.AssertNotCalled(t, "Remove", mock.Anything, mock.Anything, mock.Anything)
-	instanceRepo.AssertNotCalled(t, "RemoveByID", mock.Anything, mock.Anything)
+	instanceRepo.AssertNotCalled(t, "Remove", mock.Anything, mock.Anything)
 }
 
 func TestRemoveServerUseCase_InstanceAddrDoesNotMatch(t *testing.T) {
@@ -132,15 +132,15 @@ func TestRemoveServerUseCase_InstanceAddrDoesNotMatch(t *testing.T) {
 	serverRepo.On("Remove", ctx, svr, mock.Anything).Return(nil)
 
 	instanceRepo := new(MockInstanceRepository)
-	instanceRepo.On("GetByID", ctx, "foo").Return(inst, nil)
-	instanceRepo.On("RemoveByID", ctx, "foo").Return(nil)
+	instanceRepo.On("Get", ctx, "foo").Return(inst, nil)
+	instanceRepo.On("Remove", ctx, "foo").Return(nil)
 
 	uc := removeserver.New(serverRepo, instanceRepo, &logger)
 	err := uc.Execute(ctx, removeserver.NewRequest("foo", svr.Addr))
 	assert.ErrorIs(t, err, removeserver.ErrInstanceAddrMismatch)
 
 	serverRepo.AssertCalled(t, "Get", ctx, svr.Addr)
-	instanceRepo.AssertCalled(t, "GetByID", ctx, "foo")
+	instanceRepo.AssertCalled(t, "Get", ctx, "foo")
 	serverRepo.AssertNotCalled(t, "Remove", mock.Anything, mock.Anything, mock.Anything)
-	instanceRepo.AssertNotCalled(t, "RemoveByID", mock.Anything, mock.Anything)
+	instanceRepo.AssertNotCalled(t, "Remove", mock.Anything, mock.Anything)
 }

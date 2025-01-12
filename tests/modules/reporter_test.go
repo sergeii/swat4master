@@ -203,7 +203,7 @@ func TestReporter_Heartbeat_ServerIsAddedAndThenUpdated(t *testing.T) {
 	assert.Equal(t, "A-Bomb Nightclub", svr.Info.MapName)
 
 	// instance is stored with the server's address
-	inst, err := instanceRepo.GetByID(ctx, string([]byte{0xfe, 0xed, 0xf0, 0x0d}))
+	inst, err := instanceRepo.Get(ctx, string([]byte{0xfe, 0xed, 0xf0, 0x0d}))
 	assert.NoError(t, err)
 	assert.Equal(t, "127.0.0.1:10480", inst.Addr.String())
 
@@ -254,9 +254,9 @@ func TestReporter_Heartbeat_ServerIsUpdatedWithNewInstanceID(t *testing.T) {
 	req := testutils.PackHeartbeatRequest(oldInstanceID, paramsBefore)
 	testutils.SendUDP("127.0.0.1:33811", req)
 
-	instance, err := instanceRepo.GetByID(ctx, string(oldInstanceID))
+	ins, err := instanceRepo.Get(ctx, string(oldInstanceID))
 	require.NoError(t, err)
-	svr, err := serverRepo.Get(ctx, instance.Addr)
+	svr, err := serverRepo.Get(ctx, ins.Addr)
 	require.NoError(t, err)
 	assert.Equal(t, 16, svr.Info.NumPlayers)
 	assert.Equal(t, "VIP Escort", svr.Info.GameType)
@@ -281,9 +281,11 @@ func TestReporter_Heartbeat_ServerIsUpdatedWithNewInstanceID(t *testing.T) {
 	assert.Equal(t, "Food Wall Restaurant", svr.Info.MapName)
 	assert.Equal(t, "127.0.0.1", svr.Addr.GetDottedIP())
 
-	// at the same time, the server is no longer accessible by the former instance key
-	_, getErr := instanceRepo.GetByID(ctx, string(oldInstanceID))
-	assert.ErrorIs(t, getErr, repositories.ErrInstanceNotFound)
+	// the server is still accessible by the former instance key until the instance is recycled
+	ins, err = instanceRepo.Get(ctx, string(oldInstanceID))
+	require.NoError(t, err)
+	assert.Equal(t, "127.0.0.1:10480", ins.Addr.String())
+	assert.Equal(t, string(oldInstanceID), ins.ID)
 }
 
 func TestReporter_Heartbeat_ServerPortIsDiscovered(t *testing.T) {
@@ -405,7 +407,7 @@ func TestReporter_Heartbeat_ServerIsRefreshed(t *testing.T) {
 
 	updatedAfterInitial, _ := serverRepo.Filter(
 		ctx,
-		filterset.New().ActiveAfter(afterInitial).WithStatus(ds.Master),
+		filterset.NewServerFilterSet().ActiveAfter(afterInitial).WithStatus(ds.Master),
 	)
 	assert.Len(t, updatedAfterInitial, 0)
 
@@ -414,7 +416,7 @@ func TestReporter_Heartbeat_ServerIsRefreshed(t *testing.T) {
 
 	updatedAfterInitialRepeated, _ := serverRepo.Filter(
 		ctx,
-		filterset.New().ActiveAfter(afterInitial).WithStatus(ds.Master),
+		filterset.NewServerFilterSet().ActiveAfter(afterInitial).WithStatus(ds.Master),
 	)
 	assert.Len(t, updatedAfterInitialRepeated, 1)
 }
@@ -650,14 +652,14 @@ func TestReporter_Keepalive_ServerIsRefreshed(t *testing.T) {
 
 	updatedAfterInitial, _ := serverRepo.Filter(
 		ctx,
-		filterset.New().ActiveAfter(beforeInitial).WithStatus(ds.Master),
+		filterset.NewServerFilterSet().ActiveAfter(beforeInitial).WithStatus(ds.Master),
 	)
 	assert.Len(t, updatedAfterInitial, 1)
 
 	afterInitial := time.Now()
 	updatedBeforeInitial, _ := serverRepo.Filter(
 		ctx,
-		filterset.New().ActiveAfter(afterInitial).WithStatus(ds.Master),
+		filterset.NewServerFilterSet().ActiveAfter(afterInitial).WithStatus(ds.Master),
 	)
 	assert.Len(t, updatedBeforeInitial, 0)
 
@@ -669,7 +671,7 @@ func TestReporter_Keepalive_ServerIsRefreshed(t *testing.T) {
 	// server is refreshed
 	updatedBeforeInitialRepeated, _ := serverRepo.Filter(
 		ctx,
-		filterset.New().ActiveAfter(afterInitial).WithStatus(ds.Master),
+		filterset.NewServerFilterSet().ActiveAfter(afterInitial).WithStatus(ds.Master),
 	)
 	assert.Len(t, updatedBeforeInitialRepeated, 1)
 
@@ -748,7 +750,7 @@ func TestReporter_Keepalive_Errors(t *testing.T) {
 			// no response expected
 			assert.ErrorIs(t, err, os.ErrDeadlineExceeded)
 
-			updatedAfterKA, _ := serverRepo.Filter(ctx, filterset.New().ActiveAfter(beforeKA))
+			updatedAfterKA, _ := serverRepo.Filter(ctx, filterset.NewServerFilterSet().ActiveAfter(beforeKA))
 			if tt.wantErr {
 				assert.Len(t, updatedAfterKA, 0)
 			} else {

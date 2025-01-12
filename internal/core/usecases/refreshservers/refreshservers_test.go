@@ -26,7 +26,7 @@ type MockServerRepository struct {
 	repositories.ServerRepository
 }
 
-func (m *MockServerRepository) Filter(ctx context.Context, fs filterset.FilterSet) ([]server.Server, error) {
+func (m *MockServerRepository) Filter(ctx context.Context, fs filterset.ServerFilterSet) ([]server.Server, error) {
 	args := m.Called(ctx, fs)
 	return args.Get(0).([]server.Server), args.Error(1) // nolint: forcetypeassert
 }
@@ -77,7 +77,7 @@ func TestRefreshServersUseCase_Success(t *testing.T) {
 		t,
 		"Filter",
 		ctx,
-		mock.MatchedBy(func(fs filterset.FilterSet) bool {
+		mock.MatchedBy(func(fs filterset.ServerFilterSet) bool {
 			noStatus, hasNoStatus := fs.GetNoStatus()
 			withStatus, hasWithStatus := fs.GetWithStatus()
 			wantNoStatus := hasNoStatus && (noStatus == ds.DetailsRetry)
