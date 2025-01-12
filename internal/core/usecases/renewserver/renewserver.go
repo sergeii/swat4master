@@ -44,7 +44,7 @@ func NewRequest(instanceID string, ipAddr net.IP) Request {
 }
 
 func (uc UseCase) Execute(ctx context.Context, req Request) error {
-	instance, err := uc.instanceRepo.GetByID(ctx, req.instanceID)
+	instance, err := uc.instanceRepo.Get(ctx, req.instanceID)
 	if err != nil {
 		return err
 	}

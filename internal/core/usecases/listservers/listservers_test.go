@@ -25,7 +25,7 @@ type MockServerRepository struct {
 	repositories.ServerRepository
 }
 
-func (m *MockServerRepository) Filter(ctx context.Context, fs filterset.FilterSet) ([]server.Server, error) {
+func (m *MockServerRepository) Filter(ctx context.Context, fs filterset.ServerFilterSet) ([]server.Server, error) {
 	args := m.Called(ctx, fs)
 	if err := args.Error(1); err != nil {
 		return nil, err
@@ -38,14 +38,14 @@ func TestListServersUseCase_FilterParams(t *testing.T) {
 		name            string
 		recentness      time.Duration
 		status          ds.DiscoveryStatus
-		wantCallFactory func(time.Time) func(fs filterset.FilterSet) bool
+		wantCallFactory func(time.Time) func(fs filterset.ServerFilterSet) bool
 	}{
 		{
 			"servers active in the last hour with info status",
 			time.Hour,
 			ds.Info,
-			func(now time.Time) func(fs filterset.FilterSet) bool {
-				return func(fs filterset.FilterSet) bool {
+			func(now time.Time) func(fs filterset.ServerFilterSet) bool {
+				return func(fs filterset.ServerFilterSet) bool {
 					_, activeBeforeIsSet := fs.GetActiveBefore()
 					activeAfter, activeAfterIsSet := fs.GetActiveAfter()
 					withStatus, withStatusIsSet := fs.GetWithStatus()
@@ -62,8 +62,8 @@ func TestListServersUseCase_FilterParams(t *testing.T) {
 			"servers active in the last 5 minutes with details and master status",
 			5 * time.Minute,
 			ds.Details | ds.Master,
-			func(now time.Time) func(fs filterset.FilterSet) bool {
-				return func(fs filterset.FilterSet) bool {
+			func(now time.Time) func(fs filterset.ServerFilterSet) bool {
+				return func(fs filterset.ServerFilterSet) bool {
 					_, activeBeforeIsSet := fs.GetActiveBefore()
 					activeAfter, activeAfterIsSet := fs.GetActiveAfter()
 					withStatus, withStatusIsSet := fs.GetWithStatus()

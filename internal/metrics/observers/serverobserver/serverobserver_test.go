@@ -36,7 +36,7 @@ func (m *MockServerRepository) CountByStatus(ctx context.Context) (map[ds.Discov
 	return args.Get(0).(map[ds.DiscoveryStatus]int), args.Error(1) // nolint: forcetypeassert
 }
 
-func (m *MockServerRepository) Filter(ctx context.Context, fs filterset.FilterSet) ([]server.Server, error) {
+func (m *MockServerRepository) Filter(ctx context.Context, fs filterset.ServerFilterSet) ([]server.Server, error) {
 	args := m.Called(ctx, fs)
 	if err := args.Error(1); err != nil {
 		return nil, err
@@ -126,7 +126,7 @@ func TestServerObserver_Observe_OK(t *testing.T) {
 		t,
 		"Filter",
 		ctx,
-		mock.MatchedBy(func(fs filterset.FilterSet) bool {
+		mock.MatchedBy(func(fs filterset.ServerFilterSet) bool {
 			withStatus, withStatusIsSet := fs.GetWithStatus()
 			activeAfter, activeAfterIsSet := fs.GetActiveAfter()
 			wantWithStatus := withStatusIsSet && withStatus == ds.Info

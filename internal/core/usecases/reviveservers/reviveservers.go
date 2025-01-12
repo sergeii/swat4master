@@ -74,7 +74,10 @@ type Response struct {
 var NoResponse = Response{}
 
 func (uc UseCase) Execute(ctx context.Context, req Request) (Response, error) {
-	fs := filterset.New().ActiveAfter(req.MinScope).ActiveBefore(req.MaxScope).NoStatus(ds.Port | ds.PortRetry)
+	fs := filterset.NewServerFilterSet().
+		ActiveAfter(req.MinScope).
+		ActiveBefore(req.MaxScope).
+		NoStatus(ds.Port | ds.PortRetry)
 
 	serversWithoutPort, err := uc.serverRepo.Filter(ctx, fs)
 	if err != nil {

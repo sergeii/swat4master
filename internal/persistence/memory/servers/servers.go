@@ -183,7 +183,7 @@ func (r *Repository) Get(_ context.Context, addr addr.Addr) (server.Server, erro
 
 func (r *Repository) Filter( // nolint: cyclop
 	_ context.Context,
-	fs filterset.FilterSet,
+	fs filterset.ServerFilterSet,
 ) ([]server.Server, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()

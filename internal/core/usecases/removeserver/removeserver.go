@@ -48,10 +48,7 @@ func NewRequest(instanceID string, svrAddr addr.Addr) Request {
 	}
 }
 
-func (uc UseCase) Execute(
-	ctx context.Context,
-	req Request,
-) error {
+func (uc UseCase) Execute(ctx context.Context, req Request) error {
 	svr, err := uc.serverRepo.Get(ctx, req.svrAddr)
 	if err != nil {
 		switch {
@@ -65,7 +62,7 @@ func (uc UseCase) Execute(
 		}
 	}
 
-	inst, err := uc.instanceRepo.GetByID(ctx, req.instanceID)
+	inst, err := uc.instanceRepo.Get(ctx, req.instanceID)
 	if err != nil {
 		switch {
 		// this could be a race condition - ignore
@@ -90,7 +87,7 @@ func (uc UseCase) Execute(
 	}); err != nil {
 		return err
 	}
-	if err = uc.instanceRepo.RemoveByID(ctx, req.instanceID); err != nil {
+	if err = uc.instanceRepo.Remove(ctx, req.instanceID); err != nil {
 		return err
 	}
 

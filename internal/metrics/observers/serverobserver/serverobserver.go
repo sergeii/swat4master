@@ -78,7 +78,7 @@ func (o ServerObserver) observeActiveServers(ctx context.Context, m *metrics.Col
 	playedServers := make(map[string]int)
 
 	activeSince := o.clock.Now().Add(-o.opts.ServerLiveness)
-	fs := filterset.New().ActiveAfter(activeSince).WithStatus(ds.Info)
+	fs := filterset.NewServerFilterSet().ActiveAfter(activeSince).WithStatus(ds.Info)
 	activeServers, err := o.serverRepo.Filter(ctx, fs)
 	if err != nil {
 		o.logger.Error().Err(err).Msg("Unable to observe active server count")

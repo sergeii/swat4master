@@ -50,7 +50,7 @@ func NewRequest(
 }
 
 func (uc UseCase) Execute(ctx context.Context, req Request) ([]server.Server, error) {
-	fs := filterset.New().
+	fs := filterset.NewServerFilterSet().
 		ActiveAfter(uc.clock.Now().Add(-req.recentness)).
 		WithStatus(req.discoveryStatus)
 

@@ -59,7 +59,7 @@ type Response struct {
 var NoResponse = Response{}
 
 func (uc UseCase) Execute(ctx context.Context, req Request) (Response, error) {
-	fs := filterset.New().WithStatus(ds.Port).NoStatus(ds.DetailsRetry)
+	fs := filterset.NewServerFilterSet().WithStatus(ds.Port).NoStatus(ds.DetailsRetry)
 	serversWithDetails, err := uc.serverRepo.Filter(ctx, fs)
 	if err != nil {
 		uc.logger.Error().Err(err).Msg("Unable to obtain servers for refresh")
