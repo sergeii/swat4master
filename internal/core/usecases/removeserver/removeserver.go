@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
+	"github.com/sergeii/swat4master/internal/core/entities/instance"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 )
@@ -37,11 +38,11 @@ func New(
 }
 
 type Request struct {
-	instanceID string
+	instanceID []byte
 	svrAddr    addr.Addr
 }
 
-func NewRequest(instanceID string, svrAddr addr.Addr) Request {
+func NewRequest(instanceID []byte, svrAddr addr.Addr) Request {
 	return Request{
 		instanceID: instanceID,
 		svrAddr:    svrAddr,
@@ -49,37 +50,18 @@ func NewRequest(instanceID string, svrAddr addr.Addr) Request {
 }
 
 func (uc UseCase) Execute(ctx context.Context, req Request) error {
-	svr, err := uc.serverRepo.Get(ctx, req.svrAddr)
+	uc.logger.Info().
+		Stringer("addr", req.svrAddr).Str("instance", fmt.Sprintf("% x", req.instanceID)).
+		Msg("Removing server on request")
+
+	svr, err := uc.getServer(ctx, req.svrAddr)
 	if err != nil {
-		switch {
-		case errors.Is(err, repositories.ErrServerNotFound):
-			uc.logger.Info().
-				Stringer("addr", req.svrAddr).Str("instance", fmt.Sprintf("% x", req.instanceID)).
-				Msg("Removed server not found")
-			return ErrServerNotFound
-		default:
-			return err
-		}
+		return err
 	}
 
-	inst, err := uc.instanceRepo.Get(ctx, req.instanceID)
+	inst, err := uc.getInstance(ctx, req.instanceID, svr.Addr)
 	if err != nil {
-		switch {
-		// this could be a race condition - ignore
-		case errors.Is(err, repositories.ErrInstanceNotFound):
-			uc.logger.Info().
-				Stringer("addr", req.svrAddr).
-				Stringer("server", svr).
-				Str("instance", fmt.Sprintf("% x", req.instanceID)).
-				Msg("Instance for removed server not found")
-			return ErrInstanceNotFound
-		default:
-			return err
-		}
-	}
-	// make sure to verify the "owner" of the provided instance id
-	if inst.Addr.GetDottedIP() != svr.Addr.GetDottedIP() {
-		return ErrInstanceAddrMismatch
+		return err
 	}
 
 	if err = uc.serverRepo.Remove(ctx, svr, func(_ *server.Server) bool {
@@ -87,13 +69,55 @@ func (uc UseCase) Execute(ctx context.Context, req Request) error {
 	}); err != nil {
 		return err
 	}
-	if err = uc.instanceRepo.Remove(ctx, req.instanceID); err != nil {
+	if err = uc.instanceRepo.Remove(ctx, inst.ID); err != nil {
 		return err
 	}
 
 	uc.logger.Info().
 		Stringer("addr", req.svrAddr).Str("instance", fmt.Sprintf("% x", req.instanceID)).
-		Msg("Successfully removed server on request")
+		Msg("Removed server on request")
 
 	return nil
+}
+
+func (uc UseCase) getServer(ctx context.Context, svrAddr addr.Addr) (server.Server, error) {
+	svr, err := uc.serverRepo.Get(ctx, svrAddr)
+	if err != nil {
+		if errors.Is(err, repositories.ErrServerNotFound) {
+			uc.logger.Info().Stringer("addr", svrAddr).Msg("Removed server not found")
+			return server.Blank, ErrServerNotFound
+		}
+		return server.Blank, err
+	}
+	return svr, nil
+}
+
+func (uc UseCase) getInstance(
+	ctx context.Context,
+	instanceID []byte,
+	svrAddr addr.Addr,
+) (instance.Instance, error) {
+	instID, err := instance.NewID(instanceID)
+	if err != nil {
+		return instance.Blank, err
+	}
+
+	inst, err := uc.instanceRepo.Get(ctx, instID)
+	if err != nil {
+		// this could be a race condition - ignore
+		if errors.Is(err, repositories.ErrInstanceNotFound) {
+			uc.logger.Info().
+				Str("instance", fmt.Sprintf("% x", instanceID)).
+				Msg("Instance for removed server not found")
+			return instance.Blank, ErrInstanceNotFound
+		}
+		return instance.Blank, err
+	}
+
+	// make sure to verify the "owner" of the provided instance id
+	if inst.Addr.GetDottedIP() != svrAddr.GetDottedIP() {
+		return instance.Blank, ErrInstanceAddrMismatch
+	}
+
+	return inst, nil
 }

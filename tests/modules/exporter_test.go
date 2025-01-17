@@ -25,12 +25,12 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/modules/reporter"
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
-	"github.com/sergeii/swat4master/internal/core/entities/instance"
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/internal/testutils/factories/infofactory"
+	"github.com/sergeii/swat4master/internal/testutils/factories/instancefactory"
 	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/gs1"
 	"github.com/sergeii/swat4master/tests/testapp"
 )
@@ -288,15 +288,15 @@ func TestExporter_ReposMetrics(t *testing.T) {
 	serversRepo.Add(ctx, svr3, repositories.ServerOnConflictIgnore) // nolint: errcheck
 
 	// instances
-	ins1 := instance.MustNew("foo", net.ParseIP("1.1.1.1"), 10480)
-	ins2 := instance.MustNew("bar", net.ParseIP("2.2.2.2"), 10480)
-	instancesRepo.Add(ctx, ins1) // nolint: errcheck
-	instancesRepo.Add(ctx, ins2) // nolint: errcheck
+	for range 2 {
+		inst := instancefactory.Build(instancefactory.WithRandomID(), instancefactory.WithRandomServerAddress())
+		testutils.MustNoError(instancesRepo.Add(ctx, inst))
+	}
 
 	probe1 := probe.New(svr1.Addr, svr1.QueryPort, probe.GoalDetails, 0)
 	probe2 := probe.New(svr2.Addr, svr2.QueryPort, probe.GoalDetails, 0)
-	probesRepo.AddBetween(ctx, probe1, time.Now().Add(time.Hour), repositories.NC) // nolint: errcheck
-	probesRepo.Add(ctx, probe2)                                                    // nolint: errcheck
+	testutils.MustNoError(probesRepo.AddBetween(ctx, probe1, time.Now().Add(time.Hour), repositories.NC))
+	testutils.MustNoError(probesRepo.Add(ctx, probe2))
 
 	app.Start(context.TODO()) // nolint: errcheck
 	defer func() {
@@ -358,8 +358,13 @@ func TestExporter_CleanerMetrics(t *testing.T) {
 	parser := expfmt.TextParser{}
 	mf, _ := parser.TextToMetricFamilies(resp.Body)
 
-	assert.Equal(t, 2, int(mf["cleaner_removals_total"].Metric[0].Counter.GetValue()))
+	assert.Equal(t, 0, int(mf["cleaner_removals_total"].Metric[0].Counter.GetValue()))
+	assert.Equal(t, "instances", *mf["cleaner_removals_total"].Metric[0].Label[0].Value)
+
+	assert.Equal(t, 2, int(mf["cleaner_removals_total"].Metric[1].Counter.GetValue()))
+	assert.Equal(t, "servers", *mf["cleaner_removals_total"].Metric[1].Label[0].Value)
 	assert.Equal(t, 0, int(mf["cleaner_errors_total"].Metric[0].Counter.GetValue()))
+	assert.Equal(t, "servers", *mf["cleaner_errors_total"].Metric[0].Label[0].Value)
 }
 
 func TestExporter_ProberMetrics(t *testing.T) {

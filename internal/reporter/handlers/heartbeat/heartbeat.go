@@ -77,7 +77,7 @@ func (h Handler) reportServer(
 	connAddr *net.UDPAddr,
 	svrAddr addr.Addr,
 	queryPort int,
-	instanceID string,
+	instanceID []byte,
 	fields map[string]string,
 ) ([]byte, error) {
 	req := reportserver.NewRequest(svrAddr, queryPort, instanceID, fields)
@@ -104,7 +104,7 @@ func (h Handler) reportServer(
 func (h Handler) removeServer(
 	ctx context.Context,
 	svrAddr addr.Addr,
-	instanceID string,
+	instanceID []byte,
 ) ([]byte, error) {
 	req := removeserver.NewRequest(instanceID, svrAddr)
 	if err := h.removeServerUC.Execute(ctx, req); err != nil {

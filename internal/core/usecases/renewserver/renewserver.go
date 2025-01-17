@@ -7,6 +7,7 @@ import (
 
 	"github.com/jonboulle/clockwork"
 
+	"github.com/sergeii/swat4master/internal/core/entities/instance"
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 )
@@ -32,11 +33,11 @@ func New(
 }
 
 type Request struct {
-	instanceID string
+	instanceID []byte
 	ipAddr     net.IP
 }
 
-func NewRequest(instanceID string, ipAddr net.IP) Request {
+func NewRequest(instanceID []byte, ipAddr net.IP) Request {
 	return Request{
 		instanceID: instanceID,
 		ipAddr:     ipAddr,
@@ -44,17 +45,21 @@ func NewRequest(instanceID string, ipAddr net.IP) Request {
 }
 
 func (uc UseCase) Execute(ctx context.Context, req Request) error {
-	instance, err := uc.instanceRepo.Get(ctx, req.instanceID)
+	instID, err := instance.NewID(req.instanceID)
+	if err != nil {
+		return err
+	}
+	inst, err := uc.instanceRepo.Get(ctx, instID)
 	if err != nil {
 		return err
 	}
 
 	// the addressed must match, otherwise it could be a spoofing attempt
-	if !instance.Addr.GetIP().Equal(req.ipAddr.To4()) {
+	if !inst.Addr.GetIP().Equal(req.ipAddr.To4()) {
 		return ErrUnknownInstanceID
 	}
 
-	svr, err := uc.serverRepo.Get(ctx, instance.Addr)
+	svr, err := uc.serverRepo.Get(ctx, inst.Addr)
 	if err != nil {
 		return err
 	}

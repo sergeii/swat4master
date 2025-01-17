@@ -26,8 +26,8 @@ type Collector struct {
 	BrowserSent       prometheus.Counter
 	BrowserDurations  prometheus.Histogram
 
-	CleanerRemovals prometheus.Counter
-	CleanerErrors   prometheus.Counter
+	CleanerRemovals *prometheus.CounterVec
+	CleanerErrors   *prometheus.CounterVec
 
 	DiscoveryWorkersBusy      prometheus.Gauge
 	DiscoveryWorkersAvailable prometheus.Gauge
@@ -105,14 +105,14 @@ func New() *Collector {
 			Name: "browser_duration_seconds",
 			Help: "Duration of server browsing requests",
 		}),
-		CleanerRemovals: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+		CleanerRemovals: promauto.With(registry).NewCounterVec(prometheus.CounterOpts{
 			Name: "cleaner_removals_total",
 			Help: "The total number of inactive servers removed",
-		}),
-		CleanerErrors: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+		}, []string{"kind"}),
+		CleanerErrors: promauto.With(registry).NewCounterVec(prometheus.CounterOpts{
 			Name: "cleaner_errors_total",
 			Help: "The total number of errors occurred during cleaner runs",
-		}),
+		}, []string{"kind"}),
 		DiscoveryWorkersBusy: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
 			Name: "discovery_busy_workers",
 			Help: "The total number of busy discovery workers",

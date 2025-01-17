@@ -203,7 +203,7 @@ func TestReporter_Heartbeat_ServerIsAddedAndThenUpdated(t *testing.T) {
 	assert.Equal(t, "A-Bomb Nightclub", svr.Info.MapName)
 
 	// instance is stored with the server's address
-	inst, err := instanceRepo.Get(ctx, string([]byte{0xfe, 0xed, 0xf0, 0x0d}))
+	inst, err := instanceRepo.Get(ctx, instance.MustNewID([]byte{0xfe, 0xed, 0xf0, 0x0d}))
 	assert.NoError(t, err)
 	assert.Equal(t, "127.0.0.1:10480", inst.Addr.String())
 
@@ -254,7 +254,7 @@ func TestReporter_Heartbeat_ServerIsUpdatedWithNewInstanceID(t *testing.T) {
 	req := testutils.PackHeartbeatRequest(oldInstanceID, paramsBefore)
 	testutils.SendUDP("127.0.0.1:33811", req)
 
-	ins, err := instanceRepo.Get(ctx, string(oldInstanceID))
+	ins, err := instanceRepo.Get(ctx, instance.MustNewID(oldInstanceID))
 	require.NoError(t, err)
 	svr, err := serverRepo.Get(ctx, ins.Addr)
 	require.NoError(t, err)
@@ -282,10 +282,10 @@ func TestReporter_Heartbeat_ServerIsUpdatedWithNewInstanceID(t *testing.T) {
 	assert.Equal(t, "127.0.0.1", svr.Addr.GetDottedIP())
 
 	// the server is still accessible by the former instance key until the instance is recycled
-	ins, err = instanceRepo.Get(ctx, string(oldInstanceID))
+	ins, err = instanceRepo.Get(ctx, instance.MustNewID(oldInstanceID))
 	require.NoError(t, err)
 	assert.Equal(t, "127.0.0.1:10480", ins.Addr.String())
-	assert.Equal(t, string(oldInstanceID), ins.ID)
+	assert.Equal(t, oldInstanceID, ins.ID[:])
 }
 
 func TestReporter_Heartbeat_ServerPortIsDiscovered(t *testing.T) {
@@ -528,7 +528,11 @@ func TestReporter_Heartbeat_ServerRemovalIsValidated(t *testing.T) {
 			client := testutils.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
 
 			svr := serverfactory.Build(serverfactory.WithAddress(tt.ipaddr, 10480), serverfactory.WithQueryPort(10484))
-			inst := instance.MustNew(string([]byte{0xfe, 0xed, 0xf0, 0x0d}), svr.Addr.GetIP(), svr.Addr.Port)
+			inst := instance.MustNew(
+				instance.MustNewID([]byte{0xfe, 0xed, 0xf0, 0x0d}),
+				svr.Addr.GetIP(),
+				svr.Addr.Port,
+			)
 			serverRepo.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
 			instanceRepo.Add(ctx, inst)                                   // nolint: errcheck
 
@@ -739,7 +743,7 @@ func TestReporter_Keepalive_Errors(t *testing.T) {
 			client := testutils.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
 
 			svr := server.MustNew(net.ParseIP(tt.svrAddr), 10480, 10484)
-			inst := instance.MustNew(string(tt.instanceID), svr.Addr.GetIP(), svr.Addr.Port)
+			inst := instance.MustNew(instance.MustNewID(tt.instanceID), svr.Addr.GetIP(), svr.Addr.Port)
 			serverRepo.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
 			instanceRepo.Add(ctx, inst)                                   // nolint: errcheck
 

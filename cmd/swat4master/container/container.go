@@ -5,7 +5,6 @@ import (
 
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/internal/core/usecases/addserver"
-	"github.com/sergeii/swat4master/internal/core/usecases/cleanservers"
 	"github.com/sergeii/swat4master/internal/core/usecases/getserver"
 	"github.com/sergeii/swat4master/internal/core/usecases/listservers"
 	"github.com/sergeii/swat4master/internal/core/usecases/probeserver"
@@ -44,7 +43,6 @@ func NewUseCaseConfigs(cfg config.Config) UseCaseConfigs {
 
 type Container struct {
 	AddServer      addserver.UseCase
-	CleanServers   cleanservers.UseCase
 	GetServer      getserver.UseCase
 	ListServers    listservers.UseCase
 	ProbeServer    probeserver.UseCase
@@ -57,7 +55,6 @@ type Container struct {
 
 func NewContainer(
 	addServerUseCase addserver.UseCase,
-	cleanServersUseCase cleanservers.UseCase,
 	getServerUseCase getserver.UseCase,
 	listServersUseCase listservers.UseCase,
 	probeServerUseCase probeserver.UseCase,
@@ -69,7 +66,6 @@ func NewContainer(
 ) Container {
 	return Container{
 		AddServer:      addServerUseCase,
-		CleanServers:   cleanServersUseCase,
 		GetServer:      getServerUseCase,
 		ListServers:    listServersUseCase,
 		ProbeServer:    probeServerUseCase,
@@ -88,7 +84,6 @@ var Module = fx.Module("container",
 	fx.Provide(reportserver.New),
 	fx.Provide(renewserver.New),
 	fx.Provide(removeserver.New),
-	fx.Provide(cleanservers.New),
 	fx.Provide(refreshservers.New),
 	fx.Provide(reviveservers.New),
 	fx.Provide(probeserver.New),

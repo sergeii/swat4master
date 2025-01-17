@@ -61,14 +61,14 @@ func New(
 type Request struct {
 	svrAddr    addr.Addr
 	queryPort  int
-	instanceID string
+	instanceID []byte
 	fields     map[string]string
 }
 
 func NewRequest(
 	svrAddr addr.Addr,
 	queryPort int,
-	instanceID string,
+	instanceID []byte,
 	fields map[string]string,
 ) Request {
 	return Request{
@@ -85,12 +85,8 @@ func (uc UseCase) Execute(ctx context.Context, req Request) error {
 		return err
 	}
 
-	inst, err := instance.New(req.instanceID, svr.Addr.GetIP(), svr.Addr.Port)
+	inst, err := uc.prepareInstance(req.instanceID, req.svrAddr)
 	if err != nil {
-		uc.logger.Error().
-			Err(err).
-			Stringer("addr", req.svrAddr).Str("instance", fmt.Sprintf("% x", req.instanceID)).
-			Msg("Failed to create an instance")
 		return err
 	}
 
@@ -205,4 +201,22 @@ func (uc UseCase) obtainServerByAddr(
 		}
 	}
 	return svr, nil
+}
+
+func (uc UseCase) prepareInstance(instanceID []byte, svrAddr addr.Addr) (instance.Instance, error) {
+	instID, err := instance.NewID(instanceID)
+	if err != nil {
+		return instance.Blank, err
+	}
+
+	inst, err := instance.New(instID, svrAddr.GetIP(), svrAddr.Port)
+	if err != nil {
+		uc.logger.Error().
+			Err(err).
+			Stringer("addr", svrAddr).Str("instance", fmt.Sprintf("% x", instanceID)).
+			Msg("Failed to create an instance")
+		return instance.Blank, err
+	}
+
+	return inst, nil
 }

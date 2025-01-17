@@ -111,9 +111,11 @@ func (d *Dispatcher) selectHandler(msgType master.Msg) (Handler, error) {
 	return nil, fmt.Errorf("no associated handler for message type '%s'", msgType)
 }
 
-func ParseInstanceID(payload []byte) (string, []byte, error) {
+func ParseInstanceID(payload []byte) ([]byte, []byte, error) {
 	if len(payload) < 5 {
-		return "", nil, fmt.Errorf("invalid payload length %d", len(payload))
+		return nil, nil, fmt.Errorf("invalid payload length %d", len(payload))
 	}
-	return string(payload[1:5]), payload[5:], nil
+	id := make([]byte, 4)
+	copy(id, payload[1:5])
+	return id, payload[5:], nil
 }

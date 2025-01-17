@@ -25,6 +25,10 @@ import (
 	"github.com/sergeii/swat4master/internal/validation"
 )
 
+const DEADBEEF = "\xde\xad\xbe\xef"
+
+type b []byte
+
 type MockServerRepository struct {
 	mock.Mock
 	repositories.ServerRepository
@@ -104,7 +108,7 @@ func TestReportServerUseCase_ReportNewServer(t *testing.T) {
 	}
 	uc := reportserver.New(serverRepo, instanceRepo, probeRepo, ucOpts, validate, collector, clock, &logger)
 
-	req := reportserver.NewRequest(svrAddr, svrQueryPort, "foo", svrParams)
+	req := reportserver.NewRequest(svrAddr, svrQueryPort, b(DEADBEEF), svrParams)
 	err := uc.Execute(ctx, req)
 	assert.NoError(t, err)
 
@@ -130,7 +134,7 @@ func TestReportServerUseCase_ReportNewServer(t *testing.T) {
 		ctx,
 		mock.MatchedBy(func(createdInstance instance.Instance) bool {
 			hasAddr := createdInstance.Addr == svrAddr
-			hasID := createdInstance.ID == "foo"
+			hasID := createdInstance.ID == instance.MustNewID(b(DEADBEEF))
 			return hasAddr && hasID
 		}),
 	)
@@ -236,7 +240,7 @@ func TestReportServerUseCase_ReportExistingServer(t *testing.T) {
 				MaxProbeRetries: 3,
 			}
 			uc := reportserver.New(serverRepo, instanceRepo, probeRepo, ucOpts, validate, collector, clock, &logger)
-			req := reportserver.NewRequest(svr.Addr, svr.QueryPort, "foo", updatedParams)
+			req := reportserver.NewRequest(svr.Addr, svr.QueryPort, b(DEADBEEF), updatedParams)
 			err := uc.Execute(ctx, req)
 			assert.NoError(t, err)
 
@@ -262,7 +266,7 @@ func TestReportServerUseCase_ReportExistingServer(t *testing.T) {
 				ctx,
 				mock.MatchedBy(func(createdInstance instance.Instance) bool {
 					hasAddr := createdInstance.Addr == svr.Addr
-					hasID := createdInstance.ID == "foo"
+					hasID := createdInstance.ID == instance.MustNewID(b(DEADBEEF))
 					return hasAddr && hasID
 				}),
 			)
@@ -351,7 +355,7 @@ func TestReportServerUseCase_InvalidFields(t *testing.T) {
 				MaxProbeRetries: 3,
 			}
 			uc := reportserver.New(serverRepo, instanceRepo, probeRepo, ucOpts, validate, collector, clock, &logger)
-			req := reportserver.NewRequest(svrAddr, svrQueryPort, "foo", tt.params)
+			req := reportserver.NewRequest(svrAddr, svrQueryPort, b(DEADBEEF), tt.params)
 			err := uc.Execute(ctx, req)
 			assert.ErrorIs(t, err, reportserver.ErrInvalidRequestPayload)
 
