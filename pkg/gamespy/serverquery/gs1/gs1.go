@@ -319,7 +319,9 @@ func expandPayload(payload []byte, version QueryVersion) (Response, error) {
 				playersByID[id] = make(map[string]string)
 			}
 			playersByID[id][string(param.Name[:i])] = latin1(param.Value)
+			continue
 		}
+		// \hostname\Swat4 Server\
 		fields[string(param.Name)] = latin1(param.Value)
 	}
 

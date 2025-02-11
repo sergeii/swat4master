@@ -61,6 +61,7 @@ type Player struct {
 	Arrests         int              `validate:"gte=0"`
 	Arrested        int              `validate:"gte=0"`
 	VIPEscapes      int              `param:"vescaped"           validate:"gte=0"`
+	VIPEscapes2     int              `param:"vipescaped"         validate:"gte=0"`
 	VIPArrests      int              `param:"arrestedvip"        validate:"gte=0"`
 	VIPRescues      int              `param:"unarrestedvip"      validate:"gte=0"`
 	VIPKillsValid   int              `param:"validvipkills"      validate:"gte=0"`
