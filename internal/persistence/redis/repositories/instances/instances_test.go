@@ -16,9 +16,9 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/filterset"
 	"github.com/sergeii/swat4master/internal/core/entities/instance"
 	"github.com/sergeii/swat4master/internal/core/repositories"
+	"github.com/sergeii/swat4master/internal/persistence/redis/repositories/instances"
 
-	"github.com/sergeii/swat4master/internal/persistence/redis/instances"
-	"github.com/sergeii/swat4master/internal/testutils"
+	tu "github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/internal/testutils/factories/instancefactory"
 	"github.com/sergeii/swat4master/internal/testutils/testredis"
 )
@@ -49,22 +49,20 @@ type storageState struct {
 }
 
 func collectStorageState(ctx context.Context, rdb *redis.Client) storageState {
-	zUpdatedMembers := testutils.Must(rdb.ZRangeWithScores(ctx, "instances:updated", 0, -1).Result())
-	hItems := testutils.Must(rdb.HGetAll(ctx, "instances:items").Result())
+	zUpdatedMembers := tu.Must(rdb.ZRangeWithScores(ctx, "instances:updated", 0, -1).Result())
+	hItems := tu.Must(rdb.HGetAll(ctx, "instances:items").Result())
 
 	updates := make([]updated, 0, len(zUpdatedMembers))
-	updatesMembers := make(map[string]float64)
 	for _, m := range zUpdatedMembers {
-		id := string(testutils.Must(hex.DecodeString(m.Member.(string)))) // nolint:forcetypeassert
+		id := string(tu.Must(hex.DecodeString(m.Member.(string)))) // nolint:forcetypeassert
 		updates = append(updates, updated{ID: id, Time: m.Score})
-		updatesMembers[m.Member.(string)] = m.Score // nolint:forcetypeassert
 	}
 
 	items := make(map[string]instance.Instance)
 	for k, v := range hItems {
 		var item storedItem
-		id4bytes := testutils.Must(hex.DecodeString(k))
-		testutils.MustNoError(json.Unmarshal([]byte(v), &item))
+		id4bytes := tu.Must(hex.DecodeString(k))
+		tu.MustNoErr(json.Unmarshal([]byte(v), &item))
 		items[string(id4bytes)] = instance.MustNew(instance.MustNewID(id4bytes), item.IP, item.Port)
 	}
 
@@ -200,12 +198,12 @@ func TestInstancesRedisRepo_Get_OK(t *testing.T) {
 		instancefactory.WithRandomServerAddress(),
 	)
 
-	testutils.MustNoError(repo.Add(ctx, ins1))
-	testutils.MustNoError(repo.Add(ctx, ins2))
+	tu.MustNoErr(repo.Add(ctx, ins1))
+	tu.MustNoErr(repo.Add(ctx, ins2))
 
 	// ...and another one added later
 	c.Advance(time.Millisecond * 100)
-	testutils.MustNoError(repo.Add(ctx, ins3))
+	tu.MustNoErr(repo.Add(ctx, ins3))
 
 	// When retrieving an instance by ID
 	for _, pair := range []struct {

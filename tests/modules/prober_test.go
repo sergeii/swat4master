@@ -134,19 +134,19 @@ func TestProber_Run(t *testing.T) {
 	})
 
 	svr1 := server.MustNewFromAddr(addr.NewForTesting(udpAddr1.IP, udpAddr1.Port-1), udpAddr1.Port)
-	svr1.UpdateInfo(info, time.Now())
+	svr1.UpdateInfo(info)
 	svr1.UpdateDiscoveryStatus(ds.Master | ds.Port)
 
 	svr2 := server.MustNewFromAddr(addr.NewForTesting(udpAddr2.IP, udpAddr2.Port-1), udpAddr2.Port)
-	svr2.UpdateInfo(info, time.Now())
+	svr2.UpdateInfo(info)
 	svr2.UpdateDiscoveryStatus(ds.Master | ds.PortRetry | ds.DetailsRetry)
 
 	svr3 := server.MustNewFromAddr(addr.NewForTesting(udpAddr3.IP, udpAddr3.Port-1), udpAddr3.Port)
-	svr3.UpdateInfo(info, time.Now())
+	svr3.UpdateInfo(info)
 	svr3.UpdateDiscoveryStatus(ds.Master | ds.Port)
 
 	svr4 := serverfactory.BuildRandom()
-	svr4.UpdateInfo(info, time.Now())
+	svr4.UpdateInfo(info)
 	svr4.UpdateDiscoveryStatus(ds.Master)
 
 	app.Start(context.TODO()) // nolint: errcheck

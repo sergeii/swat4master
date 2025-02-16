@@ -23,7 +23,6 @@ type ServerRepository interface {
 	Get(ctx context.Context, addr addr.Addr) (server.Server, error)
 	Add(ctx context.Context, server server.Server, onConflict func(*server.Server) bool) (server.Server, error)
 	Update(ctx context.Context, server server.Server, onConflict func(*server.Server) bool) (server.Server, error)
-	AddOrUpdate(ctx context.Context, server server.Server, onConflict func(*server.Server)) (server.Server, error)
 	Remove(ctx context.Context, server server.Server, onConflict func(*server.Server) bool) error
 	Filter(ctx context.Context, fs filterset.ServerFilterSet) ([]server.Server, error)
 	Count(ctx context.Context) (int, error)

@@ -82,15 +82,13 @@ func (gs *Server) ClearDiscoveryStatus(status ds.DiscoveryStatus) {
 	gs.DiscoveryStatus &^= status
 }
 
-func (gs *Server) UpdateInfo(info details.Info, updatedAt time.Time) {
+func (gs *Server) UpdateInfo(info details.Info) {
 	gs.Info = info
-	gs.RefreshedAt = updatedAt
 }
 
-func (gs *Server) UpdateDetails(det details.Details, updatedAt time.Time) {
+func (gs *Server) UpdateDetails(det details.Details) {
 	gs.Details = det
 	gs.Info = det.Info
-	gs.RefreshedAt = updatedAt
 }
 
 func (gs *Server) Refresh(updatedAt time.Time) {
