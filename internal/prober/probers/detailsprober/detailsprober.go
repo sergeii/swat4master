@@ -103,7 +103,8 @@ func (p DetailsProber) HandleSuccess(result any, svr server.Server) server.Serve
 	if !ok {
 		panic(fmt.Errorf("unexpected result type %T, %v", result, result))
 	}
-	svr.UpdateDetails(det, p.clock.Now())
+	svr.UpdateDetails(det)
+	svr.Refresh(p.clock.Now())
 	svr.UpdateDiscoveryStatus(ds.Info | ds.Details)
 	svr.ClearDiscoveryStatus(ds.NoDetails | ds.DetailsRetry)
 	return svr

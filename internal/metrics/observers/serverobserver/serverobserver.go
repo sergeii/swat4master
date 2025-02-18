@@ -63,12 +63,10 @@ func (o ServerObserver) observeDiscoveredServers(ctx context.Context, m *metrics
 		return
 	}
 	for status, serverCount := range countByStatus {
-		switch status { // nolint: exhaustive
-		case ds.NoStatus:
+		if status == ds.NoStatus || serverCount == 0 {
 			continue
-		default:
-			m.GameDiscoveredServers.WithLabelValues(status.BitString()).Set(float64(serverCount))
 		}
+		m.GameDiscoveredServers.WithLabelValues(status.BitString()).Set(float64(serverCount))
 	}
 }
 

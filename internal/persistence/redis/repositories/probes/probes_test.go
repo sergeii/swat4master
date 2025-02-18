@@ -16,8 +16,8 @@ import (
 
 	"github.com/sergeii/swat4master/internal/core/entities/probe"
 	"github.com/sergeii/swat4master/internal/core/repositories"
-	"github.com/sergeii/swat4master/internal/persistence/redis/probes"
-	"github.com/sergeii/swat4master/internal/testutils"
+	"github.com/sergeii/swat4master/internal/persistence/redis/repositories/probes"
+	tu "github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/internal/testutils/factories/probefactory"
 	"github.com/sergeii/swat4master/internal/testutils/testredis"
 	"github.com/sergeii/swat4master/pkg/slice"
@@ -52,8 +52,8 @@ func micro(t time.Time) time.Time {
 }
 
 func collectQueueState(ctx context.Context, rdb *redis.Client) qState {
-	zQueueMembers := testutils.Must(rdb.ZRangeWithScores(ctx, "probes:queue", 0, -1).Result())
-	hItems := testutils.Must(rdb.HGetAll(ctx, "probes:items").Result())
+	zQueueMembers := tu.Must(rdb.ZRangeWithScores(ctx, "probes:queue", 0, -1).Result())
+	hItems := tu.Must(rdb.HGetAll(ctx, "probes:items").Result())
 
 	queue := make([]qMember, 0, len(zQueueMembers))
 	queueMembers := make(map[string]float64)
@@ -65,7 +65,7 @@ func collectQueueState(ctx context.Context, rdb *redis.Client) qState {
 	items := make(map[string]qItem)
 	for k, v := range hItems {
 		var item qItem
-		testutils.MustNoError(json.Unmarshal([]byte(v), &item))
+		tu.MustNoErr(json.Unmarshal([]byte(v), &item))
 		items[k] = item
 	}
 
@@ -385,20 +385,20 @@ func TestProbesRedisRepo_Pop_OK(t *testing.T) {
 
 	// Given the repository contains a probe with no time constraints
 	prb1 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.Add(ctx, prb1))
+	tu.MustNoErr(repo.Add(ctx, prb1))
 
 	// And another probe that has expired
 	prb2 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb2, now.Add(-time.Millisecond*100), now.Add(-time.Millisecond*50)))
+	tu.MustNoErr(repo.AddBetween(ctx, prb2, now.Add(-time.Millisecond*100), now.Add(-time.Millisecond*50)))
 
 	// And another probe added slightly later
 	c.Advance(time.Millisecond)
 	prb3 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.Add(ctx, prb3))
+	tu.MustNoErr(repo.Add(ctx, prb3))
 
 	// And another probe set to be ready far in the future
 	prb4 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb4, now.Add(time.Minute), repositories.NC))
+	tu.MustNoErr(repo.AddBetween(ctx, prb4, now.Add(time.Minute), repositories.NC))
 
 	// And the queue state should be as expected
 	state := collectQueueState(ctx, rdb)
@@ -477,8 +477,8 @@ func TestProbesRedisRepo_Pop_Expired(t *testing.T) {
 	prb1 := probefactory.Build(probefactory.WithRandomServerAddress())
 	prb2 := probefactory.Build(probefactory.WithRandomServerAddress())
 
-	testutils.MustNoError(repo.AddBetween(ctx, prb1, repositories.NC, now.Add(-time.Millisecond*50)))
-	testutils.MustNoError(repo.AddBetween(ctx, prb2, repositories.NC, now.Add(-time.Millisecond)))
+	tu.MustNoErr(repo.AddBetween(ctx, prb1, repositories.NC, now.Add(-time.Millisecond*50)))
+	tu.MustNoErr(repo.AddBetween(ctx, prb2, repositories.NC, now.Add(-time.Millisecond)))
 
 	// When the Pop method is called
 	_, err := repo.Pop(ctx)
@@ -496,7 +496,7 @@ func TestProbesRedisRepo_Pop_NotReady(t *testing.T) {
 
 	// Given the repository contains a probe that is not yet ready
 	prv := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prv, now.Add(time.Millisecond*50), repositories.NC))
+	tu.MustNoErr(repo.AddBetween(ctx, prv, now.Add(time.Millisecond*50), repositories.NC))
 
 	// When the Pop method is called
 	_, err := repo.Pop(ctx)
@@ -568,11 +568,11 @@ func TestProbesRedisRepo_Peek(t *testing.T) {
 
 			// Given the repository contains a probe with various time constraints
 			prb := probefactory.Build(probefactory.WithRandomServerAddress())
-			testutils.MustNoError(repo.AddBetween(ctx, prb, tt.after(now), tt.before(now)))
+			tu.MustNoErr(repo.AddBetween(ctx, prb, tt.after(now), tt.before(now)))
 
 			// And another probe that will be ready far in the future
 			other := probefactory.Build(probefactory.WithRandomServerAddress())
-			testutils.MustNoError(repo.AddBetween(ctx, other, now.Add(time.Hour*24), repositories.NC))
+			tu.MustNoErr(repo.AddBetween(ctx, other, now.Add(time.Hour*24), repositories.NC))
 
 			// When the Peek method is called
 			got, err := repo.Peek(ctx)
@@ -610,20 +610,20 @@ func TestProbesRedisRepo_PopMany_OK(t *testing.T) {
 
 	// Given the repository contains a probe with no time constraints
 	prb1 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.Add(ctx, prb1))
+	tu.MustNoErr(repo.Add(ctx, prb1))
 
 	// And another probe that has expired
 	prb2 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb2, repositories.NC, now.Add(-time.Millisecond*50)))
+	tu.MustNoErr(repo.AddBetween(ctx, prb2, repositories.NC, now.Add(-time.Millisecond*50)))
 
 	// And another probe added slightly later
 	c.Advance(time.Millisecond)
 	prb3 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.Add(ctx, prb3))
+	tu.MustNoErr(repo.Add(ctx, prb3))
 
 	// And another probe set to be ready far in the future
 	prb4 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb4, now.Add(time.Minute), repositories.NC))
+	tu.MustNoErr(repo.AddBetween(ctx, prb4, now.Add(time.Minute), repositories.NC))
 
 	// And the queue state should be as expected
 	state := collectQueueState(ctx, rdb)
@@ -687,7 +687,7 @@ func TestProbesRedisRepo_PopManyAddRace(t *testing.T) { // nolint:gocognit
 		case item := <-todo:
 			if item.Expired {
 				expiredSecondsAgo := rand.IntN(31) // nolint:gosec
-				testutils.MustNoError(
+				tu.MustNoErr(
 					repo.AddBetween(
 						ctx,
 						item.Probe,
@@ -696,7 +696,7 @@ func TestProbesRedisRepo_PopManyAddRace(t *testing.T) { // nolint:gocognit
 					),
 				)
 			} else {
-				testutils.MustNoError(repo.Add(ctx, item.Probe))
+				tu.MustNoErr(repo.Add(ctx, item.Probe))
 			}
 		}
 	}
@@ -815,19 +815,19 @@ func TestProbesRedisRepo_PopMany_Zero(t *testing.T) {
 
 	// Given the repository contains some probes with different time constraints
 	prb1 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.Add(ctx, prb1))
+	tu.MustNoErr(repo.Add(ctx, prb1))
 
 	prb2 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb2, now.Add(time.Millisecond), now.Add(time.Millisecond*50)))
+	tu.MustNoErr(repo.AddBetween(ctx, prb2, now.Add(time.Millisecond), now.Add(time.Millisecond*50)))
 
 	prb3 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb3, now.Add(time.Millisecond*100), repositories.NC))
+	tu.MustNoErr(repo.AddBetween(ctx, prb3, now.Add(time.Millisecond*100), repositories.NC))
 
 	prb4 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb4, now.Add(-time.Millisecond*50), repositories.NC))
+	tu.MustNoErr(repo.AddBetween(ctx, prb4, now.Add(-time.Millisecond*50), repositories.NC))
 
 	prb5 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb5, now.Add(-time.Millisecond*100), now.Add(-time.Millisecond)))
+	tu.MustNoErr(repo.AddBetween(ctx, prb5, now.Add(-time.Millisecond*100), now.Add(-time.Millisecond)))
 
 	// When the PopMany method is called with a zero count
 	popped, expired, err := repo.PopMany(ctx, 0)
@@ -859,10 +859,10 @@ func TestProbesRedisRepo_PopMany_NotReady(t *testing.T) {
 
 	// Given the repository contains probes that are not yet ready
 	prb1 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb1, now.Add(time.Millisecond*50), repositories.NC))
+	tu.MustNoErr(repo.AddBetween(ctx, prb1, now.Add(time.Millisecond*50), repositories.NC))
 
 	prb2 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb2, now.Add(time.Millisecond*100), repositories.NC))
+	tu.MustNoErr(repo.AddBetween(ctx, prb2, now.Add(time.Millisecond*100), repositories.NC))
 
 	// When the PopMany method is called
 	popped, expired, err := repo.PopMany(ctx, 3)
@@ -913,10 +913,10 @@ func TestProbesRedisRepo_PopMany_Expired(t *testing.T) {
 
 	// Given the repository contains only probes that have expired
 	prb1 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb1, repositories.NC, now.Add(-time.Millisecond*50)))
+	tu.MustNoErr(repo.AddBetween(ctx, prb1, repositories.NC, now.Add(-time.Millisecond*50)))
 
 	prb2 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb2, repositories.NC, now.Add(-time.Second)))
+	tu.MustNoErr(repo.AddBetween(ctx, prb2, repositories.NC, now.Add(-time.Second)))
 
 	// When the PopMany method is called
 	popped, expired, err := repo.PopMany(ctx, 3)
@@ -941,22 +941,22 @@ func TestProbesRedisRepo_PopMany_Mixed(t *testing.T) {
 
 	// Given the repository contains probes that both have ready, expired, and not yet ready
 	prb1 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.Add(ctx, prb1))
+	tu.MustNoErr(repo.Add(ctx, prb1))
 
 	prb2 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb2, repositories.NC, now.Add(-time.Millisecond*50)))
+	tu.MustNoErr(repo.AddBetween(ctx, prb2, repositories.NC, now.Add(-time.Millisecond*50)))
 
 	prb3 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb3, now.Add(time.Millisecond*50), repositories.NC))
+	tu.MustNoErr(repo.AddBetween(ctx, prb3, now.Add(time.Millisecond*50), repositories.NC))
 
 	prb4 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb4, now.Add(time.Millisecond), repositories.NC))
+	tu.MustNoErr(repo.AddBetween(ctx, prb4, now.Add(time.Millisecond), repositories.NC))
 
 	prb5 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb5, now.Add(time.Millisecond*2), repositories.NC))
+	tu.MustNoErr(repo.AddBetween(ctx, prb5, now.Add(time.Millisecond*2), repositories.NC))
 
 	prb6 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb6, now.Add(time.Millisecond*3), repositories.NC))
+	tu.MustNoErr(repo.AddBetween(ctx, prb6, now.Add(time.Millisecond*3), repositories.NC))
 
 	c.Advance(time.Millisecond * 10)
 
@@ -1032,25 +1032,25 @@ func TestProbesRedisRepo_Count(t *testing.T) {
 
 	// When a probe is added to the repository
 	prb1 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.Add(ctx, prb1))
+	tu.MustNoErr(repo.Add(ctx, prb1))
 	// Then the count should be 1
 	assertCount(1)
 
 	// When another probe is added to the repository
 	prb2 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.Add(ctx, prb2))
+	tu.MustNoErr(repo.Add(ctx, prb2))
 	// Then the count should be 2
 	assertCount(2)
 
 	// When the repository contains an expired probe
 	prb3 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb3, repositories.NC, now.Add(-time.Second*600)))
+	tu.MustNoErr(repo.AddBetween(ctx, prb3, repositories.NC, now.Add(-time.Second*600)))
 	// Then the count should account for the expired probe
 	assertCount(3)
 
 	// When the repository contains a probe that is not yet ready
 	prb4 := probefactory.Build(probefactory.WithRandomServerAddress())
-	testutils.MustNoError(repo.AddBetween(ctx, prb4, now.Add(time.Second*600), now.Add(time.Second*700)))
+	tu.MustNoErr(repo.AddBetween(ctx, prb4, now.Add(time.Second*600), now.Add(time.Second*700)))
 	// Then the count should account for the not ready probe
 	assertCount(4)
 
@@ -1063,7 +1063,7 @@ func TestProbesRedisRepo_Count(t *testing.T) {
 
 	// When the time has passed so the last probe is ready to be popped
 	c.Advance(time.Second * 601)
-	testutils.Must(repo.Pop(ctx))
+	tu.Must(repo.Pop(ctx))
 	// Then the count should be 0
 	assertCount(0)
 }

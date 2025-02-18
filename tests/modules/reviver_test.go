@@ -18,6 +18,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/metrics"
+	tu "github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 	"github.com/sergeii/swat4master/tests/testapp"
 )
@@ -86,35 +87,56 @@ func TestReviver_OK(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
+	now := time.Now()
+
 	gs1 := serverfactory.Build(
 		serverfactory.WithAddress("1.1.1.1", 10480),
 		serverfactory.WithQueryPort(10481),
 		serverfactory.WithDiscoveryStatus(ds.Master),
+		serverfactory.WithRefreshedAt(now),
 	)
 	gs2 := serverfactory.Build(
 		serverfactory.WithAddress("2.2.2.2", 10480),
 		serverfactory.WithQueryPort(10481),
 		serverfactory.WithDiscoveryStatus(ds.Port),
+		serverfactory.WithRefreshedAt(now),
 	)
 	gs3 := serverfactory.Build(
 		serverfactory.WithAddress("3.3.3.3", 10480),
 		serverfactory.WithQueryPort(10481),
 		serverfactory.WithDiscoveryStatus(ds.Master|ds.Details|ds.Port),
+		serverfactory.WithRefreshedAt(now),
 	)
 	gs4 := serverfactory.Build(
 		serverfactory.WithAddress("4.4.4.4", 10480),
 		serverfactory.WithQueryPort(10481),
 		serverfactory.WithDiscoveryStatus(ds.DetailsRetry),
+		serverfactory.WithRefreshedAt(now),
 	)
 	gs5 := serverfactory.Build(
 		serverfactory.WithAddress("5.5.5.5", 10480),
 		serverfactory.WithQueryPort(10481),
 		serverfactory.WithDiscoveryStatus(ds.Master|ds.Info|ds.Details),
+		serverfactory.WithRefreshedAt(now),
 	)
 	gs6 := serverfactory.Build(
 		serverfactory.WithAddress("6.6.6.6", 10480),
 		serverfactory.WithQueryPort(10481),
 		serverfactory.WithDiscoveryStatus(ds.Master|ds.PortRetry),
+		serverfactory.WithRefreshedAt(now),
+	)
+	// No refresh time
+	gs7 := serverfactory.Build(
+		serverfactory.WithAddress("7.7.7.7", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Info|ds.Details),
+	)
+	// Server refresh time is far in the past
+	gs8 := serverfactory.Build(
+		serverfactory.WithAddress("8.8.8.8", 10480),
+		serverfactory.WithQueryPort(10481),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Info),
+		serverfactory.WithRefreshedAt(now.Add(-time.Second)),
 	)
 
 	app, cancel := makeAppWithReviver(
@@ -123,8 +145,8 @@ func TestReviver_OK(t *testing.T) {
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
 
-	for _, gs := range []server.Server{gs1, gs2, gs3, gs4, gs5, gs6} {
-		serverfactory.Save(ctx, serverRepo, gs)
+	for _, svr := range []*server.Server{&gs1, &gs2, &gs3, &gs4, &gs5, &gs6, &gs7, &gs8} {
+		*svr = tu.Must(serverRepo.Add(ctx, *svr, repositories.ServerOnConflictIgnore))
 	}
 
 	// let refresher run a cycle
@@ -139,9 +161,9 @@ func TestReviver_OK(t *testing.T) {
 	// we can't predict the order of the probes
 	assert.ElementsMatch(t, []string{"5.5.5.5:10480", "4.4.4.4:10480", "1.1.1.1:10480"}, result.probes)
 
-	// make gs3 non-revivable
+	// make gs3 revivable
 	gs3.ClearDiscoveryStatus(ds.Port)
-	gs3, _ = serverRepo.Update(ctx, gs3, repositories.ServerOnConflictIgnore)
+	gs3 = tu.Must(serverRepo.Update(ctx, gs3, repositories.ServerOnConflictIgnore))
 
 	// let reviver run another cycle
 	<-time.After(time.Millisecond * 100)
@@ -163,10 +185,9 @@ func TestReviver_OK(t *testing.T) {
 	gs1.UpdateDiscoveryStatus(ds.Port)
 	gs4.UpdateDiscoveryStatus(ds.PortRetry)
 	gs5.UpdateDiscoveryStatus(ds.Port)
-
-	gs1, _ = serverRepo.Update(ctx, gs1, repositories.ServerOnConflictIgnore)
-	gs4, _ = serverRepo.Update(ctx, gs4, repositories.ServerOnConflictIgnore)
-	gs5, _ = serverRepo.Update(ctx, gs5, repositories.ServerOnConflictIgnore)
+	gs1 = tu.Must(serverRepo.Update(ctx, gs1, repositories.ServerOnConflictIgnore))
+	gs4 = tu.Must(serverRepo.Update(ctx, gs4, repositories.ServerOnConflictIgnore))
+	gs5 = tu.Must(serverRepo.Update(ctx, gs5, repositories.ServerOnConflictIgnore))
 
 	// run another cycle, expect only gs3 to be revived
 	<-time.After(time.Millisecond * 100)

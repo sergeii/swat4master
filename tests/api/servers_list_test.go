@@ -3,7 +3,6 @@ package api_test
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"testing"
@@ -13,9 +12,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/sergeii/swat4master/cmd/swat4master/config"
-	"github.com/sergeii/swat4master/internal/core/entities/details"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
-	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 )
@@ -61,97 +58,98 @@ func TestAPI_ListServers_OK(t *testing.T) {
 	)
 	defer cancel()
 
-	outdated := server.MustNew(net.ParseIP("3.3.3.3"), 10480, 10481)
-	outdated.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Swat4 Server",
-		"hostport":    "10480",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "Barricaded Suspects",
-		"password":    "0",
-		"numplayers":  "15",
-		"maxplayers":  "16",
-		"round":       "1",
-		"numrounds":   "5",
-	}), time.Now())
-	outdated.UpdateDiscoveryStatus(ds.Master)
-	serverfactory.Save(ctx, repos.Servers, outdated)
+	// Outdated server
+	serverfactory.Create(
+		ctx,
+		repos.Servers,
+		serverfactory.WithRandomAddress(),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Info),
+		serverfactory.WithRefreshedAt(time.Now().Add(-time.Second*16)),
+		serverfactory.WithInfo(map[string]string{
+			"hostname":    "Swat4 Server",
+			"hostport":    "10480",
+			"mapname":     "A-Bomb Nightclub",
+			"gamever":     "1.1",
+			"gamevariant": "SWAT 4",
+			"gametype":    "Barricaded Suspects",
+			"password":    "0",
+			"numplayers":  "15",
+			"maxplayers":  "16",
+			"round":       "1",
+			"numrounds":   "5",
+		}),
+	)
 
-	noStatus := server.MustNew(net.ParseIP("4.4.4.4"), 10480, 10481)
-	noStatus.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Cool Swat4 Server",
-		"hostport":    "10480",
-		"mapname":     "Riverside Training Facility",
-		"gamever":     "1.0",
-		"gamevariant": "SWAT 4",
-		"gametype":    "Barricaded Suspects",
-	}), time.Now())
-	serverfactory.Save(ctx, repos.Servers, noStatus)
+	// No Info status
+	serverfactory.Create(
+		ctx,
+		repos.Servers,
+		serverfactory.WithRandomAddress(),
+		serverfactory.WithDiscoveryStatus(ds.Master),
+		serverfactory.WithRefreshedAt(time.Now()),
+		serverfactory.WithInfo(map[string]string{
+			"hostname":    "Cool Swat4 Server",
+			"hostport":    "10480",
+			"mapname":     "Riverside Training Facility",
+			"gamever":     "1.0",
+			"gamevariant": "SWAT 4",
+			"gametype":    "Barricaded Suspects",
+		}),
+	)
 
-	delisted := server.MustNew(net.ParseIP("5.5.5.5"), 10480, 10481)
-	delisted.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "COOP Server",
-		"hostport":    "10480",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "CO-OP",
-	}), time.Now())
-	delisted.UpdateDiscoveryStatus(ds.NoDetails)
-	serverfactory.Save(ctx, repos.Servers, delisted)
+	// Server never refreshed
+	serverfactory.Create(
+		ctx,
+		repos.Servers,
+		serverfactory.WithRandomAddress(),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Details|ds.Info),
+	)
 
-	noInfo := server.MustNew(net.ParseIP("6.6.6.6"), 10480, 10481)
-	noInfo.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Awesome Server",
-		"hostport":    "10580",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "CO-OP",
-	}), time.Now())
-	noInfo.UpdateDiscoveryStatus(ds.Master | ds.Details)
-	serverfactory.Save(ctx, repos.Servers, noInfo)
+	// Server with Info status and recent refresh time
+	serverfactory.Create(
+		ctx,
+		repos.Servers,
+		serverfactory.WithAddress("1.1.1.1", 10580),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Details|ds.Info),
+		serverfactory.WithRefreshedAt(time.Now()),
+		serverfactory.WithInfo(map[string]string{
+			"hostname":      `[C=FFFFFF]Swat4[\c] [b]Server`,
+			"hostport":      "10480",
+			"mapname":       "A-Bomb Nightclub",
+			"gamever":       "1.1",
+			"gamevariant":   "SWAT 4",
+			"gametype":      "VIP Escort",
+			"password":      "0",
+			"numplayers":    "14",
+			"maxplayers":    "16",
+			"round":         "4",
+			"numrounds":     "5",
+			"timeleft":      "877",
+			"swatscore":     "98",
+			"suspectsscore": "76",
+			"swatwon":       "1",
+			"suspectswon":   "2",
+		}),
+	)
 
-	noRefresh := server.MustNew(net.ParseIP("7.7.7.7"), 10580, 10581)
-	noRefresh.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-	serverfactory.Save(ctx, repos.Servers, noRefresh)
-
-	gs1 := server.MustNew(net.ParseIP("1.1.1.1"), 10580, 10581)
-	gs1.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":      `[C=FFFFFF]Swat4[\c] [b]Server`,
-		"hostport":      "10480",
-		"mapname":       "A-Bomb Nightclub",
-		"gamever":       "1.1",
-		"gamevariant":   "SWAT 4",
-		"gametype":      "VIP Escort",
-		"password":      "0",
-		"numplayers":    "14",
-		"maxplayers":    "16",
-		"round":         "4",
-		"numrounds":     "5",
-		"timeleft":      "877",
-		"swatscore":     "98",
-		"suspectsscore": "76",
-		"swatwon":       "1",
-		"suspectswon":   "2",
-	}), time.Now())
-	gs1.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-	serverfactory.Save(ctx, repos.Servers, gs1)
-
-	gs2 := server.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
-	gs2.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-		"hostname":    "Another Swat4 Server",
-		"hostport":    "10480",
-		"mapname":     "A-Bomb Nightclub",
-		"gamever":     "1.1",
-		"gamevariant": "SWAT 4",
-		"gametype":    "CO-OP",
-		"numplayers":  "4",
-		"maxplayers":  "5",
-	}), time.Now())
-	gs2.UpdateDiscoveryStatus(ds.Master | ds.Info)
-	serverfactory.Save(ctx, repos.Servers, gs2)
+	// Server with Info status and recent refresh time
+	serverfactory.Create(
+		ctx,
+		repos.Servers,
+		serverfactory.WithAddress("2.2.2.2", 10480),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Info),
+		serverfactory.WithRefreshedAt(time.Now().Add(-time.Second*14)),
+		serverfactory.WithInfo(map[string]string{
+			"hostname":    "Another Swat4 Server",
+			"hostport":    "10480",
+			"mapname":     "A-Bomb Nightclub",
+			"gamever":     "1.1",
+			"gamevariant": "SWAT 4",
+			"gametype":    "CO-OP",
+			"numplayers":  "4",
+			"maxplayers":  "5",
+		}),
+	)
 
 	respJSON := make([]serverListSchema, 0)
 	resp := testutils.DoTestRequest(
@@ -161,53 +159,58 @@ func TestAPI_ListServers_OK(t *testing.T) {
 	assert.Equal(t, 200, resp.StatusCode)
 	assert.Len(t, respJSON, 2)
 
-	svr1 := respJSON[0]
-	assert.Equal(t, "Another Swat4 Server", svr1.Hostname)
-	assert.Equal(t, "Another Swat4 Server", svr1.HostnamePlain)
-	assert.Equal(t, "Another Swat4 Server", svr1.HostnameHTML)
-	assert.Equal(t, "2.2.2.2:10480", svr1.Address)
-	assert.Equal(t, "2.2.2.2", svr1.IP)
-	assert.Equal(t, 10480, svr1.Port)
+	svrByAddr := make(map[string]serverListSchema)
+	for _, svr := range respJSON {
+		svrByAddr[svr.Address] = svr
+	}
+
+	svr1 := svrByAddr["1.1.1.1:10580"]
+	assert.Equal(t, `[C=FFFFFF]Swat4[\c] [b]Server`, svr1.Hostname)
+	assert.Equal(t, "Swat4 Server", svr1.HostnamePlain)
+	assert.Equal(t, `<span style="color:#FFFFFF;">Swat4</span> Server`, svr1.HostnameHTML)
+	assert.Equal(t, "1.1.1.1:10580", svr1.Address)
+	assert.Equal(t, "1.1.1.1", svr1.IP)
+	assert.Equal(t, 10580, svr1.Port)
 	assert.Equal(t, false, svr1.Passworded)
 	assert.Equal(t, "SWAT 4", svr1.GameName)
-	assert.Equal(t, "CO-OP", svr1.GameType)
-	assert.Equal(t, "co-op", svr1.GameTypeSlug)
+	assert.Equal(t, "VIP Escort", svr1.GameType)
+	assert.Equal(t, "vip-escort", svr1.GameTypeSlug)
 	assert.Equal(t, "1.1", svr1.GameVer)
 	assert.Equal(t, "A-Bomb Nightclub", svr1.MapName)
 	assert.Equal(t, "a-bomb-nightclub", svr1.MapNameSlug)
-	assert.Equal(t, 4, svr1.PlayerNum)
-	assert.Equal(t, 5, svr1.PlayerMax)
-	assert.Equal(t, 0, svr1.RoundNum)
-	assert.Equal(t, 0, svr1.RoundMax)
-	assert.Equal(t, 0, svr1.TimeLeft)
-	assert.Equal(t, 0, svr1.SwatScore)
-	assert.Equal(t, 0, svr1.SuspectsScore)
-	assert.Equal(t, 0, svr1.SwatWon)
-	assert.Equal(t, 0, svr1.SuspectsWon)
+	assert.Equal(t, 14, svr1.PlayerNum)
+	assert.Equal(t, 16, svr1.PlayerMax)
+	assert.Equal(t, 4, svr1.RoundNum)
+	assert.Equal(t, 5, svr1.RoundMax)
+	assert.Equal(t, 877, svr1.TimeLeft)
+	assert.Equal(t, 98, svr1.SwatScore)
+	assert.Equal(t, 76, svr1.SuspectsScore)
+	assert.Equal(t, 1, svr1.SwatWon)
+	assert.Equal(t, 2, svr1.SuspectsWon)
 
-	svr2 := respJSON[1]
-	assert.Equal(t, `[C=FFFFFF]Swat4[\c] [b]Server`, svr2.Hostname)
-	assert.Equal(t, "Swat4 Server", svr2.HostnamePlain)
-	assert.Equal(t, `<span style="color:#FFFFFF;">Swat4</span> Server`, svr2.HostnameHTML)
-	assert.Equal(t, "1.1.1.1:10580", svr2.Address)
-	assert.Equal(t, "1.1.1.1", svr2.IP)
-	assert.Equal(t, 10580, svr2.Port)
+	svr2 := svrByAddr["2.2.2.2:10480"]
+	assert.Equal(t, "Another Swat4 Server", svr2.Hostname)
+	assert.Equal(t, "Another Swat4 Server", svr2.HostnamePlain)
+	assert.Equal(t, "Another Swat4 Server", svr2.HostnameHTML)
+	assert.Equal(t, "2.2.2.2:10480", svr2.Address)
+	assert.Equal(t, "2.2.2.2", svr2.IP)
+	assert.Equal(t, 10480, svr2.Port)
 	assert.Equal(t, false, svr2.Passworded)
 	assert.Equal(t, "SWAT 4", svr2.GameName)
-	assert.Equal(t, "VIP Escort", svr2.GameType)
-	assert.Equal(t, "vip-escort", svr2.GameTypeSlug)
+	assert.Equal(t, "CO-OP", svr2.GameType)
+	assert.Equal(t, "co-op", svr2.GameTypeSlug)
 	assert.Equal(t, "1.1", svr2.GameVer)
 	assert.Equal(t, "A-Bomb Nightclub", svr2.MapName)
 	assert.Equal(t, "a-bomb-nightclub", svr2.MapNameSlug)
-	assert.Equal(t, 14, svr2.PlayerNum)
-	assert.Equal(t, 16, svr2.PlayerMax)
-	assert.Equal(t, 4, svr2.RoundNum)
-	assert.Equal(t, 5, svr2.RoundMax)
-	assert.Equal(t, 877, svr2.TimeLeft)
-	assert.Equal(t, 98, svr2.SwatScore)
-	assert.Equal(t, 76, svr2.SuspectsScore)
-	assert.Equal(t, 1, svr2.SwatWon)
-	assert.Equal(t, 2, svr2.SuspectsWon)
+	assert.Equal(t, 4, svr2.PlayerNum)
+	assert.Equal(t, 5, svr2.PlayerMax)
+	assert.Equal(t, 0, svr2.RoundNum)
+	assert.Equal(t, 0, svr2.RoundMax)
+	assert.Equal(t, 0, svr2.TimeLeft)
+	assert.Equal(t, 0, svr2.SwatScore)
+	assert.Equal(t, 0, svr2.SuspectsScore)
+	assert.Equal(t, 0, svr2.SwatWon)
+	assert.Equal(t, 0, svr2.SuspectsWon)
 }
 
 func TestAPI_ListServers_Filters(t *testing.T) {
@@ -386,110 +389,145 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 			)
 			defer cancel()
 
-			vip := server.MustNew(net.ParseIP("1.1.1.1"), 10580, 10581)
-			vip.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-				"hostname":    "VIP Escort Swat4 Server",
-				"hostport":    "10480",
-				"gametype":    "VIP Escort",
-				"gamevariant": "SWAT 4",
-				"mapname":     "A-Bomb Nightclub",
-				"gamever":     "1.1",
-				"password":    "0",
-				"numplayers":  "16",
-				"maxplayers":  "16",
-			}), time.Now())
-			vip.UpdateDiscoveryStatus(ds.Master | ds.Info)
-			serverfactory.Save(ctx, repos.Servers, vip)
+			// VIP 1.1
+			serverfactory.Create(
+				ctx,
+				repos.Servers,
+				serverfactory.WithRandomAddress(),
+				serverfactory.WithDiscoveryStatus(ds.Master|ds.Info),
+				serverfactory.WithRefreshedAt(time.Now()),
+				serverfactory.WithInfo(map[string]string{
+					"hostname":    "VIP Escort Swat4 Server",
+					"hostport":    "10480",
+					"gametype":    "VIP Escort",
+					"gamevariant": "SWAT 4",
+					"mapname":     "A-Bomb Nightclub",
+					"gamever":     "1.1",
+					"password":    "0",
+					"numplayers":  "16",
+					"maxplayers":  "16",
+				}),
+			)
 
-			vip10 := server.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
-			vip10.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-				"hostname":    "VIP 1.0 Swat4 Server",
-				"hostport":    "10480",
-				"gametype":    "VIP Escort",
-				"mapname":     "The Wolcott Projects",
-				"gamevariant": "SWAT 4",
-				"gamever":     "1.0",
-				"password":    "0",
-				"numplayers":  "16",
-				"maxplayers":  "18",
-			}), time.Now())
-			vip10.UpdateDiscoveryStatus(ds.Master | ds.Info)
-			serverfactory.Save(ctx, repos.Servers, vip10)
+			// VIP 1.0
+			serverfactory.Create(
+				ctx,
+				repos.Servers,
+				serverfactory.WithRandomAddress(),
+				serverfactory.WithDiscoveryStatus(ds.Master|ds.Info),
+				serverfactory.WithRefreshedAt(time.Now()),
+				serverfactory.WithInfo(map[string]string{
+					"hostname":    "VIP 1.0 Swat4 Server",
+					"hostport":    "10480",
+					"gametype":    "VIP Escort",
+					"mapname":     "The Wolcott Projects",
+					"gamevariant": "SWAT 4",
+					"gamever":     "1.0",
+					"password":    "0",
+					"numplayers":  "16",
+					"maxplayers":  "18",
+				}),
+			)
 
-			bs := server.MustNew(net.ParseIP("3.3.3.3"), 10480, 10481)
-			bs.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-				"hostname":    "BS Swat4 Server",
-				"hostport":    "10480",
-				"gametype":    "Barricaded Suspects",
-				"mapname":     "Food Wall Restaurant",
-				"gamevariant": "SWAT 4",
-				"gamever":     "1.1",
-				"password":    "0",
-				"numplayers":  "0",
-				"maxplayers":  "16",
-			}), time.Now())
-			bs.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
-			serverfactory.Save(ctx, repos.Servers, bs)
+			// BS 1.1
+			serverfactory.Create(
+				ctx,
+				repos.Servers,
+				serverfactory.WithRandomAddress(),
+				serverfactory.WithDiscoveryStatus(ds.Master|ds.Details|ds.Info),
+				serverfactory.WithRefreshedAt(time.Now()),
+				serverfactory.WithInfo(map[string]string{
+					"hostname":    "BS Swat4 Server",
+					"hostport":    "10480",
+					"gametype":    "Barricaded Suspects",
+					"mapname":     "Food Wall Restaurant",
+					"gamevariant": "SWAT 4",
+					"gamever":     "1.1",
+					"password":    "0",
+					"numplayers":  "0",
+					"maxplayers":  "16",
+				}),
+			)
 
-			coop := server.MustNew(net.ParseIP("4.4.4.4"), 10480, 10481)
-			coop.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-				"hostname":    "COOP Swat4 Server",
-				"hostport":    "10480",
-				"gametype":    "CO-OP",
-				"mapname":     "Food Wall Restaurant",
-				"gamevariant": "SWAT 4",
-				"gamever":     "1.1",
-				"password":    "0",
-				"numplayers":  "0",
-				"maxplayers":  "5",
-			}), time.Now())
-			coop.UpdateDiscoveryStatus(ds.Details | ds.Info)
-			serverfactory.Save(ctx, repos.Servers, coop)
+			// COOP 1.1
+			serverfactory.Create(
+				ctx,
+				repos.Servers,
+				serverfactory.WithRandomAddress(),
+				serverfactory.WithDiscoveryStatus(ds.Details|ds.Info),
+				serverfactory.WithRefreshedAt(time.Now()),
+				serverfactory.WithInfo(map[string]string{
+					"hostname":    "COOP Swat4 Server",
+					"hostport":    "10480",
+					"gametype":    "CO-OP",
+					"mapname":     "Food Wall Restaurant",
+					"gamevariant": "SWAT 4",
+					"gamever":     "1.1",
+					"password":    "0",
+					"numplayers":  "0",
+					"maxplayers":  "5",
+				}),
+			)
 
-			sg := server.MustNew(net.ParseIP("5.5.5.5"), 10480, 10481)
-			sg.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-				"hostname":    "S&G Swat4 Server",
-				"hostport":    "10480",
-				"gametype":    "Smash And Grab",
-				"gamevariant": "SWAT 4X",
-				"mapname":     "-EXP- FunTime Amusements",
-				"gamever":     "1.0",
-				"password":    "0",
-				"numplayers":  "0",
-				"maxplayers":  "16",
-			}), time.Now())
-			sg.UpdateDiscoveryStatus(ds.Master | ds.Info | ds.NoDetails)
-			serverfactory.Save(ctx, repos.Servers, sg)
+			// S&G
+			serverfactory.Create(
+				ctx,
+				repos.Servers,
+				serverfactory.WithRandomAddress(),
+				serverfactory.WithDiscoveryStatus(ds.Master|ds.Info|ds.NoDetails),
+				serverfactory.WithRefreshedAt(time.Now()),
+				serverfactory.WithInfo(map[string]string{
+					"hostname":    "S&G Swat4 Server",
+					"hostport":    "10480",
+					"gametype":    "Smash And Grab",
+					"gamevariant": "SWAT 4X",
+					"mapname":     "-EXP- FunTime Amusements",
+					"gamever":     "1.0",
+					"password":    "0",
+					"numplayers":  "0",
+					"maxplayers":  "16",
+				}),
+			)
 
-			coopx := server.MustNew(net.ParseIP("6.6.6.6"), 10480, 10481)
-			coopx.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-				"hostname":    "TSS COOP Swat4 Server",
-				"hostport":    "10480",
-				"gametype":    "CO-OP",
-				"gamevariant": "SWAT 4X",
-				"mapname":     "-EXP- FunTime Amusements",
-				"gamever":     "1.0",
-				"password":    "0",
-				"numplayers":  "1",
-				"maxplayers":  "10",
-			}), time.Now())
-			coopx.UpdateDiscoveryStatus(ds.Master | ds.Info)
-			serverfactory.Save(ctx, repos.Servers, coopx)
+			// COOP TSS
+			serverfactory.Create(
+				ctx,
+				repos.Servers,
+				serverfactory.WithRandomAddress(),
+				serverfactory.WithDiscoveryStatus(ds.Master|ds.Info),
+				serverfactory.WithRefreshedAt(time.Now()),
+				serverfactory.WithInfo(map[string]string{
+					"hostname":    "TSS COOP Swat4 Server",
+					"hostport":    "10480",
+					"gametype":    "CO-OP",
+					"gamevariant": "SWAT 4X",
+					"mapname":     "-EXP- FunTime Amusements",
+					"gamever":     "1.0",
+					"password":    "0",
+					"numplayers":  "1",
+					"maxplayers":  "10",
+				}),
+			)
 
-			passworded := server.MustNew(net.ParseIP("7.7.7.7"), 10480, 10481)
-			passworded.UpdateInfo(details.MustNewInfoFromParams(map[string]string{
-				"hostname":    "Private Swat4 Server",
-				"hostport":    "10480",
-				"gametype":    "VIP Escort",
-				"gamevariant": "SWAT 4",
-				"mapname":     "A-Bomb Nightclub",
-				"gamever":     "1.1",
-				"password":    "1",
-				"numplayers":  "0",
-				"maxplayers":  "16",
-			}), time.Now())
-			passworded.UpdateDiscoveryStatus(ds.Details | ds.Info)
-			serverfactory.Save(ctx, repos.Servers, passworded)
+			// VIP Escort 1.1 Passworded
+			serverfactory.Create(
+				ctx,
+				repos.Servers,
+				serverfactory.WithRandomAddress(),
+				serverfactory.WithDiscoveryStatus(ds.Details|ds.Info),
+				serverfactory.WithRefreshedAt(time.Now()),
+				serverfactory.WithInfo(map[string]string{
+					"hostname":    "Private Swat4 Server",
+					"hostport":    "10480",
+					"gametype":    "VIP Escort",
+					"gamevariant": "SWAT 4",
+					"mapname":     "A-Bomb Nightclub",
+					"gamever":     "1.1",
+					"password":    "1",
+					"numplayers":  "0",
+					"maxplayers":  "16",
+				}),
+			)
 
 			respJSON := make([]serverListSchema, 0)
 			uri := "/api/servers"
@@ -508,7 +546,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 			}
 
 			assert.Len(t, respJSON, len(tt.servers))
-			assert.Equal(t, tt.servers, actualNames)
+			assert.ElementsMatch(t, tt.servers, actualNames)
 		})
 	}
 }

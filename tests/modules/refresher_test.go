@@ -18,6 +18,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/metrics"
+	tu "github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 	"github.com/sergeii/swat4master/tests/testapp"
 )
@@ -99,22 +100,22 @@ func TestRefresher_OK(t *testing.T) {
 		serverfactory.WithDiscoveryStatus(ds.Master|ds.Details|ds.Port),
 	)
 	gs4 := serverfactory.Build(
-		serverfactory.WithAddress("5.5.5.5", 10480),
+		serverfactory.WithAddress("4.4.4.4", 10480),
 		serverfactory.WithQueryPort(10481),
 		serverfactory.WithDiscoveryStatus(ds.DetailsRetry),
 	)
 	gs5 := serverfactory.Build(
-		serverfactory.WithAddress("6.6.6.6", 10480),
+		serverfactory.WithAddress("5.5.5.5", 10480),
 		serverfactory.WithQueryPort(10481),
 		serverfactory.WithDiscoveryStatus(ds.Port|ds.Details|ds.DetailsRetry),
 	)
 	gs6 := serverfactory.Build(
-		serverfactory.WithAddress("7.7.7.7", 10480),
+		serverfactory.WithAddress("6.6.6.6", 10480),
 		serverfactory.WithQueryPort(10481),
 		serverfactory.WithDiscoveryStatus(ds.Master|ds.Info|ds.Details),
 	)
 	gs7 := serverfactory.Build(
-		serverfactory.WithAddress("9.9.9.9", 10480),
+		serverfactory.WithAddress("7.7.7.7", 10480),
 		serverfactory.WithQueryPort(10481),
 		serverfactory.WithDiscoveryStatus(ds.Port|ds.PortRetry),
 	)
@@ -125,8 +126,8 @@ func TestRefresher_OK(t *testing.T) {
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
 
-	for _, gs := range []server.Server{gs1, gs2, gs3, gs4, gs5, gs6, gs7} {
-		serverfactory.Save(ctx, serverRepo, gs)
+	for _, svr := range []*server.Server{&gs1, &gs2, &gs3, &gs4, &gs5, &gs6, &gs7} {
+		*svr = tu.Must(serverRepo.Add(ctx, *svr, repositories.ServerOnConflictIgnore))
 	}
 
 	// let refresher run a cycle
@@ -137,7 +138,7 @@ func TestRefresher_OK(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 3, result.count)
 	assert.Equal(t, 0, result.expired)
-	assert.Equal(t, []string{"9.9.9.9:10480", "3.3.3.3:10480", "2.2.2.2:10480"}, result.probes)
+	assert.ElementsMatch(t, []string{"7.7.7.7:10480", "3.3.3.3:10480", "2.2.2.2:10480"}, result.probes)
 
 	// clear the server's refreshable status, so that it doesn't get picked up again
 	gs3.ClearDiscoveryStatus(ds.Details | ds.Port)
@@ -154,7 +155,7 @@ func TestRefresher_OK(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 3, result.count)
 	assert.Equal(t, 0, result.expired)
-	assert.Equal(t, []string{"6.6.6.6:10480", "9.9.9.9:10480", "2.2.2.2:10480"}, result.probes)
+	assert.ElementsMatch(t, []string{"5.5.5.5:10480", "7.7.7.7:10480", "2.2.2.2:10480"}, result.probes)
 
 	// run a couple of cycles, expect some probes to expire
 	<-time.After(time.Millisecond * 200)
@@ -163,7 +164,7 @@ func TestRefresher_OK(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 6, result.count)
 	assert.Equal(t, 3, result.expired)
-	assert.Equal(t, []string{"6.6.6.6:10480", "9.9.9.9:10480", "2.2.2.2:10480"}, result.probes)
+	assert.ElementsMatch(t, []string{"5.5.5.5:10480", "7.7.7.7:10480", "2.2.2.2:10480"}, result.probes)
 
 	// make the remaining servers non-refreshable
 	gs2.ClearDiscoveryStatus(ds.Port)

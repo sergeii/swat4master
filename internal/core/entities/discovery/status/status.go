@@ -2,13 +2,12 @@ package status
 
 import (
 	"fmt"
+	"iter"
 	"math"
 	"strings"
 )
 
 type DiscoveryStatus int
-
-const NoStatus = DiscoveryStatus(0)
 
 const (
 	New DiscoveryStatus = 1 << iota
@@ -21,6 +20,22 @@ const (
 	PortRetry
 	NoPort
 )
+
+const NoStatus = DiscoveryStatus(0)
+
+func Members() []DiscoveryStatus {
+	return []DiscoveryStatus{
+		New,
+		Master,
+		Info,
+		Details,
+		DetailsRetry,
+		NoDetails,
+		Port,
+		PortRetry,
+		NoPort,
+	}
+}
 
 func (ds DiscoveryStatus) HasStatus() bool {
 	return ds != NoStatus
@@ -51,16 +66,25 @@ func (ds DiscoveryStatus) BitString() string {
 }
 
 func (ds DiscoveryStatus) String() string {
-	var bit DiscoveryStatus
-
 	maxBits := int(math.Log2(float64(ds))) + 1 // we also use 1(New)
 	bits := make([]string, 0, maxBits)
 
-	for bit = 1; bit <= ds; bit <<= 1 {
-		if ds&bit == bit {
-			bits = append(bits, bit.BitString())
-		}
+	for bit := range ds.Bits() {
+		bits = append(bits, bit.BitString())
 	}
 
 	return strings.Join(bits, "|")
+}
+
+func (ds DiscoveryStatus) Bits() iter.Seq[DiscoveryStatus] {
+	return func(yield func(status DiscoveryStatus) bool) {
+		for bit := DiscoveryStatus(1); bit <= ds; bit <<= 1 {
+			if ds&bit == 0 {
+				continue
+			}
+			if !yield(bit) {
+				return
+			}
+		}
+	}
 }

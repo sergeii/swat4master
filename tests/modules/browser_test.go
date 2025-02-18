@@ -164,6 +164,7 @@ func TestBrowser_Filters(t *testing.T) {
 					"numplayers": "16",
 					"maxplayers": "16",
 				}),
+				serverfactory.WithRefreshedAt(time.Now()),
 			)
 
 			serverfactory.Create(
@@ -181,6 +182,7 @@ func TestBrowser_Filters(t *testing.T) {
 					"numplayers": "0",
 					"maxplayers": "16",
 				}),
+				serverfactory.WithRefreshedAt(time.Now()),
 			)
 
 			serverfactory.Create(
@@ -198,6 +200,43 @@ func TestBrowser_Filters(t *testing.T) {
 					"numplayers": "12",
 					"maxplayers": "12",
 				}),
+				serverfactory.WithRefreshedAt(time.Now()),
+			)
+
+			// Server is outdated
+			serverfactory.Create(
+				ctx,
+				serverRepo,
+				serverfactory.WithRandomAddress(),
+				serverfactory.WithDiscoveryStatus(ds.Master|ds.Info|ds.Details),
+				serverfactory.WithInfo(map[string]string{
+					"hostname":   "VIP Server",
+					"gamever":    "1.1",
+					"gametype":   "VIP Escort",
+					"hostport":   "10480",
+					"localport":  "10481",
+					"numplayers": "0",
+					"maxplayers": "16",
+				}),
+				serverfactory.WithRefreshedAt(time.Now().Add(-time.Minute*61)),
+			)
+
+			// Server is active but has no master status
+			serverfactory.Create(
+				ctx,
+				serverRepo,
+				serverfactory.WithRandomAddress(),
+				serverfactory.WithDiscoveryStatus(ds.Info|ds.Details),
+				serverfactory.WithInfo(map[string]string{
+					"hostname":   "Some Swat4 Server",
+					"gamever":    "1.1",
+					"gametype":   "VIP Escort",
+					"hostport":   "10480",
+					"localport":  "10481",
+					"numplayers": "10",
+					"maxplayers": "16",
+				}),
+				serverfactory.WithRefreshedAt(time.Now()),
 			)
 
 			resp := testutils.SendBrowserRequest("localhost:13382", tt.filters)
@@ -236,6 +275,7 @@ func TestBrowser_ParseResponse(t *testing.T) {
 			"gamevariant": "SWAT 4",
 			"gametype":    "VIP Escort",
 		}),
+		serverfactory.WithRefreshedAt(time.Now()),
 	)
 
 	serverfactory.Create(
@@ -252,6 +292,7 @@ func TestBrowser_ParseResponse(t *testing.T) {
 			"gamevariant": "SWAT 4",
 			"gametype":    "Barricaded Suspects",
 		}),
+		serverfactory.WithRefreshedAt(time.Now()),
 	)
 
 	resp := testutils.SendBrowserRequest("localhost:13382", "")
@@ -474,6 +515,7 @@ func TestBrowser_ValidateRequest(t *testing.T) {
 					"numplayers": "16",
 					"maxplayers": "16",
 				}),
+				serverfactory.WithRefreshedAt(time.Now()),
 			)
 
 			challenge := tt.getChallengeFunc()

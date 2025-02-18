@@ -108,13 +108,16 @@ func (uc UseCase) Execute(ctx context.Context, req Request) error {
 
 	now := uc.clock.Now()
 
-	svr.UpdateInfo(info, now)
+	svr.UpdateInfo(info)
+	svr.Refresh(now)
 	svr.UpdateDiscoveryStatus(ds.Master | ds.Info)
 
-	if svr, err = uc.serverRepo.AddOrUpdate(ctx, svr, func(conflict *server.Server) {
-		// in case of conflict, just do all the same
-		conflict.UpdateInfo(info, now)
-		conflict.UpdateDiscoveryStatus(ds.Master | ds.Info)
+	if svr, err = uc.serverRepo.Add(ctx, svr, func(existing *server.Server) bool {
+		// in case the server was already reported, update its info and status
+		existing.UpdateInfo(info)
+		existing.Refresh(now)
+		existing.UpdateDiscoveryStatus(ds.Master | ds.Info)
+		return true
 	}); err != nil {
 		uc.logger.Error().
 			Err(err).

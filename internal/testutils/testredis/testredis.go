@@ -1,6 +1,7 @@
 package testredis
 
 import (
+	"context"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
@@ -14,9 +15,20 @@ func MakeClientFromMini(t *testing.T, mr *miniredis.Miniredis) *redis.Client {
 		Addr: mr.Addr(),
 	})
 	t.Cleanup(func() {
-		testutils.MustNoError(rdb.Close())
+		testutils.MustNoErr(rdb.Close())
 	})
 	return rdb
+}
+
+func MakeRealClient(t *testing.T) *redis.Client {
+	client := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	t.Cleanup(func() {
+		client.FlushDB(context.Background())
+		testutils.MustNoErr(client.Close())
+	})
+	return client
 }
 
 func MakeClient(t *testing.T) *redis.Client {

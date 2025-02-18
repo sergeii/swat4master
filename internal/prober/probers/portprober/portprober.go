@@ -211,7 +211,8 @@ func (p PortProber) HandleSuccess(res any, svr server.Server) server.Server {
 		panic(fmt.Errorf("unexpected result type %T, %v", result, result))
 	}
 	svr.QueryPort = result.Port
-	svr.UpdateDetails(result.Details, p.clock.Now())
+	svr.UpdateDetails(result.Details)
+	svr.Refresh(p.clock.Now())
 	svr.UpdateDiscoveryStatus(ds.Info | ds.Details | ds.Port)
 	svr.ClearDiscoveryStatus(ds.NoDetails | ds.DetailsRetry | ds.PortRetry | ds.NoPort)
 	return svr
