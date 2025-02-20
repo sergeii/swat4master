@@ -30,9 +30,11 @@ func (m *Manager) Guard(ctx context.Context, key string, ttl time.Duration, op f
 
 	acquired, err := m.client.SetNX(ctx, key, token, ttl).Result()
 	if err != nil {
+		m.logger.Error().Err(err).Str("key", key).Msg("failed to take lock ownership")
 		return fmt.Errorf("guard: take lock ownership: %w", err)
 	}
 	if !acquired {
+		m.logger.Info().Str("key", key).Msg("lock not acquired")
 		return ErrNotAcquired
 	}
 	defer func() {
@@ -53,6 +55,7 @@ func (m *Manager) Guard(ctx context.Context, key string, ttl time.Duration, op f
 		// as it could have been expired between SETNX and WATCH calls and acquired by someone else
 		currToken, err := tx.Get(ctx, key).Result()
 		if err != nil {
+			m.logger.Error().Err(err).Str("key", key).Msg("failed to check lock ownership")
 			return fmt.Errorf("guard: check lock ownership: %w", err)
 		}
 		if currToken != token {
@@ -62,8 +65,10 @@ func (m *Manager) Guard(ctx context.Context, key string, ttl time.Duration, op f
 	}, key)
 	if err != nil {
 		if errors.Is(err, redis.TxFailedErr) || errors.Is(err, ErrNotAcquired) {
+			m.logger.Info().Str("key", key).Msg("lock ownership lost after acquiring")
 			return ErrNotAcquired
 		}
+		m.logger.Error().Err(err).Str("key", key).Msg("failed to watch lock key")
 		return fmt.Errorf("guard: redis watch: %w", err)
 	}
 
