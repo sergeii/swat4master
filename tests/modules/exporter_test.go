@@ -29,8 +29,8 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/testutils"
-	"github.com/sergeii/swat4master/internal/testutils/factories/infofactory"
 	"github.com/sergeii/swat4master/internal/testutils/factories/instancefactory"
+	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/gs1"
 	"github.com/sergeii/swat4master/tests/testapp"
 )
@@ -158,66 +158,75 @@ func TestExporter_ServerMetrics(t *testing.T) {
 		app.Stop(context.TODO()) // nolint: errcheck
 	}()
 
-	svr1 := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	svr1.UpdateInfo(
-		infofactory.Build(
-			infofactory.WithFields(infofactory.F{
-				"gametype": "VIP Escort",
-			},
-			),
-		),
-		time.Now(),
+	// Server is active but has no players
+	serverfactory.Create(
+		ctx,
+		repo,
+		serverfactory.WithRandomAddress(),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Info),
+		serverfactory.WithRefreshedAt(time.Now().Add(-time.Second*5)),
+		serverfactory.WithInfo(map[string]string{
+			"gametype":   "VIP Escort",
+			"numplayers": "0",
+			"maxplayers": "16",
+		}),
 	)
-	svr1.UpdateDiscoveryStatus(ds.Master | ds.Info)
 
-	svr2 := server.MustNew(net.ParseIP("2.2.2.2"), 10480, 10481)
-	svr2.UpdateInfo(
-		infofactory.Build(
-			infofactory.WithFields(infofactory.F{
-				"gametype":   "Barricaded Suspects",
-				"numplayers": "12",
-				"maxplayers": "16",
-			},
-			),
-		),
-		time.Now(),
+	// Server is active and has players
+	serverfactory.Create(
+		ctx,
+		repo,
+		serverfactory.WithRandomAddress(),
+		serverfactory.WithDiscoveryStatus(ds.Details|ds.Info),
+		serverfactory.WithRefreshedAt(time.Now().Add(-time.Second*5)),
+		serverfactory.WithInfo(map[string]string{
+			"gametype":   "Barricaded Suspects",
+			"numplayers": "12",
+			"maxplayers": "16",
+		}),
 	)
-	svr2.UpdateDiscoveryStatus(ds.Details | ds.Info)
 
-	svr3 := server.MustNew(net.ParseIP("3.3.3.3"), 10480, 10481)
-	svr3.UpdateInfo(
-		infofactory.Build(
-			infofactory.WithFields(
-				infofactory.F{
-					"gametype":   "Smash And Grab",
-					"numplayers": "1",
-					"maxplayers": "10",
-				},
-			),
-		),
-		time.Now(),
+	// Server is active and has players
+	serverfactory.Create(
+		ctx,
+		repo,
+		serverfactory.WithRandomAddress(),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Details|ds.Info),
+		serverfactory.WithRefreshedAt(time.Now().Add(-time.Second*9)),
+		serverfactory.WithInfo(map[string]string{
+			"gametype":   "Smash And Grab",
+			"numplayers": "1",
+			"maxplayers": "10",
+		}),
 	)
-	svr3.UpdateDiscoveryStatus(ds.Master | ds.Details | ds.Info)
 
-	svr4 := server.MustNew(net.ParseIP("4.4.4.4"), 10480, 10481)
-	svr4.UpdateInfo(
-		infofactory.Build(
-			infofactory.WithFields(
-				infofactory.F{
-					"gametype":   "VIP Escort",
-					"numplayers": "14",
-					"maxplayers": "16",
-				},
-			),
-		),
-		time.Now(),
+	// Server is active and has players but has no Info status
+	serverfactory.Create(
+		ctx,
+		repo,
+		serverfactory.WithRandomAddress(),
+		serverfactory.WithDiscoveryStatus(ds.NoDetails),
+		serverfactory.WithRefreshedAt(time.Now()),
+		serverfactory.WithInfo(map[string]string{
+			"gametype":   "VIP Escort",
+			"numplayers": "14",
+			"maxplayers": "16",
+		}),
 	)
-	svr4.UpdateDiscoveryStatus(ds.NoDetails)
 
-	svr1, _ = repo.Add(ctx, svr1, repositories.ServerOnConflictIgnore)
-	svr2, _ = repo.Add(ctx, svr2, repositories.ServerOnConflictIgnore)
-	svr3, _ = repo.Add(ctx, svr3, repositories.ServerOnConflictIgnore)
-	svr4, _ = repo.Add(ctx, svr4, repositories.ServerOnConflictIgnore)
+	// Server is outdated and should not be included in the metrics
+	serverfactory.Create(
+		ctx,
+		repo,
+		serverfactory.WithRandomAddress(),
+		serverfactory.WithDiscoveryStatus(ds.Master|ds.Info),
+		serverfactory.WithRefreshedAt(time.Now().Add(-time.Second*11)),
+		serverfactory.WithInfo(map[string]string{
+			"gametype":   "Barricaded Suspects",
+			"numplayers": "4",
+			"maxplayers": "16",
+		}),
+	)
 
 	// give the collector some time to run
 	<-time.After(time.Millisecond * 50)
@@ -245,14 +254,14 @@ func TestExporter_ServerMetrics(t *testing.T) {
 	assert.Equal(t, "Smash And Grab", mf["game_played_servers"].Metric[1].Label[0].GetValue())
 
 	assert.Len(t, mf["game_discovered_servers"].Metric, 4)
-	assert.Equal(t, 2, int(mf["game_discovered_servers"].Metric[0].Gauge.GetValue()))
-	assert.Equal(t, "details", mf["game_discovered_servers"].Metric[0].Label[0].GetValue())
-	assert.Equal(t, 3, int(mf["game_discovered_servers"].Metric[1].Gauge.GetValue()))
-	assert.Equal(t, "info", mf["game_discovered_servers"].Metric[1].Label[0].GetValue())
-	assert.Equal(t, 2, int(mf["game_discovered_servers"].Metric[2].Gauge.GetValue()))
-	assert.Equal(t, "master", mf["game_discovered_servers"].Metric[2].Label[0].GetValue())
-	assert.Equal(t, 1, int(mf["game_discovered_servers"].Metric[3].Gauge.GetValue()))
-	assert.Equal(t, "no_details", mf["game_discovered_servers"].Metric[3].Label[0].GetValue())
+	countByStatus := make(map[string]int)
+	for _, m := range mf["game_discovered_servers"].Metric {
+		countByStatus[m.Label[0].GetValue()] = int(m.Gauge.GetValue())
+	}
+	assert.Equal(t, 3, countByStatus["master"])
+	assert.Equal(t, 4, countByStatus["info"])
+	assert.Equal(t, 2, countByStatus["details"])
+	assert.Equal(t, 1, countByStatus["no_details"])
 }
 
 func TestExporter_ReposMetrics(t *testing.T) {
@@ -290,13 +299,13 @@ func TestExporter_ReposMetrics(t *testing.T) {
 	// instances
 	for range 2 {
 		inst := instancefactory.Build(instancefactory.WithRandomID(), instancefactory.WithRandomServerAddress())
-		testutils.MustNoError(instancesRepo.Add(ctx, inst))
+		testutils.MustNoErr(instancesRepo.Add(ctx, inst))
 	}
 
 	probe1 := probe.New(svr1.Addr, svr1.QueryPort, probe.GoalDetails, 0)
 	probe2 := probe.New(svr2.Addr, svr2.QueryPort, probe.GoalDetails, 0)
-	testutils.MustNoError(probesRepo.AddBetween(ctx, probe1, time.Now().Add(time.Hour), repositories.NC))
-	testutils.MustNoError(probesRepo.Add(ctx, probe2))
+	testutils.MustNoErr(probesRepo.AddBetween(ctx, probe1, time.Now().Add(time.Hour), repositories.NC))
+	testutils.MustNoErr(probesRepo.Add(ctx, probe2))
 
 	app.Start(context.TODO()) // nolint: errcheck
 	defer func() {

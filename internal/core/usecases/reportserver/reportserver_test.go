@@ -48,10 +48,10 @@ func (m *MockServerRepository) Update(
 	return svr, args.Error(0)
 }
 
-func (m *MockServerRepository) AddOrUpdate(
+func (m *MockServerRepository) Add(
 	ctx context.Context,
 	svr server.Server,
-	onConflict func(*server.Server),
+	onConflict func(*server.Server) bool,
 ) (server.Server, error) {
 	args := m.Called(ctx, svr, onConflict)
 	return svr, args.Error(0)
@@ -94,7 +94,7 @@ func TestReportServerUseCase_ReportNewServer(t *testing.T) {
 
 	serverRepo := new(MockServerRepository)
 	serverRepo.On("Get", ctx, svrAddr).Return(server.Blank, repositories.ErrServerNotFound)
-	serverRepo.On("AddOrUpdate", ctx, mock.Anything, mock.Anything).Return(nil)
+	serverRepo.On("Add", ctx, mock.Anything, mock.Anything).Return(nil)
 	serverRepo.On("Update", ctx, mock.Anything, mock.Anything).Return(nil)
 
 	instanceRepo := new(MockInstanceRepository)
@@ -115,7 +115,7 @@ func TestReportServerUseCase_ReportNewServer(t *testing.T) {
 	serverRepo.AssertCalled(t, "Get", ctx, svrAddr)
 	serverRepo.AssertCalled(
 		t,
-		"AddOrUpdate",
+		"Add",
 		ctx,
 		mock.MatchedBy(func(createdServer server.Server) bool {
 			hasAddr := createdServer.Addr == svrAddr
@@ -217,12 +217,13 @@ func TestReportServerUseCase_ReportExistingServer(t *testing.T) {
 			svrDetails := details.MustNewDetailsFromParams(svrParams, svrPlayers, nil)
 
 			svr := serverfactory.BuildRandom()
-			svr.UpdateDetails(svrDetails, now)
+			svr.UpdateDetails(svrDetails)
+			svr.Refresh(now)
 			svr.UpdateDiscoveryStatus(tt.discoveryStatus)
 
 			serverRepo := new(MockServerRepository)
 			serverRepo.On("Get", ctx, svr.Addr).Return(svr, nil)
-			serverRepo.On("AddOrUpdate", ctx, mock.Anything, mock.Anything).Return(nil)
+			serverRepo.On("Add", ctx, mock.Anything, mock.Anything).Return(nil)
 			serverRepo.On("Update", ctx, mock.Anything, mock.Anything).Return(nil)
 
 			instanceRepo := new(MockInstanceRepository)
@@ -247,7 +248,7 @@ func TestReportServerUseCase_ReportExistingServer(t *testing.T) {
 			serverRepo.AssertCalled(t, "Get", ctx, svr.Addr)
 			serverRepo.AssertCalled(
 				t,
-				"AddOrUpdate",
+				"Add",
 				ctx,
 				mock.MatchedBy(func(updatedSvr server.Server) bool {
 					hasAddr := updatedSvr.Addr == svr.Addr
@@ -360,7 +361,7 @@ func TestReportServerUseCase_InvalidFields(t *testing.T) {
 			assert.ErrorIs(t, err, reportserver.ErrInvalidRequestPayload)
 
 			serverRepo.AssertCalled(t, "Get", ctx, svrAddr)
-			serverRepo.AssertNotCalled(t, "AddOrUpdate", mock.Anything, mock.Anything, mock.Anything)
+			serverRepo.AssertNotCalled(t, "Add", mock.Anything, mock.Anything, mock.Anything)
 			instanceRepo.AssertNotCalled(t, "Add", mock.Anything, mock.Anything)
 			probeRepo.AssertNotCalled(t, "Add", mock.Anything, mock.Anything)
 			serverRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything)

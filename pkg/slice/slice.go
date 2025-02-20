@@ -24,3 +24,59 @@ func First[T any](slice []T) T {
 	}
 	return slice[0]
 }
+
+// Intersection computes the intersection of multiple slices of a generic comparable type
+// and returns a new slice containing the common elements between all input slices
+func Intersection[T comparable](slices ...[]T) []T {
+	if len(slices) == 0 {
+		return nil
+	}
+
+	counter := make(map[T]int)
+	want := len(slices)
+
+	for _, slice := range slices {
+		seen := make(map[T]struct{}, len(slice))
+		for _, value := range slice {
+			// the value has already been seen in the current slice
+			if _, ok := seen[value]; ok {
+				continue
+			}
+			counter[value]++
+			seen[value] = struct{}{}
+		}
+	}
+
+	result := make([]T, 0)
+	for key, count := range counter {
+		if count == want {
+			result = append(result, key)
+		}
+	}
+
+	return result
+}
+
+// Difference computes the difference between the first slice and the other slices.
+// It returns elements in the first slice that are not present in any of the other slices.
+func Difference[T comparable](base []T, others ...[]T) []T {
+	if len(base) == 0 {
+		return nil
+	}
+
+	seen := make(map[T]struct{})
+	for _, slice := range others {
+		for _, value := range slice {
+			seen[value] = struct{}{}
+		}
+	}
+
+	result := make([]T, 0)
+	for _, value := range base {
+		if _, exists := seen[value]; !exists {
+			result = append(result, value)
+		}
+	}
+
+	return result
+}

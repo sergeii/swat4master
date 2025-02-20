@@ -8,9 +8,10 @@ import (
 	"github.com/sergeii/swat4master/cmd/swat4master/logging"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/metrics"
-	"github.com/sergeii/swat4master/internal/persistence/memory/servers"
-	"github.com/sergeii/swat4master/internal/persistence/redis/instances"
-	"github.com/sergeii/swat4master/internal/persistence/redis/probes"
+	"github.com/sergeii/swat4master/internal/persistence/redis/redislock"
+	"github.com/sergeii/swat4master/internal/persistence/redis/repositories/instances"
+	"github.com/sergeii/swat4master/internal/persistence/redis/repositories/probes"
+	"github.com/sergeii/swat4master/internal/persistence/redis/repositories/servers"
 	"github.com/sergeii/swat4master/internal/validation"
 )
 
@@ -39,6 +40,7 @@ var Module = fx.Module("application",
 	fx.Invoke(logging.NoGlobal),
 	fx.Provide(clockwork.NewRealClock),
 	fx.Provide(validation.New),
+	fx.Provide(redislock.NewManager),
 	fx.Provide(servers.New, instances.New, probes.New),
 	fx.Provide(provideRepositories),
 	fx.Provide(metrics.New),

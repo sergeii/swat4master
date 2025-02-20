@@ -21,6 +21,7 @@ type BuildParams struct {
 	Info            map[string]string
 	Players         []map[string]string
 	Objectives      []map[string]string
+	RefreshedAt     time.Time
 }
 
 type BuildOption func(*BuildParams)
@@ -78,6 +79,12 @@ func WithObjectives(objectives []map[string]string) BuildOption {
 	}
 }
 
+func WithRefreshedAt(refreshedAt time.Time) BuildOption {
+	return func(p *BuildParams) {
+		p.RefreshedAt = refreshedAt
+	}
+}
+
 func Build(opts ...BuildOption) server.Server {
 	params := BuildParams{
 		IP:              "1.1.1.1",
@@ -102,8 +109,15 @@ func Build(opts ...BuildOption) server.Server {
 
 	svr := server.MustNew(net.ParseIP(params.IP), params.Port, params.QueryPort)
 
-	svr.UpdateDetails(details.MustNewDetailsFromParams(params.Info, params.Players, params.Objectives), time.Now())
+	svr.UpdateDetails(
+		details.MustNewDetailsFromParams(
+			params.Info,
+			params.Players,
+			params.Objectives,
+		),
+	)
 	svr.UpdateDiscoveryStatus(params.DiscoveryStatus)
+	svr.Refresh(params.RefreshedAt)
 
 	return svr
 }

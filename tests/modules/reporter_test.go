@@ -25,7 +25,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/entities/server"
 	"github.com/sergeii/swat4master/internal/core/repositories"
 	"github.com/sergeii/swat4master/internal/metrics"
-	"github.com/sergeii/swat4master/internal/testutils"
+	tu "github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 	"github.com/sergeii/swat4master/pkg/slice"
 	"github.com/sergeii/swat4master/tests/testapp"
@@ -60,7 +60,7 @@ func TestReporter_Available_OK(t *testing.T) {
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
 
-	resp := testutils.SendUDP("127.0.0.1:33811", []byte{0x09}) // nolint: errcheck
+	resp := tu.SendUDP("127.0.0.1:33811", []byte{0x09})
 	assert.Equal(t, []byte{0xfe, 0xfd, 0x09, 0x00, 0x00, 0x00, 0x00}, resp)
 
 	metricValue := testutil.ToFloat64(collector.ReporterRequests)
@@ -75,7 +75,7 @@ func TestReporter_Challenge_OK(t *testing.T) {
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
 
-	resp := testutils.SendUDP("127.0.0.1:33811", []byte{0x01, 0xfa, 0xca, 0xde, 0xaf}) // nolint: errcheck
+	resp := tu.SendUDP("127.0.0.1:33811", []byte{0x01, 0xfa, 0xca, 0xde, 0xaf})
 	assert.Equal(t, []byte{0xfe, 0xfd, 0x0a, 0xfa, 0xca, 0xde, 0xaf}, resp)
 
 	metricValue := testutil.ToFloat64(collector.ReporterRequests)
@@ -117,7 +117,7 @@ func TestReporter_Challenge_InvalidInstanceID(t *testing.T) {
 			defer cancel()
 			app.Start(ctx) // nolint: errcheck
 
-			client := testutils.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
+			client := tu.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
 			defer client.Close()
 			resp, err := client.Send(tt.payload)
 
@@ -144,8 +144,8 @@ func TestReporter_Heartbeat_OK(t *testing.T) {
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
 
-	req := testutils.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, testutils.GenServerParams())
-	client := testutils.NewUDPClient("127.0.0.1:33811", 1024, time.Duration(0))
+	req := tu.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, tu.GenServerParams())
+	client := tu.NewUDPClient("127.0.0.1:33811", 1024, time.Duration(0))
 	defer client.Close()
 	resp, err := client.Send(req)
 	require.NoError(t, err)
@@ -155,7 +155,7 @@ func TestReporter_Heartbeat_OK(t *testing.T) {
 	assert.Equal(t, resp[7:13], []byte{0x44, 0x3d, 0x73, 0x7e, 0x6a, 0x59})
 
 	respAddr := make([]byte, 7)
-	hex.Decode(respAddr, resp[13:27]) // nolint: errcheck
+	tu.Must(hex.Decode(respAddr, resp[13:27]))
 	assert.Equal(t, respAddr[0], uint8(0x00))
 	assert.Equal(t, "127.0.0.1", net.IPv4(respAddr[1], respAddr[2], respAddr[3], respAddr[4]).String())
 	assert.Equal(t, client.LocalAddr.Port, int(binary.BigEndian.Uint16(respAddr[5:7])))
@@ -181,15 +181,15 @@ func TestReporter_Heartbeat_ServerIsAddedAndThenUpdated(t *testing.T) {
 	app.Start(ctx) // nolint: errcheck
 
 	instanceID := []byte{0xfe, 0xed, 0xf0, 0x0d}
-	paramsBefore := testutils.GenExtraServerParams(map[string]string{
+	paramsBefore := tu.GenExtraServerParams(map[string]string{
 		"gametype":   "VIP Escort",
 		"mapname":    "A-Bomb Nightclub",
 		"numplayers": "16",
 		"hostport":   "10480",
 		"localport":  "10484",
 	})
-	req := testutils.PackHeartbeatRequest(instanceID, paramsBefore)
-	testutils.SendUDP("127.0.0.1:33811", req)
+	req := tu.PackHeartbeatRequest(instanceID, paramsBefore)
+	tu.SendUDP("127.0.0.1:33811", req)
 
 	// server is stored with the correct discovery status
 	svr, err := serverRepo.Get(ctx, addr.MustNewFromDotted("127.0.0.1", 10480))
@@ -214,14 +214,14 @@ func TestReporter_Heartbeat_ServerIsAddedAndThenUpdated(t *testing.T) {
 	assert.Equal(t, 10480, prb.Port)
 	assert.Equal(t, probe.GoalPort, prb.Goal)
 
-	paramsAfter := testutils.GenExtraServerParams(map[string]string{
+	paramsAfter := tu.GenExtraServerParams(map[string]string{
 		"gametype":   "VIP Escort",
 		"mapname":    "Food Wall Restaurant",
 		"numplayers": "15",
 		"hostport":   "10480",
 	})
-	req = testutils.PackHeartbeatRequest(instanceID, paramsAfter)
-	testutils.SendUDP("127.0.0.1:33811", req)
+	req = tu.PackHeartbeatRequest(instanceID, paramsAfter)
+	tu.SendUDP("127.0.0.1:33811", req)
 
 	// server is updated with the new info
 	svr, err = serverRepo.Get(ctx, addr.MustNewFromDotted("127.0.0.1", 10480))
@@ -244,15 +244,15 @@ func TestReporter_Heartbeat_ServerIsUpdatedWithNewInstanceID(t *testing.T) {
 	app.Start(ctx) // nolint: errcheck
 
 	oldInstanceID := []byte{0xfe, 0xed, 0xf0, 0x0d}
-	paramsBefore := testutils.GenExtraServerParams(map[string]string{
+	paramsBefore := tu.GenExtraServerParams(map[string]string{
 		"gametype":   "VIP Escort",
 		"mapname":    "A-Bomb Nightclub",
 		"numplayers": "16",
 		"hostport":   "10480",
 		"localport":  "10484",
 	})
-	req := testutils.PackHeartbeatRequest(oldInstanceID, paramsBefore)
-	testutils.SendUDP("127.0.0.1:33811", req)
+	req := tu.PackHeartbeatRequest(oldInstanceID, paramsBefore)
+	tu.SendUDP("127.0.0.1:33811", req)
 
 	ins, err := instanceRepo.Get(ctx, instance.MustNewID(oldInstanceID))
 	require.NoError(t, err)
@@ -263,15 +263,15 @@ func TestReporter_Heartbeat_ServerIsUpdatedWithNewInstanceID(t *testing.T) {
 	assert.Equal(t, "A-Bomb Nightclub", svr.Info.MapName)
 	assert.Equal(t, "127.0.0.1", svr.Addr.GetDottedIP())
 
-	newParams := testutils.GenExtraServerParams(map[string]string{
+	newParams := tu.GenExtraServerParams(map[string]string{
 		"gametype":   "Barricaded Suspects",
 		"mapname":    "Food Wall Restaurant",
 		"numplayers": "15",
 		"hostport":   "10480",
 	})
 	newInstanceID := []byte{0xde, 0xad, 0xbe, 0xef}
-	req = testutils.PackHeartbeatRequest(newInstanceID, newParams)
-	testutils.SendUDP("127.0.0.1:33811", req)
+	req = tu.PackHeartbeatRequest(newInstanceID, newParams)
+	tu.SendUDP("127.0.0.1:33811", req)
 
 	// server is updated with the new info
 	svr, err = serverRepo.Get(ctx, addr.MustNewFromDotted("127.0.0.1", 10480))
@@ -351,19 +351,19 @@ func TestReporter_Heartbeat_ServerPortIsDiscovered(t *testing.T) {
 				if tt.initStatus.HasStatus() {
 					svr.UpdateDiscoveryStatus(tt.initStatus)
 				}
-				serverRepo.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
+				tu.Must(serverRepo.Add(ctx, svr, repositories.ServerOnConflictIgnore))
 			}
 
 			instanceID := []byte{0xfe, 0xed, 0xf0, 0x0d}
-			params := testutils.GenExtraServerParams(map[string]string{
+			params := tu.GenExtraServerParams(map[string]string{
 				"gametype":   "VIP Escort",
 				"mapname":    "A-Bomb Nightclub",
 				"numplayers": "16",
 				"hostport":   "10480",
 				"localport":  "10484",
 			})
-			req := testutils.PackHeartbeatRequest(instanceID, params)
-			testutils.SendUDP("127.0.0.1:33811", req)
+			req := tu.PackHeartbeatRequest(instanceID, params)
+			tu.SendUDP("127.0.0.1:33811", req)
 
 			reportedSvr, err := serverRepo.Get(ctx, addr.MustNewFromDotted("127.0.0.1", 10480))
 			require.NoError(t, err)
@@ -398,10 +398,10 @@ func TestReporter_Heartbeat_ServerIsRefreshed(t *testing.T) {
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
 
-	req := testutils.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, testutils.GenServerParams())
+	req := tu.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, tu.GenServerParams())
 
 	// initial report
-	testutils.SendUDP("127.0.0.1:33811", req)
+	tu.SendUDP("127.0.0.1:33811", req)
 
 	afterInitial := time.Now()
 
@@ -412,7 +412,7 @@ func TestReporter_Heartbeat_ServerIsRefreshed(t *testing.T) {
 	assert.Len(t, updatedAfterInitial, 0)
 
 	// successive report refreshes the server
-	testutils.SendUDP("127.0.0.1:33811", req)
+	tu.SendUDP("127.0.0.1:33811", req)
 
 	updatedAfterInitialRepeated, _ := serverRepo.Filter(
 		ctx,
@@ -432,9 +432,9 @@ func TestReporter_Heartbeat_ServerIsRemoved(t *testing.T) {
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
 
-	client := testutils.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
+	client := tu.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
 
-	reportReq := testutils.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, testutils.GenServerParams())
+	reportReq := tu.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, tu.GenServerParams())
 	resp, err := client.Send(reportReq)
 	require.NoError(t, err)
 	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
@@ -442,9 +442,9 @@ func TestReporter_Heartbeat_ServerIsRemoved(t *testing.T) {
 	serverCount, _ := serverRepo.Count(ctx)
 	assert.Equal(t, 1, serverCount)
 
-	removeReq := testutils.PackHeartbeatRequest(
+	removeReq := tu.PackHeartbeatRequest(
 		[]byte{0xfe, 0xed, 0xf0, 0x0d},
-		testutils.GenExtraServerParams(map[string]string{"statechanged": "2"}),
+		tu.GenExtraServerParams(map[string]string{"statechanged": "2"}),
 	)
 
 	// remove the server by sending param statechanged=2
@@ -478,35 +478,35 @@ func TestReporter_Heartbeat_ServerRemovalIsValidated(t *testing.T) {
 		{
 			name:        "positive case",
 			instanceID:  []byte{0xfe, 0xed, 0xf0, 0x0d},
-			params:      testutils.GenExtraServerParams(map[string]string{"statechanged": "2"}),
+			params:      tu.GenExtraServerParams(map[string]string{"statechanged": "2"}),
 			ipaddr:      "127.0.0.1",
 			wantSuccess: true,
 		},
 		{
 			name:        "statechanged != 2",
 			instanceID:  []byte{0xfe, 0xed, 0xf0, 0x0d},
-			params:      testutils.GenExtraServerParams(map[string]string{"statechanged": "1"}),
+			params:      tu.GenExtraServerParams(map[string]string{"statechanged": "1"}),
 			ipaddr:      "127.0.0.1",
 			wantSuccess: false, // no error but the request is processed as a normal heartbeat message
 		},
 		{
 			name:        "unknown server",
 			instanceID:  []byte{0xde, 0xad, 0xbe, 0xef},
-			params:      testutils.GenExtraServerParams(map[string]string{"statechanged": "2"}),
+			params:      tu.GenExtraServerParams(map[string]string{"statechanged": "2"}),
 			ipaddr:      "127.0.0.2",
 			wantSuccess: false, // no error, could be a subsequent removal request of a former server
 		},
 		{
 			name:        "unknown instance id",
 			instanceID:  []byte{0xde, 0xad, 0xbe, 0xef},
-			params:      testutils.GenExtraServerParams(map[string]string{"statechanged": "2"}),
+			params:      tu.GenExtraServerParams(map[string]string{"statechanged": "2"}),
 			ipaddr:      "127.0.0.1",
 			wantSuccess: false,
 		},
 		{
 			name:        "ip addr does not match",
 			instanceID:  []byte{0xfe, 0xed, 0xf0, 0x0d},
-			params:      testutils.GenExtraServerParams(map[string]string{"statechanged": "2"}),
+			params:      tu.GenExtraServerParams(map[string]string{"statechanged": "2"}),
 			ipaddr:      "2.2.2.2",
 			wantSuccess: false,
 		},
@@ -525,7 +525,7 @@ func TestReporter_Heartbeat_ServerRemovalIsValidated(t *testing.T) {
 			defer cancel()
 			app.Start(ctx) // nolint: errcheck
 
-			client := testutils.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
+			client := tu.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
 
 			svr := serverfactory.Build(serverfactory.WithAddress(tt.ipaddr, 10480), serverfactory.WithQueryPort(10484))
 			inst := instance.MustNew(
@@ -533,11 +533,11 @@ func TestReporter_Heartbeat_ServerRemovalIsValidated(t *testing.T) {
 				svr.Addr.GetIP(),
 				svr.Addr.Port,
 			)
-			serverRepo.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
-			instanceRepo.Add(ctx, inst)                                   // nolint: errcheck
+			tu.Must(serverRepo.Add(ctx, svr, repositories.ServerOnConflictIgnore))
+			tu.MustNoErr(instanceRepo.Add(ctx, inst))
 
 			// removal request
-			removeReq := testutils.PackHeartbeatRequest(tt.instanceID, tt.params)
+			removeReq := tu.PackHeartbeatRequest(tt.instanceID, tt.params)
 			client.Send(removeReq) // nolint: errcheck
 
 			serverCount, _ := serverRepo.Count(ctx)
@@ -561,15 +561,15 @@ func TestReporter_Heartbeat_InvalidPayload(t *testing.T) {
 	}{
 		{
 			name: "positive case",
-			payload: testutils.PackHeartbeatRequest(
+			payload: tu.PackHeartbeatRequest(
 				[]byte{0xfe, 0xed, 0xf0, 0x0d},
-				testutils.GenServerParams(),
+				tu.GenServerParams(),
 			),
 			wantErr: false,
 		},
 		{
 			name:    "positive edge case - null instance id",
-			payload: testutils.PackHeartbeatRequest([]byte{0xfe, 0x00, 0x00, 0x0d}, testutils.GenServerParams()),
+			payload: tu.PackHeartbeatRequest([]byte{0xfe, 0x00, 0x00, 0x0d}, tu.GenServerParams()),
 			wantErr: false,
 		},
 		{
@@ -584,12 +584,12 @@ func TestReporter_Heartbeat_InvalidPayload(t *testing.T) {
 		},
 		{
 			name:    "no fields are present",
-			payload: testutils.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, nil),
+			payload: tu.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, nil),
 			wantErr: true,
 		},
 		{
 			name: "no known fields are present",
-			payload: testutils.PackHeartbeatRequest(
+			payload: tu.PackHeartbeatRequest(
 				[]byte{0xfe, 0xed, 0xf0, 0x0d},
 				map[string]string{"somefield": "Swat4 Server", "other": "1.1"},
 			),
@@ -597,7 +597,7 @@ func TestReporter_Heartbeat_InvalidPayload(t *testing.T) {
 		},
 		{
 			name: "field has no value",
-			payload: testutils.PackHeartbeatRequest(
+			payload: tu.PackHeartbeatRequest(
 				[]byte{0xfe, 0xed, 0xf0, 0x0d},
 				map[string]string{"hostname": "Swat4 Server", "gamever": ""},
 			),
@@ -605,9 +605,9 @@ func TestReporter_Heartbeat_InvalidPayload(t *testing.T) {
 		},
 		{
 			name: "invalid field value",
-			payload: testutils.PackHeartbeatRequest(
+			payload: tu.PackHeartbeatRequest(
 				[]byte{0xfe, 0xed, 0xf0, 0x0d},
-				testutils.GenExtraServerParams(map[string]string{"numplayers": "-1"}),
+				tu.GenExtraServerParams(map[string]string{"numplayers": "-1"}),
 			),
 			wantErr: true,
 		},
@@ -619,7 +619,7 @@ func TestReporter_Heartbeat_InvalidPayload(t *testing.T) {
 			defer cancel()
 			app.Start(ctx) // nolint: errcheck
 
-			client := testutils.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
+			client := tu.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
 			defer client.Close()
 			resp, err := client.Send(tt.payload)
 
@@ -644,13 +644,13 @@ func TestReporter_Keepalive_ServerIsRefreshed(t *testing.T) {
 	defer cancel()
 	app.Start(ctx) // nolint: errcheck
 
-	client := testutils.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
+	client := tu.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
 
 	// remember the time before the server is reported
 	beforeInitial := time.Now()
 
 	// initial report
-	reportReq := testutils.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, testutils.GenServerParams())
+	reportReq := tu.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, tu.GenServerParams())
 	_, err := client.Send(reportReq)
 	require.NoError(t, err)
 
@@ -740,12 +740,12 @@ func TestReporter_Keepalive_Errors(t *testing.T) {
 			defer cancel()
 			app.Start(ctx) // nolint: errcheck
 
-			client := testutils.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
+			client := tu.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
 
 			svr := server.MustNew(net.ParseIP(tt.svrAddr), 10480, 10484)
 			inst := instance.MustNew(instance.MustNewID(tt.instanceID), svr.Addr.GetIP(), svr.Addr.Port)
-			serverRepo.Add(ctx, svr, repositories.ServerOnConflictIgnore) // nolint: errcheck
-			instanceRepo.Add(ctx, inst)                                   // nolint: errcheck
+			tu.Must(serverRepo.Add(ctx, svr, repositories.ServerOnConflictIgnore))
+			tu.MustNoErr(instanceRepo.Add(ctx, inst))
 
 			beforeKA := time.Now()
 
