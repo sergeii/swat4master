@@ -1,6 +1,6 @@
 module github.com/sergeii/swat4master
 
-go 1.23
+go 1.23.0
 
 require (
 	github.com/alicebob/miniredis/v2 v2.34.0
@@ -9,7 +9,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gosimple/slug v1.15.0
 	github.com/jonboulle/clockwork v0.5.0
-	github.com/prometheus/client_golang v1.21.0
+	github.com/prometheus/client_golang v1.21.1
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.62.0
 	github.com/redis/go-redis/v9 v9.7.1
@@ -18,7 +18,7 @@ require (
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
 	go.uber.org/fx v1.23.0
-	golang.org/x/text v0.22.0
+	golang.org/x/text v0.23.0
 )
 
 require (
