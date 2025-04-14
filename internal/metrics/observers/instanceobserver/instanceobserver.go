@@ -38,4 +38,5 @@ func (o InstanceObserver) observeInstanceRepoSize(ctx context.Context, m *metric
 		return
 	}
 	m.InstanceRepositorySize.Set(float64(count))
+	o.logger.Debug().Int("count", count).Msg("Observed instance count")
 }

@@ -34,7 +34,7 @@ jobs:
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v5.4.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -79,7 +79,7 @@ jobs:
         run: go build -v -ldflags="${{ steps.ldflags.outputs.ldflags }}" -o swat4master cmd/swat4master/main.go
 
       - name: Test built binary
-        run: ./swat4master -version
+        run: ./swat4master version
 
   smoke-image:
     runs-on: ubuntu-latest
@@ -103,4 +103,4 @@ jobs:
             build_time=${{ needs.meta.outputs.date }}
 
       - name: Test built image
-        run: docker run --rm testing -version
+        run: docker run --rm testing version

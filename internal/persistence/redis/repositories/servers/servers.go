@@ -256,7 +256,7 @@ func (r *Repository) filterServerKeys(ctx context.Context, fs filterset.ServerFi
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("filter: redis pipeline: %w", err)
+		return nil, fmt.Errorf("redis pipeline: %w", err)
 	}
 
 	includeKeySets, err := r.resolveFilterKeys(includeCmds)

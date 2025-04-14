@@ -42,10 +42,11 @@ func (a *API) ListServers(c *gin.Context) {
 	}
 
 	q := prepareQuery(form)
-	ucRequest := listservers.NewRequest(q, a.cfg.BrowserServerLiveness, ds.Info)
+	ucRequest := listservers.NewRequest(q, a.settings.ServerLiveness, ds.Info)
 
 	servers, err := a.container.ListServers.Execute(c, ucRequest)
 	if err != nil {
+		a.logger.Err(err).Dur("liveness", a.settings.ServerLiveness).Msg("Failed to obtain servers")
 		c.Status(http.StatusInternalServerError)
 		return
 	}

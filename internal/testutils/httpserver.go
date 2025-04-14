@@ -8,9 +8,9 @@ import (
 	"go.uber.org/fx/fxtest"
 
 	"github.com/sergeii/swat4master/cmd/swat4master/application"
-	"github.com/sergeii/swat4master/cmd/swat4master/config"
-	"github.com/sergeii/swat4master/cmd/swat4master/modules/api"
 	"github.com/sergeii/swat4master/internal/core/repositories"
+	"github.com/sergeii/swat4master/internal/rest"
+	"github.com/sergeii/swat4master/internal/rest/api"
 	"github.com/sergeii/swat4master/tests/testapp"
 )
 
@@ -25,15 +25,12 @@ func PrepareTestServer(tb fxtest.TB, extra ...fx.Option) (*httptest.Server, func
 
 	var router *gin.Engine
 	fxopts := []fx.Option{
-		fx.Provide(func() config.Config {
-			return config.Config{
-				HTTPListenAddr: "localhost:11337",
-			}
-		}),
+		fx.Provide(testapp.NoLogging),
+		fx.Provide(testapp.ProvideSettings),
 		fx.Provide(testapp.ProvidePersistence),
 		application.Module,
-		api.Module,
-		fx.Decorate(testapp.NoLogging),
+		fx.Provide(api.New),
+		fx.Provide(rest.NewRouter),
 		fx.NopLogger,
 		fx.Populate(&router),
 	}

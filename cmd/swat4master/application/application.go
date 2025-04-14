@@ -4,6 +4,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"go.uber.org/fx"
 
+	"github.com/sergeii/swat4master/cmd/swat4master/components/exporter"
 	"github.com/sergeii/swat4master/cmd/swat4master/container"
 	"github.com/sergeii/swat4master/cmd/swat4master/logging"
 	"github.com/sergeii/swat4master/internal/core/repositories"
@@ -35,8 +36,32 @@ func provideRepositories(
 	}
 }
 
+type Builder struct {
+	opts []fx.Option
+}
+
+func NewBuilder(opts ...fx.Option) *Builder {
+	return &Builder{
+		opts: opts,
+	}
+}
+
+func (b *Builder) Add(opts ...fx.Option) *Builder {
+	b.opts = append(b.opts, opts...)
+	return b
+}
+
+func (b *Builder) WithExporter() *Builder {
+	return b.Add(
+		fx.Invoke(func(*exporter.Component) {}),
+	)
+}
+
+func (b *Builder) Build() *fx.App {
+	return fx.New(b.opts...)
+}
+
 var Module = fx.Module("application",
-	fx.Provide(logging.Provide),
 	fx.Invoke(logging.NoGlobal),
 	fx.Provide(clockwork.NewRealClock),
 	fx.Provide(validation.New),

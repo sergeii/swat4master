@@ -3,12 +3,12 @@ package api
 import (
 	"github.com/rs/zerolog"
 
-	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/cmd/swat4master/container"
+	"github.com/sergeii/swat4master/internal/settings"
 )
 
 type API struct {
-	cfg       config.Config
+	settings  settings.Settings
 	container container.Container
 	logger    *zerolog.Logger
 }
@@ -18,13 +18,13 @@ type Error struct {
 }
 
 func New(
-	cfg config.Config,
+	settings settings.Settings,
 	logger *zerolog.Logger,
 	container container.Container,
 ) *API {
 	return &API{
 		container: container,
-		cfg:       cfg,
+		settings:  settings,
 		logger:    logger,
 	}
 }

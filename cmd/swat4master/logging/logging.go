@@ -9,15 +9,20 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"go.uber.org/fx"
+	"go.uber.org/fx/fxevent"
 
-	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/pkg/logutils"
 )
 
 var (
-	ErrInvalidLogOutput = errors.New("unknown logging output format")
-	ErrInvalidLogLevel  = errors.New("unknown logging level")
+	ErrInvalidLogOutput = errors.New("logging: unknown output format")
+	ErrInvalidLogLevel  = errors.New("logging: unknown level")
 )
+
+type Config struct {
+	LogOutput string
+	LogLevel  string
+}
 
 type Result struct {
 	fx.Out
@@ -26,7 +31,7 @@ type Result struct {
 	LogLevel zerolog.Level
 }
 
-func Provide(cfg config.Config) (Result, error) {
+func Provide(cfg Config) (Result, error) {
 	var output io.Writer
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMicro
 	zerolog.DurationFieldUnit = time.Second
@@ -65,4 +70,15 @@ func Provide(cfg config.Config) (Result, error) {
 
 func NoGlobal() {
 	log.Logger = zerolog.Nop()
+}
+
+func FxLogger(logger *zerolog.Logger, lvl zerolog.Level) fxevent.Logger {
+	switch lvl { // nolint: exhaustive
+	case zerolog.DebugLevel:
+		return &fxevent.ConsoleLogger{
+			W: logger,
+		}
+	default:
+		return fxevent.NopLogger
+	}
 }

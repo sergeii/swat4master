@@ -3,6 +3,7 @@ package listservers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jonboulle/clockwork"
@@ -56,7 +57,7 @@ func (uc UseCase) Execute(ctx context.Context, req Request) ([]server.Server, er
 
 	recent, err := uc.serverRepo.Filter(ctx, fs)
 	if err != nil {
-		return nil, ErrUnableToObtainServers
+		return nil, fmt.Errorf("listservers: repo: %w", ErrUnableToObtainServers)
 	}
 
 	filtered := make([]server.Server, 0, len(recent))

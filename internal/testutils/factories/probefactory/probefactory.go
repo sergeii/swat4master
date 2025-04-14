@@ -12,6 +12,7 @@ type BuildParams struct {
 	Port       int
 	ProbePort  int
 	Goal       probe.Goal
+	Retries    int
 	MaxRetries int
 }
 
@@ -30,6 +31,30 @@ func WithRandomServerAddress() BuildOption {
 		randPort := random.RandInt(1, 65534)
 		p.IP = randomIP.String()
 		p.Port = randPort
+	}
+}
+
+func WithProbePort(probePort int) BuildOption {
+	return func(p *BuildParams) {
+		p.ProbePort = probePort
+	}
+}
+
+func WithGoal(goal probe.Goal) BuildOption {
+	return func(p *BuildParams) {
+		p.Goal = goal
+	}
+}
+
+func WithRetries(retries int) BuildOption {
+	return func(p *BuildParams) {
+		p.Retries = retries
+	}
+}
+
+func WithMaxRetries(maxRetries int) BuildOption {
+	return func(p *BuildParams) {
+		p.MaxRetries = maxRetries
 	}
 }
 
@@ -52,6 +77,7 @@ func Build(opts ...BuildOption) probe.Probe {
 		params.Goal,
 		params.MaxRetries,
 	)
+	prb.Retries = params.Retries
 
 	return prb
 }

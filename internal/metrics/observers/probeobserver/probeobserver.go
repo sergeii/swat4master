@@ -38,4 +38,5 @@ func (o ProbeObserver) observeProbeRepoSize(ctx context.Context, m *metrics.Coll
 		return
 	}
 	m.ProbeRepositorySize.Set(float64(count))
+	o.logger.Debug().Int("count", count).Msg("Observed probe count")
 }
