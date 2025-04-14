@@ -3,7 +3,6 @@ package container
 import (
 	"go.uber.org/fx"
 
-	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	"github.com/sergeii/swat4master/internal/core/usecases/addserver"
 	"github.com/sergeii/swat4master/internal/core/usecases/getserver"
 	"github.com/sergeii/swat4master/internal/core/usecases/listservers"
@@ -13,6 +12,7 @@ import (
 	"github.com/sergeii/swat4master/internal/core/usecases/renewserver"
 	"github.com/sergeii/swat4master/internal/core/usecases/reportserver"
 	"github.com/sergeii/swat4master/internal/core/usecases/reviveservers"
+	"github.com/sergeii/swat4master/internal/settings"
 )
 
 type UseCaseConfigs struct {
@@ -24,19 +24,19 @@ type UseCaseConfigs struct {
 	ReviveServersOptions  reviveservers.UseCaseOptions
 }
 
-func NewUseCaseConfigs(cfg config.Config) UseCaseConfigs {
+func NewUseCaseConfigs(settings settings.Settings) UseCaseConfigs {
 	return UseCaseConfigs{
 		AddServerOptions: addserver.UseCaseOptions{
-			MaxProbeRetries: cfg.DiscoveryRevivalRetries,
+			MaxProbeRetries: settings.DiscoveryRevivalRetries,
 		},
 		ReportServerOptions: reportserver.UseCaseOptions{
-			MaxProbeRetries: cfg.DiscoveryRevivalRetries,
+			MaxProbeRetries: settings.DiscoveryRevivalRetries,
 		},
 		RefreshServersOptions: refreshservers.UseCaseOptions{
-			MaxProbeRetries: cfg.DiscoveryRefreshRetries,
+			MaxProbeRetries: settings.DiscoveryRefreshRetries,
 		},
 		ReviveServersOptions: reviveservers.UseCaseOptions{
-			MaxProbeRetries: cfg.DiscoveryRevivalRetries,
+			MaxProbeRetries: settings.DiscoveryRevivalRetries,
 		},
 	}
 }

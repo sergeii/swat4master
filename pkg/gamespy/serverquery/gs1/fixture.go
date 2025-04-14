@@ -5,17 +5,17 @@ import (
 	"context"
 	"net"
 
-	udp "github.com/sergeii/swat4master/pkg/udp/server"
+	"github.com/sergeii/swat4master/pkg/udp/udpserver"
 )
 
 func ServerFactory(
 	handler func(ctx context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte),
-) (*udp.Server, func()) {
+) (*udpserver.Server, func()) {
 	ready := make(chan struct{})
-	server, _ := udp.New(
+	server, _ := udpserver.New(
 		"localhost:0", // 0 - listen an any available port
-		udp.HandleFunc(handler),
-		udp.WithReadySignal(func() {
+		udpserver.HandleFunc(handler),
+		udpserver.WithReadySignal(func() {
 			ready <- struct{}{}
 		}),
 	)
@@ -28,7 +28,7 @@ func ServerFactory(
 	}
 }
 
-func PrepareGS1Server(responses chan []byte) (*udp.Server, func()) {
+func PrepareGS1Server(responses chan []byte) (*udpserver.Server, func()) {
 	return ServerFactory(
 		func(ctx context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {
 			if !bytes.Equal([]byte("\\status\\"), req[:8]) {

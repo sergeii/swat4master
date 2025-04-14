@@ -54,6 +54,7 @@ func (o ServerObserver) observeServerRepoSize(ctx context.Context, m *metrics.Co
 		return
 	}
 	m.ServerRepositorySize.Set(float64(count))
+	o.logger.Debug().Int("count", count).Msg("Observed server count")
 }
 
 func (o ServerObserver) observeDiscoveredServers(ctx context.Context, m *metrics.Collector) {
@@ -67,6 +68,7 @@ func (o ServerObserver) observeDiscoveredServers(ctx context.Context, m *metrics
 			continue
 		}
 		m.GameDiscoveredServers.WithLabelValues(status.BitString()).Set(float64(serverCount))
+		o.logger.Debug().Int("count", serverCount).Str("status", status.String()).Msg("Observed server count by status")
 	}
 }
 
@@ -100,4 +102,6 @@ func (o ServerObserver) observeActiveServers(ctx context.Context, m *metrics.Col
 	for gametype, serverCount := range playedServers {
 		m.GamePlayedServers.WithLabelValues(gametype).Set(float64(serverCount))
 	}
+
+	o.logger.Debug().Int("players", len(players)).Int("servers", len(activeServers)).Msg("Observed active server count")
 }

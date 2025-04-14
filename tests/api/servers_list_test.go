@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/sergeii/swat4master/cmd/swat4master/config"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
+	"github.com/sergeii/swat4master/internal/settings"
 	"github.com/sergeii/swat4master/internal/testutils"
 	"github.com/sergeii/swat4master/internal/testutils/factories/serverfactory"
 )
@@ -51,9 +51,9 @@ func TestAPI_ListServers_OK(t *testing.T) {
 	ctx := context.TODO()
 	ts, repos, cancel := testutils.PrepareTestServerWithRepos(
 		t,
-		fx.Decorate(func(cfg config.Config) config.Config {
-			cfg.BrowserServerLiveness = time.Second * 15
-			return cfg
+		fx.Decorate(func(settings settings.Settings) settings.Settings {
+			settings.ServerLiveness = time.Second * 15
+			return settings
 		}),
 	)
 	defer cancel()
@@ -382,9 +382,9 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 			ctx := context.TODO()
 			ts, repos, cancel := testutils.PrepareTestServerWithRepos(
 				t,
-				fx.Decorate(func(cfg config.Config) config.Config {
-					cfg.BrowserServerLiveness = time.Second * 10
-					return cfg
+				fx.Decorate(func(settings settings.Settings) settings.Settings {
+					settings.ServerLiveness = time.Second * 10
+					return settings
 				}),
 			)
 			defer cancel()

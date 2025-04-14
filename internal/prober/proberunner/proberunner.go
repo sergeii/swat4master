@@ -55,17 +55,10 @@ func New(
 }
 
 func (r *Runner) Start(ctx context.Context) {
-	r.logger.Info().
-		Dur("interval", r.opts.PollInterval).
-		Dur("timeout", r.opts.ProbeTimeout).
-		Int("concurrency", r.opts.Concurrency).
-		Msg("Starting prober")
-
 	for range r.opts.Concurrency {
 		go r.worker(ctx)
 	}
 	r.metrics.DiscoveryWorkersAvailable.Add(float64(r.opts.Concurrency))
-
 	go r.scheduler(ctx)
 }
 
