@@ -1,35 +1,62 @@
+version: "2"
 linters:
-  enable-all: true
+  default: all
   disable:
-    - godot
-    - gci
-    - funlen
-    - wrapcheck
-    - varnamelen
-    - paralleltest
-    - ireturn
-    - gomnd
-    - thelper
-    - tagliatelle
-    - noctx
-    - nlreturn
-    - wsl
+    - depguard
+    - dupword
     - err113
-    - gochecknoglobals
     - exhaustruct
-    - nolintlint
+    - funcorder
+    - funlen
+    - gochecknoglobals
+    - godot
+    - inamedparam
+    - ireturn
     - maintidx
     - misspell
-    - dupword
-    - depguard
-    - execinquery
-    - protogetter
     - mnd
-    - inamedparam
+    - nlreturn
+    - noctx
+    - nolintlint
+    - paralleltest
+    - protogetter
+    - tagliatelle
     - testifylint
-    - exportloopref
-linters-settings:
-  cyclop:
-    max-complexity: 10
-    package-average: 0
-    skip-tests: true
+    - thelper
+    - varnamelen
+    - wrapcheck
+    - wsl
+  settings:
+    cyclop:
+      max-complexity: 10
+      package-average: 0
+    staticcheck:
+      checks:
+        - all
+        - '-QF1008'  # "could remove embedded field "..." from selector"
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - cyclop
+        path: (.+)_test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - gofumpt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

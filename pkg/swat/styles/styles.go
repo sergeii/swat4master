@@ -7,10 +7,7 @@ import (
 
 func Clean(text string) string {
 	r := regexp.MustCompile(`(?i)(\[[\\/]?[cub]\]|\[c[^\w][^\[\]]*?\])`)
-	for {
-		if !r.MatchString(text) {
-			break
-		}
+	for r.MatchString(text) {
 		text = r.ReplaceAllString(text, "")
 	}
 	return strings.TrimSpace(text)

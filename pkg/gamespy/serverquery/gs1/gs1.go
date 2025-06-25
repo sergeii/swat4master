@@ -432,6 +432,6 @@ func consumeParamFromRight(payload []byte) (Param, []byte, error) {
 }
 
 func latin1(bytes []byte) string {
-	encoded, _ := charmap.ISO8859_1.NewDecoder().Bytes(bytes) // nolint: nosnakecase
+	encoded, _ := charmap.ISO8859_1.NewDecoder().Bytes(bytes)
 	return string(encoded)
 }

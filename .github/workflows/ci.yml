@@ -52,9 +52,7 @@ jobs:
       - name: Run golangci
         uses: golangci/golangci-lint-action@v8
         with:
-          version: v1.60.3
-          install-mode: "goinstall"
-          args: --timeout=10m
+          version: v2.1.6
 
   smoke-binary:
     runs-on: ubuntu-latest
