@@ -13,7 +13,7 @@ import (
 
 var ErrInvalidQueryPort = errors.New("invalid port number")
 
-type Server struct {
+type Server struct { // nolint: recvcheck
 	Addr            addr.Addr
 	QueryPort       int
 	DiscoveryStatus ds.DiscoveryStatus
