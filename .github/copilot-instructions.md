@@ -112,6 +112,15 @@ docker run --rm swat4master-test version
 - **Refresher** (`run refresher`): Refreshes server details periodically
 - **Reviver** (`run reviver`): Attempts to revive offline servers
 
+### Core Dependencies
+- **fx**: Uber's dependency injection framework - used for application wiring
+- **kong**: CLI framework for command-line parsing
+- **gin**: HTTP web framework for REST API
+- **redis/go-redis**: Redis client for persistence
+- **zerolog**: Structured logging
+- **clockwork**: Time mocking for tests
+- **testify**: Testing assertions and helpers
+
 ### Dependencies & Configuration
 - **Redis**: Required for all persistence operations (default: `redis://localhost:6379`)
 - **Ports**: 27900/udp (GameSpy), 28910 (reporter), 3000 (API), 9000 (metrics)
@@ -171,15 +180,18 @@ docker run --rm testing version
 - **Browser test flakiness**: The browser validation test occasionally fails; this is a known issue
 - **Redis requirement**: Many tests require Redis; they'll skip if unavailable
 - **Timing tests**: Use `clockwork.FakeClock` to avoid time-dependent test failures
+- **Test timeouts**: Some GameSpy protocol tests take ~400ms due to network simulation
 
 ### Build Issues
 - **API docs**: If REST API changes, regenerate docs with `swag init` before building
 - **Go version**: Requires Go 1.22+; the project uses Go 1.23 features
 - **CGO**: Disabled in Docker builds (`CGO_ENABLED=0`)
+- **Binary output**: Build artifacts are ignored in git (see .gitignore)
 
 ### Development Setup
 - **Redis**: Start with `docker run -d -p 6379:6379 redis:alpine` for development
 - **Hot reload**: No built-in hot reload; rebuild and restart for changes
+- **Test patterns**: Tests contain TODO comments for incomplete scenarios (normal development practice)
 
 ## Performance Notes
 
@@ -187,6 +199,7 @@ docker run --rm testing version
 - **Build**: Basic build takes ~5 seconds
 - **Lint**: Full lint takes ~30 seconds  
 - **Docker build**: Takes ~2-3 minutes for full multi-stage build
+- **GameSpy protocol tests**: Individual protocol tests may take 300-400ms due to network simulation
 
 ## Validation Commands
 
