@@ -19,7 +19,6 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     outputs:
       tag: ${{ steps.plan.outputs.new_tag }}
-      version: ${{ steps.plan.outputs.new_version }}
       changelog: ${{ steps.plan.outputs.changelog }}
       date: ${{ steps.build_meta.outputs.date }}
     steps:
@@ -81,7 +80,6 @@ jobs:
         id: build
         with:
           context: .
-          file: dockerfile/prod/Dockerfile
           labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ matrix.platform.name }}
           outputs: type=image,"name=${{ env.IMAGE }}",push-by-digest=true,name-canonical=true,push=true
