@@ -167,7 +167,7 @@ func TestFilter_Match(t *testing.T) {
 	type filterArgs struct {
 		Field string
 		Op    string
-		Value interface{}
+		Value any
 	}
 	tests := []struct {
 		name    string

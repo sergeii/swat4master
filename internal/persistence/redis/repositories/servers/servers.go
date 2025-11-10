@@ -495,7 +495,7 @@ func (r *Repository) updateExclusive(
 	return fmt.Errorf("update exclusive: lock not acquired after %d attempts", r.lockOpts.MaxAttempts)
 }
 
-func decodeServer(val interface{}) (server.Server, error) {
+func decodeServer(val any) (server.Server, error) {
 	var svr server.Server
 	encoded, ok := val.(string)
 	if !ok {

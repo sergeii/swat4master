@@ -51,7 +51,7 @@ For other tags see [container registry][packages].
 Alternatively you can download and run a server binary suitable for your platform from one of the [releases][releases].
 
 ## Building from source
-To build the project from source you need Go 1.22+
+To build the project from source you need Go 1.25+
 ```
 go build -o swat4master cmd/swat4master/main.go
 ```
@@ -63,7 +63,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 [mit]: https://opensource.org/licenses/MIT
 
 [go-version-img]: https://img.shields.io/github/go-mod/go-version/sergeii/swat4master.svg
-[go-version]: https://tip.golang.org/doc/go1.23
+[go-version]: https://tip.golang.org/doc/go1.25
 
 [ci-img]: https://github.com/sergeii/swat4master/actions/workflows/ci.yml/badge.svg?branch=main
 [ci]: https://github.com/sergeii/swat4master/actions/workflows/ci.yml

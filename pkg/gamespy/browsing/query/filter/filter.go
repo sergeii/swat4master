@@ -44,7 +44,7 @@ type FieldValue struct {
 
 // Evaluate obtains the actual value from the provided fieldset
 // The obtained value is then used for comparison, such as numplayers!=maxplayers
-func (fv FieldValue) Evaluate(fields any) (interface{}, error) {
+func (fv FieldValue) Evaluate(fields any) (any, error) {
 	value, err := getStructField(fields, fv.field)
 	if err != nil {
 		return "", err
@@ -60,7 +60,7 @@ type Filter struct {
 	field string
 	op    Operator
 	rawop string
-	value interface{}
+	value any
 }
 
 func (f Filter) String() string {
@@ -101,7 +101,7 @@ func (f Filter) Match(fields any) (bool, error) {
 	}
 }
 
-func (f Filter) compare(this, other interface{}) (bool, error) {
+func (f Filter) compare(this, other any) (bool, error) {
 	switch otherTyped := other.(type) {
 	case int:
 		return f.compareToInt(this, otherTyped)
@@ -112,7 +112,7 @@ func (f Filter) compare(this, other interface{}) (bool, error) {
 	}
 }
 
-func (f Filter) compareToInt(this interface{}, other int) (bool, error) {
+func (f Filter) compareToInt(this any, other int) (bool, error) {
 	var thisInt int
 
 	switch anyInt := this.(type) {
@@ -140,7 +140,7 @@ func (f Filter) compareToInt(this interface{}, other int) (bool, error) {
 	}
 }
 
-func (f Filter) compareToString(this interface{}, other string) (bool, error) {
+func (f Filter) compareToString(this any, other string) (bool, error) {
 	thisStr, ok := this.(string)
 	if !ok {
 		return false, ErrFieldInvalidValueType
@@ -156,7 +156,7 @@ func (f Filter) compareToString(this interface{}, other string) (bool, error) {
 	}
 }
 
-func New(field, rawOp string, value interface{}) (Filter, error) {
+func New(field, rawOp string, value any) (Filter, error) {
 	var op Operator
 	if !IsQueryField(field) {
 		return Filter{}, ErrUnknownFieldName
@@ -176,7 +176,7 @@ func New(field, rawOp string, value interface{}) (Filter, error) {
 	return Filter{field, op, rawOp, value}, nil
 }
 
-func MustNew(field, rawOp string, value interface{}) Filter {
+func MustNew(field, rawOp string, value any) Filter {
 	f, err := New(field, rawOp, value)
 	if err != nil {
 		panic(err)
@@ -220,7 +220,7 @@ func Parse(filter string) (Filter, error) { // nolint: cyclop
 	return New(fieldName, op, filterValue)
 }
 
-func parseRawFilterValue(rawVal string) (interface{}, error) {
+func parseRawFilterValue(rawVal string) (any, error) {
 	// password=0, numplayers>0
 	if numericVal, err := strconv.Atoi(rawVal); err == nil {
 		return numericVal, nil

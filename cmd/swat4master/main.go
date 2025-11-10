@@ -42,6 +42,7 @@ func main() {
 			Tree:      true,
 			FlagsLast: true,
 		}),
+		kong.DefaultEnvars(""),
 	)
 
 	builder := application.NewBuilder(

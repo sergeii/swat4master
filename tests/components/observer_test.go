@@ -19,7 +19,7 @@ import (
 )
 
 func TestObserver_Run(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	var serverRepo repositories.ServerRepository

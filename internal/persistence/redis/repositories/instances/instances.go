@@ -141,7 +141,7 @@ func encodeInstance(ins instance.Instance) ([]byte, error) {
 	return encoded, nil
 }
 
-func decodeInstance(val interface{}) (instance.Instance, error) {
+func decodeInstance(val any) (instance.Instance, error) {
 	var decoded storedInstance
 	encoded, ok := val.(string)
 	if !ok {

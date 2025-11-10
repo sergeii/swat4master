@@ -1,6 +1,8 @@
 package infofactory
 
 import (
+	"maps"
+
 	"github.com/sergeii/swat4master/internal/core/entities/details"
 	"github.com/sergeii/swat4master/pkg/slice"
 )
@@ -11,9 +13,7 @@ type BuildOption func(map[string]string)
 
 func WithFields(extra F) BuildOption {
 	return func(fields map[string]string) {
-		for k, v := range extra {
-			fields[k] = v
-		}
+		maps.Copy(fields, extra)
 	}
 }
 

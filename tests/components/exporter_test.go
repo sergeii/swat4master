@@ -11,6 +11,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -54,7 +55,8 @@ func getMetrics(t *testing.T) map[string]*dto.MetricFamily {
 		}
 	}()
 	assert.Equal(t, 200, resp.StatusCode)
-	parser := expfmt.TextParser{}
+	// https://github.com/kubernetes/kubernetes/issues/133878#issuecomment-3268232036
+	parser := expfmt.NewTextParser(model.UTF8Validation)
 	mf, err := parser.TextToMetricFamilies(resp.Body)
 	require.NoError(t, err)
 	return mf
@@ -143,7 +145,7 @@ func TestExporter_MasterMetrics(t *testing.T) {
 }
 
 func TestExporter_ServerMetrics(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	var repo repositories.ServerRepository
@@ -281,7 +283,7 @@ func TestExporter_ServerMetrics(t *testing.T) {
 }
 
 func TestExporter_ReposMetrics(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	var serversRepo repositories.ServerRepository
@@ -349,7 +351,7 @@ func TestExporter_ReposMetrics(t *testing.T) {
 }
 
 func TestExporter_CleanerMetrics(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	var repo repositories.ServerRepository
@@ -410,7 +412,7 @@ func TestExporter_CleanerMetrics(t *testing.T) {
 }
 
 func TestExporter_ProberMetrics(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	var serverRepo repositories.ServerRepository

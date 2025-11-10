@@ -6,6 +6,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9/maintnotifications"
 
 	"github.com/sergeii/swat4master/internal/testutils"
 )
@@ -13,6 +14,10 @@ import (
 func MakeClientFromMini(t *testing.T, mr *miniredis.Miniredis) *redis.Client {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
+		// https://github.com/redis/go-redis/issues/3536
+		MaintNotificationsConfig: &maintnotifications.Config{
+			Mode: maintnotifications.ModeDisabled,
+		},
 	})
 	t.Cleanup(func() {
 		testutils.MustNoErr(rdb.Close())
@@ -23,6 +28,9 @@ func MakeClientFromMini(t *testing.T, mr *miniredis.Miniredis) *redis.Client {
 func MakeRealClient(t *testing.T) *redis.Client {
 	client := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
+		MaintNotificationsConfig: &maintnotifications.Config{
+			Mode: maintnotifications.ModeDisabled,
+		},
 	})
 	t.Cleanup(func() {
 		client.FlushDB(context.Background())
