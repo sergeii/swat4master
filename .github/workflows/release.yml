@@ -1,5 +1,8 @@
 name: release
 
+env:
+  IMAGE: ghcr.io/sergeii/swat4master
+
 on:
   workflow_run:
     workflows: [ci]
@@ -11,70 +14,137 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  prepare:
+  plan-release-tag:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     outputs:
-      new_tag: ${{ steps.version.outputs.new_tag }}
-      changelog: ${{ steps.version.outputs.changelog }}
+      tag: ${{ steps.plan.outputs.new_tag }}
+      version: ${{ steps.plan.outputs.new_version }}
+      changelog: ${{ steps.plan.outputs.changelog }}
       date: ${{ steps.build_meta.outputs.date }}
     steps:
-      - name: Bump release version and push tag
-        id: version
-        uses: mathieudutour/github-tag-action@v6.2
+      - uses: actions/checkout@v5
+
+      - uses: mathieudutour/github-tag-action@v6.2
+        id: plan
         with:
+          dry_run: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
           default_bump: false
 
       - name: Prepare build metadata
         id: build_meta
-        run: |
-          echo "::set-output name=date::$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+        run: echo "date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
 
-  publish:
-    runs-on: ubuntu-latest
-    needs: prepare
-    if: needs.prepare.outputs.new_tag != ''
+  # https://docs.docker.com/build/ci/github-actions/multi-platform/#distribute-build-across-multiple-runners
+  build-arch-image:
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    needs: plan-release-tag
+    if: needs.plan-release-tag.outputs.tag != ''
+    outputs:
+      digest_amd64: ${{ steps.digest.outputs.amd64 }}
+      digest_arm64: ${{ steps.digest.outputs.arm64 }}
+    strategy:
+      matrix:
+        platform:
+          - id: amd64
+            name: linux/amd64
+            runner: ubuntu-24.04
+          - id: arm64
+            name: linux/arm64
+            runner: ubuntu-24.04-arm
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Github Packages
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Prepare tags for docker image
-        id: meta
+      - name: Prepare image metadata
         uses: docker/metadata-action@v5
+        id: meta
         with:
-          images: |
-            ghcr.io/sergeii/swat4master
-          tags: |
-            type=raw,prefix=,value=${{ needs.prepare.outputs.new_tag }}
-          flavor: |
-            latest=true
-            prefix=
-            suffix=
+          images: ${{ env.IMAGE }}
 
-      - name: Build and push docker image
+      - name: Build and push image by digest
         uses: docker/build-push-action@v6
+        id: build
         with:
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          context: .
+          file: dockerfile/prod/Dockerfile
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: ${{ matrix.platform.name }}
+          outputs: type=image,"name=${{ env.IMAGE }}",push-by-digest=true,name-canonical=true,push=true
           build-args: |
             build_commit_sha=${{ github.sha }}
-            build_version=${{ needs.prepare.outputs.new_tag }}
-            build_time=${{ needs.prepare.outputs.date }}
+            build_version=${{ needs.plan-release-tag.outputs.tag }}
+            build_time=${{ needs.plan-release-tag.outputs.date }}
+
+      - name: Export image digest
+        id: digest
+        run: echo "${{ matrix.platform.id }}=${{ steps.build.outputs.digest }}" >> $GITHUB_OUTPUT
+
+  push-image-manifest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      packages: write
+      contents: read
+    needs: [plan-release-tag, build-arch-image]
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push multi-arch manifest
+        run: >-
+          docker buildx imagetools create
+          -t ${{ env.IMAGE }}:latest
+          -t ${{ env.IMAGE }}:${{ needs.plan-release-tag.outputs.tag }}
+          ${{ env.IMAGE }}@${{ needs.build-arch-image.outputs.digest_amd64 }}
+          ${{ env.IMAGE }}@${{ needs.build-arch-image.outputs.digest_arm64 }}
+
+      - name: Inspect pushed manifest
+        run: docker buildx imagetools inspect ${{ env.IMAGE }}:latest
+
+  create-release-tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    needs: [plan-release-tag, push-image-manifest]
+    if: needs.plan-release-tag.outputs.tag != ''
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Create git tag
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          commit_sha: ${{ github.sha }}
+          custom_tag: ${{ needs.plan-release-tag.outputs.tag }}
+          tag_prefix: ""
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: false
 
       - name: Create GitHub release
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ needs.prepare.outputs.new_tag }}
-          name: Release ${{ needs.prepare.outputs.new_tag }}
-          body: ${{ needs.prepare.outputs.changelog }}
+          tag: ${{ needs.plan-release-tag.outputs.tag }}
+          name: Release ${{ needs.plan-release-tag.outputs.tag }}
+          body: ${{ needs.plan-release-tag.outputs.changelog }}
