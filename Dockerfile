@@ -4,36 +4,36 @@ ARG build_commit_sha="-"
 ARG build_version="-"
 ARG build_time="-"
 
-ENV CGO_ENABLED=0
-ENV GOOS=linux
-ENV GOARCH=amd64
-ENV GOEXPERIMENT=loopvar
-ENV PATH=/go/bin/linux_amd64:$PATH
-
 ARG _pkg="github.com/sergeii/swat4master/cmd/swat4master"
 
+# Create dedicated non-root user for both build and runtime
 RUN adduser \
     --disabled-password \
     --uid=9999 \
-    scratch
+    --shell /sbin/nologin \
+    app
 
 RUN mkdir -p /app/src \
-    && mkdir -p /app/bin \
-    && chown -R scratch:scratch /app
+    && chown -R app:app /app
 
-USER scratch
-
-RUN go install github.com/swaggo/swag/cmd/swag@v1.8.10
+USER app
 
 WORKDIR /app/src
 
+# Download dependencies
 COPY go.mod go.sum ./
 RUN go mod download && \
     go mod verify
 
-COPY --chown=scratch:scratch . .
-RUN swag init -g schema.go -o api/docs/ -d api/,internal/rest/
-RUN go build  \
+COPY --chown=app:app . .
+
+# Generate swagger docs
+RUN go run github.com/swaggo/swag/cmd/swag@v1.8.10 \
+     init -g schema.go -o api/docs/ -d api/,internal/rest/
+
+# Build the actual binary
+RUN CGO_ENABLED=0 GOEXPERIMENT=loopvar \
+    go build  \
     -v \
     -ldflags="-X '$_pkg/build.Time=$build_time' -X '$_pkg/build.Commit=$build_commit_sha' -X '$_pkg/build.Version=$build_version'" \
     -o /app/bin/swat4master \
@@ -41,14 +41,13 @@ RUN go build  \
 
 FROM scratch
 
+# Gin runs in release mode
 ENV GIN_MODE=release
-
-WORKDIR /
 
 COPY --from=build /app/bin/swat4master /swat4master
 COPY --from=build /etc/passwd /etc/passwd
 
-USER scratch
+USER app
 
 EXPOSE 27900/udp
 EXPOSE 28910
