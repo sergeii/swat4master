@@ -1,6 +1,8 @@
 package testutils
 
 import (
+	"maps"
+
 	"github.com/sergeii/swat4master/pkg/slice"
 )
 
@@ -25,9 +27,7 @@ func GenServerParams() map[string]string {
 
 func GenExtraServerParams(extra map[string]string) map[string]string {
 	params := GenServerParams()
-	for k, v := range extra {
-		params[k] = v
-	}
+	maps.Copy(params, extra)
 	return params
 }
 

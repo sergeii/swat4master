@@ -14,7 +14,7 @@ type Response struct {
 
 type TestRequestOpt func(*http.Request, *http.Response)
 
-func MustBindJSON(v interface{}) TestRequestOpt {
+func MustBindJSON(v any) TestRequestOpt {
 	return func(_ *http.Request, resp *http.Response) {
 		if resp != nil {
 			body, err := io.ReadAll(resp.Body)

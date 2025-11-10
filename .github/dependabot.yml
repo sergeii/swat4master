@@ -1,32 +1,32 @@
 version: 2
 updates:
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
-      interval: "monthly"
-    reviewers:
+      interval: monthly
+    assignees:
       - sergeii
     commit-message:
-      prefix: "chore"
+      prefix: chore
     groups:
       actions:
         applies-to: version-updates
-        dependency-type: "production"
+        dependency-type: production
   - package-ecosystem: gomod
-    directory: "/"
+    directory: /
     schedule:
-      interval: "weekly"
-    reviewers:
+      interval: weekly
+    assignees:
       - sergeii
     commit-message:
-      prefix: "feat"
+      prefix: feat
     groups:
       dependencies:
         applies-to: version-updates
-        dependency-type: "production"
+        dependency-type: production
         update-types:
-          - "minor"
-          - "patch"
+          - minor
+          - patch
       dev-dependencies:
         applies-to: version-updates
-        dependency-type: "development"
+        dependency-type: development

@@ -50,8 +50,7 @@ func TestRedisLockManager_Guard_ConcurrentAccessGuarded(t *testing.T) {
 
 	// And a function that performs a guarded operation
 	errCh := make(chan error)
-	do := func(wg *sync.WaitGroup) {
-		defer wg.Done()
+	do := func() {
 		// When a redis operation is guarded by a lock
 		err := m.Guard(ctx, "lock:foo", time.Minute, func(tx *redis.Tx) error {
 			tx.Incr(ctx, "foo")
@@ -67,10 +66,7 @@ func TestRedisLockManager_Guard_ConcurrentAccessGuarded(t *testing.T) {
 	go func() {
 		wg := &sync.WaitGroup{}
 		for range 10 {
-			wg.Add(1)
-			go func() {
-				do(wg)
-			}()
+			wg.Go(do)
 		}
 		wg.Wait()
 		close(errCh)
@@ -113,11 +109,9 @@ func TestRedisLockManager_Guard_NoConflictOnIndependentAccess(t *testing.T) {
 	// When multiple redis clients try to execute independent operations
 	wg := &sync.WaitGroup{}
 	for i := range 10 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			do(i)
-		}()
+		})
 	}
 	wg.Wait()
 

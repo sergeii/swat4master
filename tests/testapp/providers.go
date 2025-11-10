@@ -6,6 +6,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9/maintnotifications"
 	"github.com/rs/zerolog"
 	"go.uber.org/fx"
 
@@ -28,6 +29,10 @@ func ProvidePersistence(lc fx.Lifecycle) (*redis.Client, error) {
 
 	rdb := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
+		// https://github.com/redis/go-redis/issues/3536
+		MaintNotificationsConfig: &maintnotifications.Config{
+			Mode: maintnotifications.ModeDisabled,
+		},
 	})
 
 	lc.Append(fx.Hook{

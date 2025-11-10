@@ -211,7 +211,7 @@ func isItemExpired(expires time.Time, now time.Time) bool {
 	return !expires.IsZero() && expires.Before(now)
 }
 
-func asQueuedItem(val interface{}) (qItem, error) {
+func asQueuedItem(val any) (qItem, error) {
 	var item qItem
 	encoded, ok := val.(string)
 	if !ok {

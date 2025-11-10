@@ -86,8 +86,9 @@ func (p PortProber) Probe(
 
 	ip := netip.AddrFrom4(svrAddr.IP)
 	for _, pIdx := range p.opts.Offsets {
-		wg.Add(1)
-		go p.probePort(ctx, wg, results, ip, svrAddr.Port, svrAddr.Port+pIdx, timeout)
+		wg.Go(func() {
+			p.probePort(ctx, results, ip, svrAddr.Port, svrAddr.Port+pIdx, timeout)
+		})
 	}
 
 	go func() {
@@ -129,14 +130,12 @@ func (p PortProber) Probe(
 
 func (p PortProber) probePort(
 	ctx context.Context,
-	wg *sync.WaitGroup,
 	responses chan response,
 	ip netip.Addr,
 	gamePort int,
 	queryPort int,
 	timeout time.Duration,
 ) {
-	defer wg.Done()
 	queryStarted := time.Now()
 
 	resp, err := gs1.Query(ctx, netip.AddrPortFrom(ip, uint16(queryPort)), timeout) // nolint:gosec

@@ -65,7 +65,7 @@ func (cs *cipherState) shuffle(cryptKey [CRTL]byte, limit, rsum, keypos uint8) (
 }
 
 func (cs *cipherState) Encrypt(data []byte) []byte {
-	for i := 0; i < len(data); i++ {
+	for i := range data {
 		data[i] = cs.encryptByte(data[i])
 	}
 	return data
@@ -99,7 +99,7 @@ func (cs *cipherState) encryptByte(b byte) byte { // nolint: dupl
 }
 
 func (cs *cipherState) Decrypt(data []byte) []byte {
-	for i := 0; i < len(data); i++ {
+	for i := range data {
 		data[i] = cs.decryptByte(data[i])
 	}
 	return data

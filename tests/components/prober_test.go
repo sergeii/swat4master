@@ -29,7 +29,7 @@ func TestProber_Run(t *testing.T) {
 	var serverRepo repositories.ServerRepository
 	var probeRepo repositories.ProbeRepository
 
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	app := fx.New(
