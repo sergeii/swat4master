@@ -18,9 +18,9 @@ Backed by this project and widely accepted in the community,
 the master server is available for use by players and server owners either with [a patch][master-server-patch] or
 with a [hosts][fix-hosts-tutorial] file adjustment:
 ```
-116.202.1.82 swat4.available.gamespy.com
-116.202.1.82 swat4.master.gamespy.com
-116.202.1.82 swat4.ms15.gamespy.com
+116.202.182.15 swat4.available.gamespy.com
+116.202.182.15 swat4.master.gamespy.com
+116.202.182.15 swat4.ms15.gamespy.com
 ```
 
 ## Background
