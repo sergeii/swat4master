@@ -22,7 +22,7 @@ jobs:
       changelog: ${{ steps.plan.outputs.changelog }}
       date: ${{ steps.build_meta.outputs.date }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: mathieudutour/github-tag-action@v6.2
         id: plan
@@ -57,7 +57,7 @@ jobs:
             name: linux/arm64
             runner: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -129,7 +129,7 @@ jobs:
     needs: [plan-release-tag, push-image-manifest]
     if: needs.plan-release-tag.outputs.tag != ''
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Create git tag
         uses: mathieudutour/github-tag-action@v6.2
