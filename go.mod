@@ -3,7 +3,7 @@ module github.com/sergeii/swat4master
 go 1.25.4
 
 require (
-	github.com/alecthomas/kong v1.13.0
+	github.com/alecthomas/kong v1.14.0
 	github.com/alicebob/miniredis/v2 v2.36.1
 	github.com/gin-gonic/gin v1.11.0
 	github.com/go-playground/validator/v10 v10.30.1
