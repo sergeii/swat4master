@@ -28,14 +28,14 @@ func NewManager(client *redis.Client, logger *zerolog.Logger) *Manager {
 func (m *Manager) Guard(ctx context.Context, key string, ttl time.Duration, op func(tx *redis.Tx) error) error {
 	token := uuid.NewString()
 
-	acquired, err := m.client.SetNX(ctx, key, token, ttl).Result()
+	_, err := m.client.SetArgs(ctx, key, token, redis.SetArgs{Mode: "NX", TTL: ttl}).Result()
+	if errors.Is(err, redis.Nil) {
+		m.logger.Info().Str("key", key).Msg("lock not acquired")
+		return ErrNotAcquired
+	}
 	if err != nil {
 		m.logger.Error().Err(err).Str("key", key).Msg("failed to take lock ownership")
 		return fmt.Errorf("guard: take lock ownership: %w", err)
-	}
-	if !acquired {
-		m.logger.Info().Str("key", key).Msg("lock not acquired")
-		return ErrNotAcquired
 	}
 	defer func() {
 		if err := m.release(ctx, key, token); err != nil {

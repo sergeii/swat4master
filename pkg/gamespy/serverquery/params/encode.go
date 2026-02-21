@@ -16,8 +16,7 @@ func Unmarshal(params map[string]string, v any) error {
 
 func unmarshal(params map[string]string, sv reflect.Value) error {
 	st := reflect.TypeOf(sv.Interface())
-	for i := range st.NumField() {
-		field := st.Field(i)
+	for field := range st.Fields() {
 		// ignore private fields
 		if !field.IsExported() {
 			continue

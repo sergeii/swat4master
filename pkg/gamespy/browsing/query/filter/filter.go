@@ -265,8 +265,7 @@ func getStructField(v any, fieldName string) (any, error) {
 	sv := rv.Elem()
 	st := reflect.TypeOf(sv.Interface())
 
-	for i := range st.NumField() {
-		field := st.Field(i)
+	for field := range st.Fields() {
 		// ignore private fields
 		if !field.IsExported() {
 			continue
