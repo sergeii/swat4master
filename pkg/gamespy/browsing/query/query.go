@@ -76,9 +76,6 @@ func (q Query) String() string {
 }
 
 func scanFilter(s string) (string, string) {
-	i := strings.Index(s, " and ")
-	if i == -1 {
-		return s, ""
-	}
-	return s[:i], s[i+5:]
+	before, after, _ := strings.Cut(s, " and ")
+	return before, after
 }
