@@ -51,7 +51,7 @@ jobs:
           version: v2.10.1
 
   smoke-binary:
-    runs-on: ${{ matrix.platform.runner }}
+    runs-on: ${{ matrix.goarch.runner }}
     needs: meta
     strategy:
       fail-fast: false
