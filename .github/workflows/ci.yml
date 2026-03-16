@@ -2,6 +2,9 @@ name: ci
 
 on: [push]
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -11,22 +14,17 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       date: ${{ steps.meta.outputs.date }}
-      pkg: ${{ steps.meta.outputs.pkg }}
     steps:
       - name: Configure build meta
         id: meta
-        run: |
-          echo "::set-output name=date::$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          echo "::set-output name=pkg::github.com/sergeii/swat4master/cmd/swat4master"
+        run: echo "date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
 
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
 
-      - name: Setup Go
-        uses: actions/setup-go@v6
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
@@ -41,11 +39,9 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
 
-      - name: Setup Go
-        uses: actions/setup-go@v6
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
@@ -55,37 +51,56 @@ jobs:
           version: v2.10.1
 
   smoke-binary:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.platform.runner }}
     needs: meta
+    strategy:
+      fail-fast: false
+      matrix:
+        goarch:
+          - name: amd64
+            runner: ubuntu-24.04
+          - name: arm64
+            runner: ubuntu-24.04-arm
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
 
-      - name: Setup Go
-        uses: actions/setup-go@v6
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
       - name: Verify dependencies
         run: go mod verify
 
-      - name: Configure linker flags
-        id: ldflags
-        run: echo "::set-output name=ldflags::-X '${{ needs.meta.outputs.pkg }}/build.Time=${{ needs.meta.outputs.date }}' -X '${{ needs.meta.outputs.pkg }}/build.Commit=${{ github.sha }}' -X '${{ needs.meta.outputs.pkg }}/build.Version=${{ github.ref_name }}'"
+      - name: Generate API docs
+        run: make generate-api-docs
 
       - name: Build test binary
-        run: go build -v -ldflags="${{ steps.ldflags.outputs.ldflags }}" -o swat4master cmd/swat4master/main.go
+        run: >-
+          make build
+          GOOS=linux
+          GOARCH=${{ matrix.goarch.name }}
+          BUILD_TIME=${{ needs.meta.outputs.date }}
+          BUILD_COMMIT=${{ github.sha }}
+          BUILD_VERSION=${{ github.ref_name }}
 
       - name: Test built binary
         run: ./swat4master version
 
   smoke-image:
-    runs-on: ubuntu-latest
-    needs:
-      - meta
+    runs-on: ${{ matrix.platform.runner }}
+    needs: meta
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - id: amd64
+            name: linux/amd64
+            runner: ubuntu-24.04
+          - id: arm64
+            name: linux/arm64
+            runner: ubuntu-24.04-arm
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -95,6 +110,7 @@ jobs:
         with:
           load: true
           tags: testing
+          platforms: ${{ matrix.platform.name }}
           build-args: |
             build_commit_sha=${{ github.sha }}
             build_version=testing

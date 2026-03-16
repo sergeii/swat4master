@@ -1,10 +1,10 @@
-FROM golang:1.26.0-alpine AS build
+FROM golang:1.26.1-alpine AS build
 
 ARG build_commit_sha="-"
 ARG build_version="-"
 ARG build_time="-"
 
-ARG _pkg="github.com/sergeii/swat4master/cmd/swat4master"
+RUN apk add --no-cache make
 
 # Create dedicated non-root user for both build and runtime
 RUN adduser \
@@ -28,16 +28,14 @@ RUN go mod download && \
 COPY --chown=app:app . .
 
 # Generate swagger docs
-RUN go run github.com/swaggo/swag/cmd/swag@v1.8.10 \
-     init -g schema.go -o api/docs/ -d api/,internal/rest/
+RUN make generate-api-docs
 
 # Build the actual binary
-RUN CGO_ENABLED=0 GOEXPERIMENT=loopvar \
-    go build  \
-    -v \
-    -ldflags="-X '$_pkg/build.Time=$build_time' -X '$_pkg/build.Commit=$build_commit_sha' -X '$_pkg/build.Version=$build_version'" \
-    -o /app/bin/swat4master \
-    /app/src/cmd/swat4master
+RUN make build \
+    OUTPUT=/app/bin/swat4master \
+    BUILD_TIME=$build_time \
+    BUILD_COMMIT=$build_commit_sha \
+    BUILD_VERSION=$build_version
 
 FROM scratch
 
