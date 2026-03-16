@@ -24,4 +24,5 @@ go.work
 cmd/swat4master/main
 cmd/swat4master/swat4master
 /swat4master_linux_amd64
+/swat4master_linux_arm64
 /swat4master

@@ -9,6 +9,9 @@ on:
     branches: [main]
     types: [completed]
 
+permissions:
+  contents: read
+
 concurrency:
   group: release
   cancel-in-progress: true
@@ -48,6 +51,7 @@ jobs:
       digest_amd64: ${{ steps.digest.outputs.amd64 }}
       digest_arm64: ${{ steps.digest.outputs.arm64 }}
     strategy:
+      fail-fast: false
       matrix:
         platform:
           - id: amd64
@@ -92,6 +96,48 @@ jobs:
         id: digest
         run: echo "${{ matrix.platform.id }}=${{ steps.build.outputs.digest }}" >> $GITHUB_OUTPUT
 
+  build-binaries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: plan-release-tag
+    if: needs.plan-release-tag.outputs.tag != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [darwin, linux]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Prepare build meta
+        id: build_meta
+        run: echo "asset=swat4master-${{ needs.plan-release-tag.outputs.tag }}.${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" >> $GITHUB_OUTPUT
+
+      - name: Generate API docs
+        run: make generate-api-docs
+
+      - name: Build binary
+        run: >-
+          make build
+          GOOS=${{ matrix.goos }}
+          GOARCH=${{ matrix.goarch }}
+          BUILD_TIME=${{ needs.plan-release-tag.outputs.date }}
+          BUILD_COMMIT=${{ github.sha }}
+          BUILD_VERSION=${{ needs.plan-release-tag.outputs.tag }}
+
+      - name: Pack release files
+        run: tar -czf ${{ steps.build_meta.outputs.asset }} swat4master LICENSE
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: ${{ steps.build_meta.outputs.asset }}
+          path: ${{ steps.build_meta.outputs.asset }}
+          if-no-files-found: error
+
   push-image-manifest:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -126,10 +172,15 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: write
-    needs: [plan-release-tag, push-image-manifest]
+    needs: [plan-release-tag, push-image-manifest, build-binaries]
     if: needs.plan-release-tag.outputs.tag != ''
     steps:
       - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: "swat4master-*"
+          merge-multiple: true
 
       - name: Create git tag
         uses: mathieudutour/github-tag-action@v6.2
@@ -146,3 +197,4 @@ jobs:
           tag: ${{ needs.plan-release-tag.outputs.tag }}
           name: Release ${{ needs.plan-release-tag.outputs.tag }}
           body: ${{ needs.plan-release-tag.outputs.changelog }}
+          artifacts: "swat4master-*"
