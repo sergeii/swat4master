@@ -78,10 +78,10 @@ func New(
 }
 
 type command struct {
-	HTTPListenAddress   string        `default:":3000" help:"Sets the address where the API server listens for incoming http requests"`         // nolint:lll
-	HTTPReadTimeout     time.Duration `default:"5s"    help:"Sets the maximum duration to write a response before timing out"`                  // nolint:lll
-	HTTPWriteTimeout    time.Duration `default:"5s"    help:"Sets the maximum duration to write a response after reading the request body"`     // nolint:lll
-	HTTPShutdownTimeout time.Duration `default:"10s"   help:"Defines how long the server waits to gracefully close connections before exiting"` // nolint:lll
+	HTTPListenAddress   string        `default:":3000" help:"Sets the address where the API server listens for incoming http requests"`         //nolint:lll
+	HTTPReadTimeout     time.Duration `default:"5s"    help:"Sets the maximum duration to write a response before timing out"`                  //nolint:lll
+	HTTPWriteTimeout    time.Duration `default:"5s"    help:"Sets the maximum duration to write a response after reading the request body"`     //nolint:lll
+	HTTPShutdownTimeout time.Duration `default:"10s"   help:"Defines how long the server waits to gracefully close connections before exiting"` //nolint:lll
 }
 
 func (c *command) Run(_ *commander.Globals, builder *application.Builder) error {

@@ -28,7 +28,7 @@ type MockServerRepository struct {
 
 func (m *MockServerRepository) Filter(ctx context.Context, fs filterset.ServerFilterSet) ([]server.Server, error) {
 	args := m.Called(ctx, fs)
-	return args.Get(0).([]server.Server), args.Error(1) // nolint: forcetypeassert
+	return args.Get(0).([]server.Server), args.Error(1) //nolint: forcetypeassert
 }
 
 type MockProbeRepository struct {

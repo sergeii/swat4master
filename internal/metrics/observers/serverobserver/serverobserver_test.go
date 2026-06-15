@@ -28,12 +28,12 @@ type MockServerRepository struct {
 
 func (m *MockServerRepository) Count(ctx context.Context) (int, error) {
 	args := m.Called(ctx)
-	return args.Get(0).(int), args.Error(1) // nolint: forcetypeassert
+	return args.Get(0).(int), args.Error(1) //nolint: forcetypeassert
 }
 
 func (m *MockServerRepository) CountByStatus(ctx context.Context) (map[ds.DiscoveryStatus]int, error) {
 	args := m.Called(ctx)
-	return args.Get(0).(map[ds.DiscoveryStatus]int), args.Error(1) // nolint: forcetypeassert
+	return args.Get(0).(map[ds.DiscoveryStatus]int), args.Error(1) //nolint: forcetypeassert
 }
 
 func (m *MockServerRepository) Filter(ctx context.Context, fs filterset.ServerFilterSet) ([]server.Server, error) {
@@ -41,7 +41,7 @@ func (m *MockServerRepository) Filter(ctx context.Context, fs filterset.ServerFi
 	if err := args.Error(1); err != nil {
 		return nil, err
 	}
-	return args.Get(0).([]server.Server), nil // nolint: forcetypeassert
+	return args.Get(0).([]server.Server), nil //nolint: forcetypeassert
 }
 
 func TestServerObserver_Observe_OK(t *testing.T) {

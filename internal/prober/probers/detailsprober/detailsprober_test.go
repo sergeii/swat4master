@@ -58,7 +58,7 @@ func TestDetailsProber_Probe_OK(t *testing.T) {
 	ret, err := prober.Probe(ctx, svrAddr, queryAddr.Port, time.Millisecond*100)
 	require.NoError(t, err)
 
-	det := ret.(details.Details) // nolint:forcetypeassert
+	det := ret.(details.Details) //nolint:forcetypeassert
 	assert.Equal(t, "-==MYT Co-op Svr==-", det.Info.Hostname)
 	assert.Equal(t, 0, det.Info.NumPlayers)
 	assert.Equal(t, 5, det.Info.MaxPlayers)
@@ -91,7 +91,7 @@ func TestDetailsProber_Probe_Fail(t *testing.T) {
 						"\\password\\false\\gamever\\1.1\\round\\4\\numrounds\\5\\timeleft\\1\\timespecial\\0" +
 						"\\swatscore\\0\\suspectsscore\\0\\swatwon\\3\\suspectswon\\0\\final\\",
 				)
-				conn.WriteToUDP(packet, udpAddr) // nolint: errcheck
+				conn.WriteToUDP(packet, udpAddr) //nolint: errcheck
 			},
 			detailsprober.ErrQueryFailed,
 		},
@@ -104,7 +104,7 @@ func TestDetailsProber_Probe_Fail(t *testing.T) {
 						"\\password\\false\\gamever\\1.1\\round\\4\\numrounds\\5\\timeleft\\1\\timespecial\\0" +
 						"\\swatscore\\0\\suspectsscore\\0\\swatwon\\3\\suspectswon\\0\\final\\\\queryid\\1.1",
 				)
-				conn.WriteToUDP(packet, udpAddr) // nolint: errcheck
+				conn.WriteToUDP(packet, udpAddr) //nolint: errcheck
 			},
 			detailsprober.ErrParseFailed,
 		},
@@ -116,7 +116,7 @@ func TestDetailsProber_Probe_Fail(t *testing.T) {
 						"\\gametype\\VIP Escort\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store" +
 						"\\hostport\\10480\\password\\0\\gamever\\1.1\\final\\\\queryid\\1.1",
 				)
-				conn.WriteToUDP(packet, udpAddr) // nolint: errcheck
+				conn.WriteToUDP(packet, udpAddr) //nolint: errcheck
 			},
 			detailsprober.ErrValidationFailed,
 		},

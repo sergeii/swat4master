@@ -61,7 +61,7 @@ func TestQuery_AdminModFragmentedResponse(t *testing.T) {
 	responses := make(chan []byte)
 	go func() {
 		responses <- b(
-			"\\statusresponse\\0\\hostname\\[C=FF0000][c=33CCCC]>|S[C=FFFFFF]S|<[c=ffff00]Arg[C=ffffff]en[c=33CCCC]tina\xae[c=ff0000]-By FNXgaming.com" + // nolint: lll
+			"\\statusresponse\\0\\hostname\\[C=FF0000][c=33CCCC]>|S[C=FFFFFF]S|<[c=ffff00]Arg[C=ffffff]en[c=33CCCC]tina\xae[c=ff0000]-By FNXgaming.com" + //nolint: lll
 				"\\numplayers\\10\\maxplayers\\16\\gametype\\Barricaded Suspects\\gamevariant\\SWAT 4\\" +
 				"mapname\\A-Bomb Nightclub\\hostport\\10780\\password\\0\\gamever\\1.0\\statsenabled\\0" +
 				"\\swatwon\\2\\suspectswon\\0\\round\\3\\numrounds\\3\\player_0\\darwinn\\player_1\\kyle" +

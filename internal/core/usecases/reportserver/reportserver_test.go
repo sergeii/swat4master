@@ -36,7 +36,7 @@ type MockServerRepository struct {
 
 func (m *MockServerRepository) Get(ctx context.Context, addr addr.Addr) (server.Server, error) {
 	args := m.Called(ctx, addr)
-	return args.Get(0).(server.Server), args.Error(1) // nolint: forcetypeassert
+	return args.Get(0).(server.Server), args.Error(1) //nolint: forcetypeassert
 }
 
 func (m *MockServerRepository) Update(

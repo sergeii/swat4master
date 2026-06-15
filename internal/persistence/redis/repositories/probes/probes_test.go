@@ -58,8 +58,8 @@ func collectQueueState(ctx context.Context, rdb *redis.Client) qState {
 	queue := make([]qMember, 0, len(zQueueMembers))
 	queueMembers := make(map[string]float64)
 	for _, m := range zQueueMembers {
-		queue = append(queue, qMember{ID: m.Member.(string), Time: m.Score}) // nolint:forcetypeassert
-		queueMembers[m.Member.(string)] = m.Score                            // nolint:forcetypeassert
+		queue = append(queue, qMember{ID: m.Member.(string), Time: m.Score}) //nolint:forcetypeassert
+		queueMembers[m.Member.(string)] = m.Score                            //nolint:forcetypeassert
 	}
 
 	items := make(map[string]qItem)
@@ -655,7 +655,7 @@ func TestProbesRedisRepo_PopMany_OK(t *testing.T) {
 	assert.Len(t, state.Items, 0)
 }
 
-func TestProbesRedisRepo_PopManyAddRace(t *testing.T) { // nolint:gocognit
+func TestProbesRedisRepo_PopManyAddRace(t *testing.T) { //nolint:gocognit
 	ctx := context.TODO()
 	c := clockwork.NewRealClock()
 	mr := miniredis.RunT(t)
@@ -686,7 +686,7 @@ func TestProbesRedisRepo_PopManyAddRace(t *testing.T) { // nolint:gocognit
 			return
 		case item := <-todo:
 			if item.Expired {
-				expiredSecondsAgo := rand.IntN(31) // nolint:gosec
+				expiredSecondsAgo := rand.IntN(31) //nolint:gosec
 				tu.MustNoErr(
 					repo.AddBetween(
 						ctx,
@@ -706,7 +706,7 @@ func TestProbesRedisRepo_PopManyAddRace(t *testing.T) { // nolint:gocognit
 		case <-stop:
 			return
 		default:
-			popCount := rand.IntN(5) // nolint:gosec
+			popCount := rand.IntN(5) //nolint:gosec
 			readyProbes, expired, err := repo.PopMany(ctx, popCount)
 			if err != nil {
 				panic(err)
@@ -720,7 +720,7 @@ func TestProbesRedisRepo_PopManyAddRace(t *testing.T) { // nolint:gocognit
 
 	for range 10 {
 		go func() {
-			interval := rand.IntN(10) + 1 // nolint:gosec
+			interval := rand.IntN(10) + 1 //nolint:gosec
 			ticker := time.NewTicker(time.Millisecond * time.Duration(interval))
 			defer ticker.Stop()
 
@@ -740,7 +740,7 @@ func TestProbesRedisRepo_PopManyAddRace(t *testing.T) { // nolint:gocognit
 
 	for range 10 {
 		go func() {
-			interval := rand.IntN(10) + 1 // nolint:gosec
+			interval := rand.IntN(10) + 1 //nolint:gosec
 			ticker := time.NewTicker(time.Millisecond * time.Duration(interval))
 			defer ticker.Stop()
 

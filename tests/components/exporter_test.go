@@ -450,7 +450,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 
 	udp1, cancelSvr1 := gs1.ServerFactory(
 		func(_ context.Context, conn *net.UDPConn, addr *net.UDPAddr, _ []byte) {
-			udpAddr := conn.LocalAddr().(*net.UDPAddr) // nolint:forcetypeassert
+			udpAddr := conn.LocalAddr().(*net.UDPAddr) //nolint:forcetypeassert
 			packet := []byte(
 				fmt.Sprintf(
 					"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16"+
@@ -520,7 +520,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	tu.MustNoErr(probeRepo.AddBetween(ctx, probe1, repositories.NC, time.Now().Add(time.Second)))
 	// will be launched no earlier than 100ms but will expire in 1s
 	tu.MustNoErr(
-		probeRepo.AddBetween( // nolint: errcheck
+		probeRepo.AddBetween(
 			ctx,
 			probe2,
 			time.Now().Add(time.Millisecond*100),

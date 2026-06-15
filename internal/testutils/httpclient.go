@@ -45,7 +45,7 @@ func MustHaveNoBody() TestRequestOpt {
 func DoTestRequest(
 	ts *httptest.Server, method, path string, body io.Reader, opts ...TestRequestOpt,
 ) Response {
-	req, err := http.NewRequest(method, ts.URL+path, body) // nolint: noctx
+	req, err := http.NewRequest(method, ts.URL+path, body)
 	if err != nil {
 		panic(err)
 	}
@@ -60,7 +60,7 @@ func DoTestRequest(
 			return http.ErrUseLastResponse
 		},
 	}
-	resp, err := client.Do(req) // nolint: gosec
+	resp, err := client.Do(req) //nolint: gosec
 	if err != nil {
 		panic(err)
 	}

@@ -45,16 +45,16 @@ func collectStorageState(ctx context.Context, rdb *redis.Client) storageState {
 	updates := make([]updated, 0, len(zUpdatedMembers))
 	updatesKeys := make([]string, 0, len(zUpdatedMembers))
 	for _, m := range zUpdatedMembers {
-		updates = append(updates, updated{Addr: m.Member.(string), Time: m.Score}) // nolint:forcetypeassert
-		updatesKeys = append(updatesKeys, m.Member.(string))                       // nolint:forcetypeassert
+		updates = append(updates, updated{Addr: m.Member.(string), Time: m.Score}) //nolint:forcetypeassert
+		updatesKeys = append(updatesKeys, m.Member.(string))                       //nolint:forcetypeassert
 	}
 
 	zRefreshedMembers := tu.Must(rdb.ZRangeWithScores(ctx, "servers:refreshed", 0, -1).Result())
 	refreshes := make([]updated, 0, len(zRefreshedMembers))
 	refreshesKeys := make([]string, 0, len(zRefreshedMembers))
 	for _, m := range zRefreshedMembers {
-		refreshes = append(refreshes, updated{Addr: m.Member.(string), Time: m.Score}) // nolint:forcetypeassert
-		refreshesKeys = append(refreshesKeys, m.Member.(string))                       // nolint:forcetypeassert
+		refreshes = append(refreshes, updated{Addr: m.Member.(string), Time: m.Score}) //nolint:forcetypeassert
+		refreshesKeys = append(refreshesKeys, m.Member.(string))                       //nolint:forcetypeassert
 	}
 
 	statuses := make(map[string][]string)
@@ -69,7 +69,7 @@ func collectStorageState(ctx context.Context, rdb *redis.Client) storageState {
 	items := make(map[string]server.Server)
 	for k, v := range hItems {
 		var item server.Server
-		tu.MustNoErr(json.Unmarshal([]byte(v), &item)) // nolint:musttag
+		tu.MustNoErr(json.Unmarshal([]byte(v), &item)) //nolint:musttag
 		items[k] = item
 	}
 

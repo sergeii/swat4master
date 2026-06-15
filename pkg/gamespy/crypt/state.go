@@ -14,12 +14,12 @@ func newCipherState(cryptKey [CRTL]byte) cipherState {
 	cs := cipherState{}
 	// Start with state->cards all in order, one of each.
 	for i := range 256 {
-		cs.cards[i] = uint8(i) // nolint:gosec
+		cs.cards[i] = uint8(i)
 	}
 	keypos = 0 // Start with first byte of the crypt key
 	// Swap the card at each position with some other card.
 	for i := 255; i >= 0; i-- {
-		toswap, rsum, keypos = cs.shuffle(cryptKey, uint8(i), rsum, keypos) // nolint:gosec
+		toswap, rsum, keypos = cs.shuffle(cryptKey, uint8(i), rsum, keypos)
 		cs.cards[i], cs.cards[toswap] = cs.cards[toswap], cs.cards[i]
 	}
 	// Initialize the indices and data dependencies
@@ -71,7 +71,7 @@ func (cs *cipherState) Encrypt(data []byte) []byte {
 	return data
 }
 
-func (cs *cipherState) encryptByte(b byte) byte { // nolint: dupl
+func (cs *cipherState) encryptByte(b byte) byte { //nolint: dupl
 	// Picture a single enigma state->rotor with 256 positions, rewired
 	// on the fly by card-shuffling.
 
@@ -105,7 +105,7 @@ func (cs *cipherState) Decrypt(data []byte) []byte {
 	return data
 }
 
-func (cs *cipherState) decryptByte(b byte) byte { // nolint: dupl
+func (cs *cipherState) decryptByte(b byte) byte { //nolint: dupl
 	var swaptemp byte
 	// Shuffle the deck a little more
 	cs.ratchet += cs.cards[cs.rotor]

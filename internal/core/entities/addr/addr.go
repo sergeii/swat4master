@@ -13,7 +13,7 @@ type Addr struct {
 	Port int     `json:"port"`
 }
 
-var Blank Addr // nolint: gochecknoglobals
+var Blank Addr
 
 var (
 	ErrInvalidIP   = errors.New("invalid IP address")

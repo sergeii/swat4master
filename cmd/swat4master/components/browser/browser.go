@@ -47,7 +47,7 @@ func New(
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			go func() { // nolint: contextcheck
+			go func() { //nolint: contextcheck
 				logger.Info().Str("addr", cfg.ListenAddr).Msg("Starting browser server")
 				if serveErr := svr.Listen(); serveErr != nil {
 					logger.Warn().Err(serveErr).Msg("Browser server exited prematurely")
@@ -74,7 +74,7 @@ func New(
 
 type command struct {
 	BrowserListenAddr    string        `default:":28910" help:"Sets the listen address for the browser TCP server"`
-	BrowserClientTimeout time.Duration `default:"1s"     help:"Sets the maximum duration before an accepted connection times out"` // nolint:lll
+	BrowserClientTimeout time.Duration `default:"1s"     help:"Sets the maximum duration before an accepted connection times out"` //nolint:lll
 }
 
 func (c *command) Run(_ *commander.Globals, builder *application.Builder) error {

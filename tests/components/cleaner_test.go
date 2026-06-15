@@ -46,7 +46,7 @@ func makeAppWithCleaner(extra ...fx.Option) (*fx.App, func()) {
 	fxopts = append(fxopts, extra...)
 	app := fx.New(fxopts...)
 	return app, func() {
-		app.Stop(context.TODO()) // nolint: errcheck
+		app.Stop(context.TODO()) //nolint: errcheck
 	}
 }
 
@@ -60,7 +60,7 @@ func TestCleaner_OK(t *testing.T) {
 		fx.Populate(&serverRepo, &instanceRepo, &collector),
 	)
 	defer cancel()
-	app.Start(ctx) // nolint: errcheck
+	app.Start(ctx) //nolint: errcheck
 
 	ins1 := instancefactory.Create(
 		ctx,
@@ -105,7 +105,7 @@ func TestCleaner_OK(t *testing.T) {
 
 	// refresh server 1 to prevent it from being cleaned
 	gs1.Refresh(time.Now())
-	serverRepo.Update(ctx, gs1, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	serverRepo.Update(ctx, gs1, repositories.ServerOnConflictIgnore) //nolint: errcheck
 
 	// add a new server with an instance, it should not be cleaned right away
 	gs5 := serverfactory.Create(
@@ -122,7 +122,7 @@ func TestCleaner_OK(t *testing.T) {
 	)
 
 	// refresh the first instance to prevent it from being cleaned
-	instanceRepo.Add(ctx, ins1) // nolint: errcheck
+	instanceRepo.Add(ctx, ins1) //nolint: errcheck
 
 	// wait for cleaner to clean servers 2 and 3
 	<-time.After(time.Millisecond * 150)
@@ -166,7 +166,7 @@ func TestCleaner_NoErrorWhenNothingToClean(t *testing.T) {
 		fx.Populate(&collector),
 	)
 	defer cancel()
-	app.Start(ctx) // nolint: errcheck
+	app.Start(ctx) //nolint: errcheck
 
 	// wait for cleaner to run some cycles
 	<-time.After(time.Millisecond * 100)

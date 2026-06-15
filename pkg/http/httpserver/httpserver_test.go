@@ -25,23 +25,23 @@ func TestHTTPServerListenAndServe(t *testing.T) {
 			rw.WriteHeader(http.StatusTeapot)
 			resp := body
 			slices.Reverse(resp)
-			rw.Write(resp) // nolint:errcheck
+			rw.Write(resp) //nolint:errcheck
 		})),
 		httpserver.WithReadySignal(func(net.Addr) {
 			close(ready)
 		}),
 	)
-	defer svr.Stop(context.TODO()) // nolint: errcheck
+	defer svr.Stop(context.TODO()) //nolint: errcheck
 	require.NoError(t, err)
 
 	go func() {
-		svr.ListenAndServe() // nolint: errcheck
+		svr.ListenAndServe() //nolint: errcheck
 	}()
 	// wait for the server to start
 	<-ready
 
 	svrAddr := fmt.Sprintf("http://%s", svr.ListenAddr())
-	resp, err := http.Post(svrAddr, "application/octet-stream", strings.NewReader("Hello World!")) // nolint: gosec
+	resp, err := http.Post(svrAddr, "application/octet-stream", strings.NewReader("Hello World!")) //nolint: gosec
 	require.NoError(t, err)
 	defer func() {
 		_ = resp.Body.Close()

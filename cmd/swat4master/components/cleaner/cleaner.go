@@ -64,7 +64,7 @@ func New(
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			go run(stop, stopped, clock, logger, manager, cfg) // nolint: contextcheck
+			go run(stop, stopped, clock, logger, manager, cfg) //nolint: contextcheck
 			return nil
 		},
 		OnStop: func(context.Context) error {
