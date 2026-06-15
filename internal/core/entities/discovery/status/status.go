@@ -42,7 +42,7 @@ func (ds DiscoveryStatus) HasStatus() bool {
 }
 
 func (ds DiscoveryStatus) BitString() string {
-	switch ds { // nolint: exhaustive
+	switch ds { //nolint: exhaustive
 	case New:
 		return "new"
 	case Master:

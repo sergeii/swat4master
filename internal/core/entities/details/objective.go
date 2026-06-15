@@ -13,7 +13,7 @@ const (
 )
 
 func (os ObjectiveStatus) String() string {
-	switch os { // nolint: exhaustive
+	switch os {
 	case ObjInProgress:
 		return "In Progress"
 	case ObjCompleted:

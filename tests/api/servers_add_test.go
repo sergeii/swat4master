@@ -61,7 +61,7 @@ func TestAPI_AddServer_SubmitNew(t *testing.T) {
 	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 	defer cancel()
 
-	payload, _ := json.Marshal(serverAddReqSchema{ // nolint: errchkjson
+	payload, _ := json.Marshal(serverAddReqSchema{ //nolint: errchkjson
 		IP:   "1.1.1.1",
 		Port: 10480,
 	})
@@ -234,7 +234,7 @@ func TestAPI_AddServer_AlreadyDiscovered(t *testing.T) {
 		serverfactory.WithInfo(fields),
 	)
 
-	payload, _ := json.Marshal(serverAddReqSchema{ // nolint: errchkjson
+	payload, _ := json.Marshal(serverAddReqSchema{ //nolint: errchkjson
 		IP:   "1.1.1.1",
 		Port: 10480,
 	})

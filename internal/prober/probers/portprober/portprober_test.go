@@ -70,7 +70,7 @@ func TestPortProber_Probe_OK(t *testing.T) {
 			ret, err := prober.Probe(ctx, svrAddr, queryAddr.Port, time.Millisecond*100)
 			require.NoError(t, err)
 
-			result := ret.(portprober.Result) // nolint:forcetypeassert
+			result := ret.(portprober.Result) //nolint:forcetypeassert
 			assert.Equal(t, queryAddr.Port, result.Port)
 
 			det := result.Details
@@ -97,20 +97,20 @@ func TestPortProber_Probe_BestPort(t *testing.T) {
 	}{
 		{
 			"vanilla response",
-			func(gmp int, vnp int, bdp int, amp int, gs1p int) []int { // nolint:revive
+			func(gmp int, vnp int, bdp int, amp int, gs1p int) []int { //nolint:revive
 				return []int{vnp - gmp, bdp - gmp}
 			},
-			func(vnp int, bdp int, amp int, gs1p int) int { // nolint:revive
+			func(vnp int, bdp int, amp int, gs1p int) int { //nolint:revive
 				return vnp
 			},
 			"Vanilla Response",
 		},
 		{
 			"admin mod response",
-			func(gmp int, vnp int, bdp int, amp int, gs1p int) []int { // nolint:revive
+			func(gmp int, vnp int, bdp int, amp int, gs1p int) []int { //nolint:revive
 				return []int{vnp - gmp, bdp - gmp, amp - gmp}
 			},
-			func(vnp int, bdp int, amp int, gs1p int) int { // nolint:revive
+			func(vnp int, bdp int, amp int, gs1p int) int { //nolint:revive
 				return amp
 			},
 			"AM Response",
@@ -120,7 +120,7 @@ func TestPortProber_Probe_BestPort(t *testing.T) {
 			func(gmp int, vnp int, bdp int, amp int, gs1p int) []int {
 				return []int{vnp - gmp, bdp - gmp, amp - gmp, gs1p - gmp}
 			},
-			func(vnp int, bdp int, amp int, gs1p int) int { // nolint:revive
+			func(vnp int, bdp int, amp int, gs1p int) int { //nolint:revive
 				return gs1p
 			},
 			"GS1 response",
@@ -205,7 +205,7 @@ func TestPortProber_Probe_BestPort(t *testing.T) {
 			ret, err := prober.Probe(ctx, svrAddr, svrAddr.Port, time.Millisecond*100)
 			require.NoError(t, err)
 
-			result := ret.(portprober.Result) // nolint:forcetypeassert
+			result := ret.(portprober.Result) //nolint:forcetypeassert
 			assert.Equal(t, tt.wantedHostname, result.Details.Info.Hostname)
 
 			wantedPort := tt.wantedPortFactory(vanillaPort, badPort, amPort, gs1Port)

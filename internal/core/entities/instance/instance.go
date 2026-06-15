@@ -35,7 +35,7 @@ type Instance struct {
 	Addr addr.Addr
 }
 
-var Blank Instance // nolint: gochecknoglobals
+var Blank Instance //nolint: gochecknoglobals
 
 func New(id Identifier, ip net.IP, port int) (Instance, error) {
 	insAddr, err := addr.New(ip, port)

@@ -47,7 +47,7 @@ func New(
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			go func() { // nolint: contextcheck
+			go func() { //nolint: contextcheck
 				logger.Info().Str("listen", cfg.ListenAddr).Msg("Starting reporter server")
 				if serveErr := svr.Listen(); serveErr != nil {
 					logger.Warn().Err(serveErr).Msg("Reporter server exited prematurely")

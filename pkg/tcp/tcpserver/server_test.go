@@ -25,17 +25,17 @@ func TestServerListen(t *testing.T) {
 			n, _ := conn.Read(buf)
 			resp := buf[:n]
 			slices.Reverse(resp)
-			conn.Write(resp) // nolint: errcheck
+			conn.Write(resp) //nolint: errcheck
 		}),
 		tcpserver.WithReadySignal(func(net.Addr) {
 			ready <- struct{}{}
 		}),
 	)
-	defer server.Stop() // nolint: errcheck
+	defer server.Stop() //nolint: errcheck
 	require.NoError(t, err)
 
 	go func() {
-		server.Listen() // nolint: errcheck
+		server.Listen() //nolint: errcheck
 	}()
 	// wait for the server to start
 	<-ready
@@ -64,18 +64,18 @@ func TestServerTimeout(t *testing.T) {
 			n, _ := conn.Read(buf)
 			// sleep for more than the timeout duration
 			time.Sleep(time.Millisecond * 20)
-			conn.Write(buf[:n]) // nolint: errcheck
+			conn.Write(buf[:n]) //nolint: errcheck
 		}),
 		tcpserver.WithReadySignal(func(net.Addr) {
 			ready <- struct{}{}
 		}),
 		tcpserver.WithTimeout(time.Millisecond*10),
 	)
-	defer server.Stop() // nolint: errcheck
+	defer server.Stop() //nolint: errcheck
 	require.NoError(t, err)
 
 	go func() {
-		server.Listen() // nolint: errcheck
+		server.Listen() //nolint: errcheck
 	}()
 	// wait for the server to start
 	<-ready

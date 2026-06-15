@@ -79,7 +79,7 @@ func New(addr string, opts ...Option) (*HTTPServer, error) {
 		readTimeout:     defaultReadTimeout,
 		shutdownTimeout: defaultShutdownTimeout,
 	}
-	svr := &http.Server{Addr: addr} // nolint: gosec
+	svr := &http.Server{Addr: addr} //nolint: gosec
 	server := &HTTPServer{
 		addr:   tcpAddr,
 		cfg:    cfg,

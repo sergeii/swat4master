@@ -115,7 +115,7 @@ func (r *Runner) probe(ctx context.Context, prb probe.Probe) {
 	ucReq := probeserver.NewRequest(prb, prober, r.opts.ProbeTimeout)
 
 	if err := r.uc.Execute(ctx, ucReq); err != nil {
-		if errors.Is(err, probeserver.ErrProbeRetried) { // nolint: gocritic
+		if errors.Is(err, probeserver.ErrProbeRetried) { //nolint: gocritic
 			r.metrics.DiscoveryProbeRetries.WithLabelValues(goalLabel).Inc()
 			r.logger.Debug().
 				Stringer("addr", prb.Addr).Stringer("goal", prb.Goal).

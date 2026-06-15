@@ -18,7 +18,7 @@ func NewUDPClient(address string, bufSize int, readTimeout time.Duration) *UDPCl
 		conn:        conn,
 		readTimeout: readTimeout,
 		bufSize:     bufSize,
-		LocalAddr:   conn.LocalAddr().(*net.UDPAddr), // nolint: forcetypeassert
+		LocalAddr:   conn.LocalAddr().(*net.UDPAddr), //nolint: forcetypeassert
 	}
 }
 
@@ -40,7 +40,7 @@ func (c *UDPClient) Send(req []byte) ([]byte, error) {
 }
 
 func (c *UDPClient) Close() {
-	c.conn.Close() // nolint: errcheck
+	c.conn.Close()
 }
 
 func SendUDP(address string, req []byte) []byte {

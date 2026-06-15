@@ -20,11 +20,11 @@ func ServerFactory(
 		}),
 	)
 	go func() {
-		server.Listen() // nolint: errcheck
+		server.Listen() //nolint: errcheck
 	}()
 	<-ready
 	return server, func() {
-		server.Stop() // nolint: errcheck
+		server.Stop() //nolint: errcheck
 	}
 }
 
@@ -37,7 +37,7 @@ func PrepareGS1Server(responses chan []byte) (*udpserver.Server, func()) {
 			for {
 				select {
 				case resp := <-responses:
-					conn.WriteToUDP(resp, addr) // nolint: errcheck
+					conn.WriteToUDP(resp, addr) //nolint: errcheck
 				case <-ctx.Done():
 					return
 				}

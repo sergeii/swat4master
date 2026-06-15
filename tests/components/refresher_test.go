@@ -38,7 +38,7 @@ func makeAppWithRefresher(extra ...fx.Option) (*fx.App, func()) {
 	fxopts = append(fxopts, extra...)
 	app := fx.New(fxopts...)
 	return app, func() {
-		app.Stop(context.TODO()) // nolint: errcheck
+		app.Stop(context.TODO()) //nolint: errcheck
 	}
 }
 
@@ -123,7 +123,7 @@ func TestRefresher_OK(t *testing.T) {
 		fx.Populate(&serverRepo, &probeRepo, &collector),
 	)
 	defer cancel()
-	app.Start(ctx) // nolint: errcheck
+	app.Start(ctx) //nolint: errcheck
 
 	for _, svr := range []*server.Server{&gs1, &gs2, &gs3, &gs4, &gs5, &gs6, &gs7} {
 		*svr = tu.Must(serverRepo.Add(ctx, *svr, repositories.ServerOnConflictIgnore))

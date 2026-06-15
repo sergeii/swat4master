@@ -30,7 +30,7 @@ func (m *MockServerRepository) Filter(ctx context.Context, fs filterset.ServerFi
 	if err := args.Error(1); err != nil {
 		return nil, err
 	}
-	return args.Get(0).([]server.Server), nil // nolint: forcetypeassert
+	return args.Get(0).([]server.Server), nil //nolint: forcetypeassert
 }
 
 func TestListServersUseCase_FilterParams(t *testing.T) {

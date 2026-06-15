@@ -47,7 +47,7 @@ func makeAppWithReporter(extra ...fx.Option) (*fx.App, func()) {
 	fxopts = append(fxopts, extra...)
 	app := fx.New(fxopts...)
 	return app, func() {
-		app.Stop(context.TODO()) // nolint: errcheck
+		app.Stop(context.TODO()) //nolint: errcheck
 	}
 }
 
@@ -57,7 +57,7 @@ func TestReporter_Available_OK(t *testing.T) {
 	ctx := context.TODO()
 	app, cancel := makeAppWithReporter(fx.Populate(&collector))
 	defer cancel()
-	app.Start(ctx) // nolint: errcheck
+	app.Start(ctx) //nolint: errcheck
 
 	resp := tu.SendUDP("127.0.0.1:33811", []byte{0x09})
 	assert.Equal(t, []byte{0xfe, 0xfd, 0x09, 0x00, 0x00, 0x00, 0x00}, resp)
@@ -72,7 +72,7 @@ func TestReporter_Challenge_OK(t *testing.T) {
 	ctx := context.TODO()
 	app, cancel := makeAppWithReporter(fx.Populate(&collector))
 	defer cancel()
-	app.Start(ctx) // nolint: errcheck
+	app.Start(ctx) //nolint: errcheck
 
 	resp := tu.SendUDP("127.0.0.1:33811", []byte{0x01, 0xfa, 0xca, 0xde, 0xaf})
 	assert.Equal(t, []byte{0xfe, 0xfd, 0x0a, 0xfa, 0xca, 0xde, 0xaf}, resp)
@@ -114,7 +114,7 @@ func TestReporter_Challenge_InvalidInstanceID(t *testing.T) {
 			ctx := context.TODO()
 			app, cancel := makeAppWithReporter()
 			defer cancel()
-			app.Start(ctx) // nolint: errcheck
+			app.Start(ctx) //nolint: errcheck
 
 			client := tu.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
 			defer client.Close()
@@ -141,7 +141,7 @@ func TestReporter_Heartbeat_OK(t *testing.T) {
 		fx.Populate(&serverRepo, &instanceRepo, &probeRepo, &collector),
 	)
 	defer cancel()
-	app.Start(ctx) // nolint: errcheck
+	app.Start(ctx) //nolint: errcheck
 
 	req := tu.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, tu.GenServerParams())
 	client := tu.NewUDPClient("127.0.0.1:33811", 1024, time.Duration(0))
@@ -177,7 +177,7 @@ func TestReporter_Heartbeat_ServerIsAddedAndThenUpdated(t *testing.T) {
 		fx.Populate(&serverRepo, &instanceRepo, &probeRepo),
 	)
 	defer cancel()
-	app.Start(ctx) // nolint: errcheck
+	app.Start(ctx) //nolint: errcheck
 
 	instanceID := []byte{0xfe, 0xed, 0xf0, 0x0d}
 	paramsBefore := tu.GenExtraServerParams(map[string]string{
@@ -240,7 +240,7 @@ func TestReporter_Heartbeat_ServerIsUpdatedWithNewInstanceID(t *testing.T) {
 		fx.Populate(&serverRepo, &instanceRepo, &probeRepo),
 	)
 	defer cancel()
-	app.Start(ctx) // nolint: errcheck
+	app.Start(ctx) //nolint: errcheck
 
 	oldInstanceID := []byte{0xfe, 0xed, 0xf0, 0x0d}
 	paramsBefore := tu.GenExtraServerParams(map[string]string{
@@ -343,7 +343,7 @@ func TestReporter_Heartbeat_ServerPortIsDiscovered(t *testing.T) {
 				fx.Populate(&serverRepo, &instanceRepo, &probeRepo),
 			)
 			defer cancel()
-			app.Start(ctx) // nolint: errcheck
+			app.Start(ctx) //nolint: errcheck
 
 			if !tt.isNew {
 				svr := server.MustNew(net.ParseIP("127.0.0.1"), 10480, 10484)
@@ -395,7 +395,7 @@ func TestReporter_Heartbeat_ServerIsRefreshed(t *testing.T) {
 		fx.Populate(&serverRepo),
 	)
 	defer cancel()
-	app.Start(ctx) // nolint: errcheck
+	app.Start(ctx) //nolint: errcheck
 
 	req := tu.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, tu.GenServerParams())
 
@@ -429,7 +429,7 @@ func TestReporter_Heartbeat_ServerIsRemoved(t *testing.T) {
 		fx.Populate(&serverRepo, &collector),
 	)
 	defer cancel()
-	app.Start(ctx) // nolint: errcheck
+	app.Start(ctx) //nolint: errcheck
 
 	client := tu.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
 
@@ -522,7 +522,7 @@ func TestReporter_Heartbeat_ServerRemovalIsValidated(t *testing.T) {
 				fx.Populate(&serverRepo, &instanceRepo, &collector),
 			)
 			defer cancel()
-			app.Start(ctx) // nolint: errcheck
+			app.Start(ctx) //nolint: errcheck
 
 			client := tu.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
 
@@ -537,7 +537,7 @@ func TestReporter_Heartbeat_ServerRemovalIsValidated(t *testing.T) {
 
 			// removal request
 			removeReq := tu.PackHeartbeatRequest(tt.instanceID, tt.params)
-			client.Send(removeReq) // nolint: errcheck
+			client.Send(removeReq) //nolint: errcheck
 
 			serverCount, _ := serverRepo.Count(ctx)
 			metricValue := testutil.ToFloat64(collector.ReporterRemovals)
@@ -616,7 +616,7 @@ func TestReporter_Heartbeat_InvalidPayload(t *testing.T) {
 			ctx := context.TODO()
 			app, cancel := makeAppWithReporter()
 			defer cancel()
-			app.Start(ctx) // nolint: errcheck
+			app.Start(ctx) //nolint: errcheck
 
 			client := tu.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
 			defer client.Close()
@@ -641,7 +641,7 @@ func TestReporter_Keepalive_ServerIsRefreshed(t *testing.T) {
 		fx.Populate(&serverRepo, &collector),
 	)
 	defer cancel()
-	app.Start(ctx) // nolint: errcheck
+	app.Start(ctx) //nolint: errcheck
 
 	client := tu.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
 
@@ -737,7 +737,7 @@ func TestReporter_Keepalive_Errors(t *testing.T) {
 				fx.Populate(&serverRepo, &instanceRepo),
 			)
 			defer cancel()
-			app.Start(ctx) // nolint: errcheck
+			app.Start(ctx) //nolint: errcheck
 
 			client := tu.NewUDPClient("127.0.0.1:33811", 1024, time.Millisecond*10)
 

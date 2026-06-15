@@ -39,7 +39,7 @@ func unmarshal(params map[string]string, sv reflect.Value) error {
 
 func setStructValue(sv reflect.Value, field reflect.StructField, value string) error {
 	kind := field.Type.Kind()
-	switch kind { // nolint: exhaustive
+	switch kind { //nolint: exhaustive
 	case reflect.Int:
 		intValue, parsed := parseIntValue(value)
 		if !parsed {

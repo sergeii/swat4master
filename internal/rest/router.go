@@ -5,7 +5,7 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
-	_ "github.com/sergeii/swat4master/api/docs" // nolint: revive
+	_ "github.com/sergeii/swat4master/api/docs" // registers swagger docs via init()
 	"github.com/sergeii/swat4master/internal/rest/api"
 )
 

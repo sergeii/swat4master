@@ -38,13 +38,13 @@ func TestObserver_Run(t *testing.T) {
 		fx.Invoke(func(_ *observer.Component, _ *metrics.Collector) {}),
 		fx.Populate(&collector, &serverRepo),
 	)
-	app.Start(context.TODO()) // nolint: errcheck
+	app.Start(context.TODO()) //nolint: errcheck
 	defer func() {
-		app.Stop(context.TODO()) // nolint: errcheck
+		app.Stop(context.TODO()) //nolint: errcheck
 	}()
 
 	gs := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	serverRepo.Add(ctx, gs, repositories.ServerOnConflictIgnore) // nolint: errcheck
+	serverRepo.Add(ctx, gs, repositories.ServerOnConflictIgnore) //nolint: errcheck
 
 	// wait for the observer to spin up
 	<-time.After(time.Millisecond * 100)

@@ -83,13 +83,13 @@ func Query(ctx context.Context, addr netip.AddrPort, timeout time.Duration) (Res
 	closing := make(chan struct{})
 	defer func() {
 		close(closing)
-		conn.Close() // nolint: errcheck
+		conn.Close()
 	}()
 
 	go func() {
 		select {
 		case <-ctx.Done():
-			conn.SetReadDeadline(time.Now()) // nolint: errcheck
+			conn.SetReadDeadline(time.Now()) //nolint: errcheck
 		case <-closing:
 		}
 	}()
@@ -151,7 +151,7 @@ func inspectQueryID(paramVal []byte) (int, QueryVersion, error) {
 	switch {
 	case err != nil: // 1.0 or 1.1
 		// point-notation of queryid is a sign of vanilla response
-		return 1, VerVanilla, nil // nolint: nilerr
+		return 1, VerVanilla, nil //nolint: nilerr
 	case intValue <= 0:
 		return -1, VerUnknown, fmt.Errorf("%w: queryid value is not positive", ErrResponseMalformed)
 	default:

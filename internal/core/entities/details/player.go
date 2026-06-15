@@ -15,7 +15,7 @@ const (
 )
 
 func (cs PlayerCoopStatus) String() string {
-	switch cs { // nolint: exhaustive
+	switch cs {
 	case CoopStatusUnknown:
 		return "unknown"
 	case CoopStatusReady:
@@ -39,7 +39,7 @@ const (
 )
 
 func (pt PlayerTeam) String() string {
-	switch pt { // nolint: exhaustive
+	switch pt {
 	case TeamSwat, TeamSwatRed:
 		return "swat"
 	case TeamSuspects:

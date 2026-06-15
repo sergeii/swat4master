@@ -13,7 +13,7 @@ import (
 
 var ErrInvalidQueryPort = errors.New("invalid port number")
 
-type Server struct { // nolint: recvcheck
+type Server struct { //nolint: recvcheck
 	Addr            addr.Addr
 	QueryPort       int
 	DiscoveryStatus ds.DiscoveryStatus
@@ -24,7 +24,7 @@ type Server struct { // nolint: recvcheck
 	Version     int // lamport clock counter
 }
 
-var Blank Server // nolint: gochecknoglobals
+var Blank Server //nolint: gochecknoglobals
 
 func New(ip net.IP, port, queryPort int) (Server, error) {
 	svrAddr, err := addr.New(ip, port)

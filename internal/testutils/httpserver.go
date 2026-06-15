@@ -42,7 +42,7 @@ func PrepareTestServer(tb fxtest.TB, extra ...fx.Option) (*httptest.Server, func
 	ts := httptest.NewServer(router)
 
 	return ts, func() {
-		defer app.RequireStop() // nolint: errcheck
+		defer app.RequireStop()
 		defer ts.Close()
 	}
 }
