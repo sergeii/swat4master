@@ -39,7 +39,7 @@ func marshal(sv reflect.Value) (map[string]string, error) {
 
 func getParamValue(field reflect.StructField, value reflect.Value) (string, error) {
 	kind := field.Type.Kind()
-	switch kind { // nolint: exhaustive
+	switch kind { //nolint: exhaustive
 	case reflect.Int:
 		return getIntValue(value), nil
 	case reflect.Bool:

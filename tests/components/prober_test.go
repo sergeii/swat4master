@@ -54,7 +54,7 @@ func TestProber_Run(t *testing.T) {
 	udp1, cancel1 := gs1.ServerFactory(
 		func(_ context.Context, conn *net.UDPConn, addr *net.UDPAddr, _ []byte) {
 			packet := <-responses1
-			conn.WriteToUDP(packet, addr) // nolint: errcheck
+			conn.WriteToUDP(packet, addr) //nolint: errcheck
 			atomic.AddInt64(&i1, 1)
 		},
 	)
@@ -66,7 +66,7 @@ func TestProber_Run(t *testing.T) {
 	udp2, cancel2 := gs1.ServerFactory(
 		func(_ context.Context, conn *net.UDPConn, addr *net.UDPAddr, _ []byte) {
 			packet := <-responses2
-			conn.WriteToUDP(packet, addr) // nolint: errcheck
+			conn.WriteToUDP(packet, addr) //nolint: errcheck
 			atomic.AddInt64(&i2, 1)
 		},
 	)
@@ -148,9 +148,9 @@ func TestProber_Run(t *testing.T) {
 	svr4.UpdateInfo(info)
 	svr4.UpdateDiscoveryStatus(ds.Master)
 
-	app.Start(context.TODO()) // nolint: errcheck
+	app.Start(context.TODO()) //nolint: errcheck
 	defer func() {
-		app.Stop(context.TODO()) // nolint: errcheck
+		app.Stop(context.TODO()) //nolint: errcheck
 	}()
 
 	// wait for the prober to spin up
@@ -161,9 +161,9 @@ func TestProber_Run(t *testing.T) {
 	svr3, _ = serverRepo.Add(ctx, svr3, repositories.ServerOnConflictIgnore)
 	svr4, _ = serverRepo.Add(ctx, svr4, repositories.ServerOnConflictIgnore)
 
-	probeRepo.Add(ctx, probe.New(svr1.Addr, svr1.QueryPort, probe.GoalDetails, 2)) // nolint: errcheck
-	probeRepo.Add(ctx, probe.New(svr2.Addr, svr2.Addr.Port, probe.GoalPort, 2))    // nolint: errcheck
-	probeRepo.Add(ctx, probe.New(svr3.Addr, svr3.QueryPort, probe.GoalDetails, 2)) // nolint: errcheck
+	probeRepo.Add(ctx, probe.New(svr1.Addr, svr1.QueryPort, probe.GoalDetails, 2)) //nolint: errcheck
+	probeRepo.Add(ctx, probe.New(svr2.Addr, svr2.Addr.Port, probe.GoalPort, 2))    //nolint: errcheck
+	probeRepo.Add(ctx, probe.New(svr3.Addr, svr3.QueryPort, probe.GoalDetails, 2)) //nolint: errcheck
 
 	// run a cycle
 	<-time.After(time.Millisecond * 175)

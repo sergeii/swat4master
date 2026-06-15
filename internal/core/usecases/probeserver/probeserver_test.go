@@ -30,7 +30,7 @@ type MockServerRepository struct {
 
 func (m *MockServerRepository) Get(ctx context.Context, addr addr.Addr) (server.Server, error) {
 	args := m.Called(ctx, addr)
-	return args.Get(0).(server.Server), args.Error(1) // nolint: forcetypeassert
+	return args.Get(0).(server.Server), args.Error(1) //nolint: forcetypeassert
 }
 
 func (m *MockServerRepository) Update(
@@ -39,7 +39,7 @@ func (m *MockServerRepository) Update(
 	onConflict func(*server.Server) bool,
 ) (server.Server, error) {
 	args := m.Called(ctx, svr, onConflict)
-	return args.Get(0).(server.Server), args.Error(1) // nolint: forcetypeassert
+	return args.Get(0).(server.Server), args.Error(1) //nolint: forcetypeassert
 }
 
 type MockProbeRepository struct {
@@ -73,22 +73,22 @@ func (p *MockProber) Probe(
 	timeout time.Duration,
 ) (any, error) {
 	args := p.Called(ctx, addr, queryPort, timeout)
-	return args.Get(0).(MockProberProbeResult), args.Error(1) // nolint: forcetypeassert
+	return args.Get(0).(MockProberProbeResult), args.Error(1) //nolint: forcetypeassert
 }
 
 func (p *MockProber) HandleSuccess(result any, svr server.Server) server.Server {
 	args := p.Called(result, svr)
-	return args.Get(0).(server.Server) // nolint: forcetypeassert
+	return args.Get(0).(server.Server) //nolint: forcetypeassert
 }
 
 func (p *MockProber) HandleRetry(svr server.Server) server.Server {
 	args := p.Called(svr)
-	return args.Get(0).(server.Server) // nolint: forcetypeassert
+	return args.Get(0).(server.Server) //nolint: forcetypeassert
 }
 
 func (p *MockProber) HandleFailure(svr server.Server) server.Server {
 	args := p.Called(svr)
-	return args.Get(0).(server.Server) // nolint: forcetypeassert
+	return args.Get(0).(server.Server) //nolint: forcetypeassert
 }
 
 func TestProbeServerUseCase_Success(t *testing.T) {

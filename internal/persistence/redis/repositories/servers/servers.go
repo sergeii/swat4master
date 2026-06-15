@@ -434,7 +434,7 @@ func (r *Repository) save(ctx context.Context, tx *redis.Tx, svr server.Server) 
 	// before the server is saved, its version has to be incremented
 	svr.Version++
 
-	item, err := json.Marshal(svr) // nolint:musttag
+	item, err := json.Marshal(svr) //nolint:musttag
 	if err != nil {
 		return server.Blank, fmt.Errorf("save: marshal: %w", err)
 	}
@@ -501,7 +501,7 @@ func decodeServer(val any) (server.Server, error) {
 	if !ok {
 		return server.Blank, fmt.Errorf("unmashal: unexpected type: %T", val)
 	}
-	if err := json.Unmarshal([]byte(encoded), &svr); err != nil { // nolint:musttag
+	if err := json.Unmarshal([]byte(encoded), &svr); err != nil { //nolint:musttag
 		return server.Blank, fmt.Errorf("unmashal: %w", err)
 	}
 	return svr, nil

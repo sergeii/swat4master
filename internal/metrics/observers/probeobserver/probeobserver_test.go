@@ -22,7 +22,7 @@ type MockProbeRepository struct {
 
 func (m *MockProbeRepository) Count(ctx context.Context) (int, error) {
 	args := m.Called(ctx)
-	return args.Get(0).(int), args.Error(1) // nolint: forcetypeassert
+	return args.Get(0).(int), args.Error(1) //nolint: forcetypeassert
 }
 
 func TestProbeObserver_Observe_OK(t *testing.T) {

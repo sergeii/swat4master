@@ -28,7 +28,7 @@ type MockServerRepository struct {
 
 func (m *MockServerRepository) Get(ctx context.Context, addr addr.Addr) (server.Server, error) {
 	args := m.Called(ctx, addr)
-	return args.Get(0).(server.Server), args.Error(1) // nolint: forcetypeassert
+	return args.Get(0).(server.Server), args.Error(1) //nolint: forcetypeassert
 }
 
 func (m *MockServerRepository) Remove(
@@ -47,7 +47,7 @@ type MockInstanceRepository struct {
 
 func (m *MockInstanceRepository) Get(ctx context.Context, instanceID instance.Identifier) (instance.Instance, error) {
 	args := m.Called(ctx, instanceID)
-	return args.Get(0).(instance.Instance), args.Error(1) // nolint: forcetypeassert
+	return args.Get(0).(instance.Instance), args.Error(1) //nolint: forcetypeassert
 }
 
 func (m *MockInstanceRepository) Remove(ctx context.Context, instanceID instance.Identifier) error {

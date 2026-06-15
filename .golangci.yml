@@ -18,7 +18,6 @@ linters:
     - nlreturn
     - noctx
     - noinlineerr
-    - nolintlint
     - paralleltest
     - prealloc
     - protogetter
@@ -40,6 +39,8 @@ linters:
     modernize:
       disable:
         - fmtappendf
+    nolintlint:
+      allow-unused: false
     revive:
       enable-default-rules: true
       rules:

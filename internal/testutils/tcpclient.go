@@ -41,7 +41,7 @@ func (c *TCPClient) Send(req []byte) ([]byte, error) {
 }
 
 func (c *TCPClient) Close() {
-	c.conn.Close() // nolint: errcheck
+	c.conn.Close()
 }
 
 func SendTCP(address string, req []byte) []byte {

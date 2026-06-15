@@ -20,24 +20,24 @@ func TestServerListen(t *testing.T) {
 		udpserver.HandleFunc(func(_ context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {
 			resp := req
 			slices.Reverse(resp)
-			conn.WriteToUDP(resp, addr) // nolint: errcheck
+			conn.WriteToUDP(resp, addr) //nolint: errcheck
 		}),
 		udpserver.WithReadySignal(func() {
 			close(ready)
 		}),
 	)
-	defer server.Stop() // nolint: errcheck
+	defer server.Stop() //nolint: errcheck
 	require.NoError(t, err)
 
 	go func() {
-		server.Listen() // nolint: errcheck
+		server.Listen() //nolint: errcheck
 	}()
 	// wait for the server to start
 	<-ready
 
 	conn, err := net.Dial("udp", server.LocalAddr().String())
 	require.NoError(t, err)
-	conn.Write([]byte("hello world")) // nolint: errcheck
+	conn.Write([]byte("hello world")) //nolint: errcheck
 	// read back the reversed string
 	buf := make([]byte, 16)
 	n, _ := conn.Read(buf)

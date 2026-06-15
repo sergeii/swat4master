@@ -29,7 +29,7 @@ var (
 var Blank Request
 
 func NewRequest(data []byte) (Request, error) {
-	// nolint:lll
+	//nolint:lll
 	// \x00swat4\x00swat4\x00q!8Gp9Rigametype='CO-OP' and gamever='1.1'\x00\hostname\...\password\gamever\x00\x00\x00\x00\x00
 	// \x00swat4xp1\x00swat4xp1\x00|OQ0ERkV\x00\hostname\numplayers\...\statsenabled\x00\x00\x00\x00\x00
 	// \x00swat4\x00swat4\x00[)HccTB;numplayers!=maxplayers and password=0 and gamever='1.1' and gamevariant='SWAT 4'\x00\hostname\...\gamever\x00\x00\x00\x00\x00 nolint:lll

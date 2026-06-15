@@ -19,6 +19,6 @@ func MustNoErr(err error) {
 
 func Ignore(err error) {
 	if err != nil {
-		fmt.Printf("Error ignored: %v\n", err) // nolint:forbidigo
+		fmt.Printf("Error ignored: %v\n", err) //nolint:forbidigo
 	}
 }

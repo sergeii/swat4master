@@ -21,7 +21,7 @@ func TestParamsMarshal_OK(t *testing.T) {
 		Map           string  `param:"mapname"`
 		gameVariant   string  // unexported
 		tocReports    string  `param:"tocreports"` // also unexported
-		other         float64 // nolint: unused // unknown type, also unexported
+		other         float64 //nolint: unused // unknown type, also unexported
 	}
 	schema := Schema{
 		Hostname:      "Some Server",

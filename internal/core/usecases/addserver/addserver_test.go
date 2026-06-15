@@ -27,7 +27,7 @@ type MockServerRepository struct {
 
 func (m *MockServerRepository) Get(ctx context.Context, addr addr.Addr) (server.Server, error) {
 	args := m.Called(ctx, addr)
-	return args.Get(0).(server.Server), args.Error(1) // nolint: forcetypeassert
+	return args.Get(0).(server.Server), args.Error(1) //nolint: forcetypeassert
 }
 
 func (m *MockServerRepository) Add(
@@ -36,7 +36,7 @@ func (m *MockServerRepository) Add(
 	onConflict func(*server.Server) bool,
 ) (server.Server, error) {
 	args := m.Called(ctx, svr, onConflict)
-	return args.Get(0).(server.Server), args.Error(1) // nolint: forcetypeassert
+	return args.Get(0).(server.Server), args.Error(1) //nolint: forcetypeassert
 }
 
 func (m *MockServerRepository) Update(
@@ -45,7 +45,7 @@ func (m *MockServerRepository) Update(
 	onConflict func(*server.Server) bool,
 ) (server.Server, error) {
 	args := m.Called(ctx, svr, onConflict)
-	return args.Get(0).(server.Server), args.Error(1) // nolint: forcetypeassert
+	return args.Get(0).(server.Server), args.Error(1) //nolint: forcetypeassert
 }
 
 type MockProbeRepository struct {

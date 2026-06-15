@@ -54,7 +54,7 @@ func collectStorageState(ctx context.Context, rdb *redis.Client) storageState {
 
 	updates := make([]updated, 0, len(zUpdatedMembers))
 	for _, m := range zUpdatedMembers {
-		id := string(tu.Must(hex.DecodeString(m.Member.(string)))) // nolint:forcetypeassert
+		id := string(tu.Must(hex.DecodeString(m.Member.(string)))) //nolint:forcetypeassert
 		updates = append(updates, updated{ID: id, Time: m.Score})
 	}
 

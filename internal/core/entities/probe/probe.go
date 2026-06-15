@@ -34,7 +34,7 @@ type Probe struct {
 	MaxRetries int       `json:"max_retries"`
 }
 
-var Blank Probe // nolint: gochecknoglobals
+var Blank Probe //nolint: gochecknoglobals
 
 func New(addr addr.Addr, port int, goal Goal, maxRetries int) Probe {
 	return Probe{

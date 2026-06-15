@@ -9,7 +9,7 @@ type PublicAddr struct {
 	addr Addr
 }
 
-var BlankPublicAddr PublicAddr // nolint: gochecknoglobals
+var BlankPublicAddr PublicAddr //nolint: gochecknoglobals
 
 var ErrInvalidPublicIP = errors.New("invalid public IP address")
 

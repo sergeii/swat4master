@@ -145,7 +145,7 @@ func (f Filter) compareToString(this any, other string) (bool, error) {
 	if !ok {
 		return false, ErrFieldInvalidValueType
 	}
-	// nolint: exhaustive
+	//nolint: exhaustive
 	switch f.op {
 	case EQ:
 		return eq(thisStr, other), nil
@@ -188,7 +188,7 @@ func MustNew(field, rawOp string, value any) Filter {
 // a single filter value for the specified server field.
 // Examples: numplayers!=maxplayers, password=0, gamevariant='SWAT 4'
 // Returns an instance of Filter
-func Parse(filter string) (Filter, error) { // nolint: cyclop
+func Parse(filter string) (Filter, error) { //nolint: cyclop
 	var fieldName, op string
 	filterBytes := []byte(filter)
 	i, j := 0, 0

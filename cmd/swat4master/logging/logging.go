@@ -73,7 +73,7 @@ func NoGlobal() {
 }
 
 func FxLogger(logger *zerolog.Logger, lvl zerolog.Level) fxevent.Logger {
-	switch lvl { // nolint: exhaustive
+	switch lvl { //nolint: exhaustive
 	case zerolog.DebugLevel:
 		return &fxevent.ConsoleLogger{
 			W: logger,

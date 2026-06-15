@@ -49,7 +49,7 @@ func makeAppWithBrowser(extra ...fx.Option) (*fx.App, func()) {
 	fxopts = append(fxopts, extra...)
 	app := fx.New(fxopts...)
 	return app, func() {
-		app.Stop(context.TODO()) // nolint: errcheck
+		app.Stop(context.TODO()) //nolint: errcheck
 	}
 }
 

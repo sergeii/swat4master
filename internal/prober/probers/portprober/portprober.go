@@ -138,7 +138,7 @@ func (p PortProber) probePort(
 ) {
 	queryStarted := time.Now()
 
-	resp, err := gs1.Query(ctx, netip.AddrPortFrom(ip, uint16(queryPort)), timeout) // nolint:gosec
+	resp, err := gs1.Query(ctx, netip.AddrPortFrom(ip, uint16(queryPort)), timeout) //nolint:gosec
 	if err != nil {
 		p.logger.Debug().
 			Err(err).

@@ -25,7 +25,7 @@ type MockInstanceRepository struct {
 
 func (m *MockInstanceRepository) Clear(ctx context.Context, fs filterset.InstanceFilterSet) (int, error) {
 	args := m.Called(ctx, fs)
-	return args.Get(0).(int), args.Error(1) // nolint: forcetypeassert
+	return args.Get(0).(int), args.Error(1) //nolint: forcetypeassert
 }
 
 func TestInstanceCleaner_Clean_OK(t *testing.T) {
