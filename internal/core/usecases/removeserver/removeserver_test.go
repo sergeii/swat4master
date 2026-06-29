@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/rs/zerolog"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	"github.com/sergeii/swat4master/internal/core/entities/instance"
@@ -73,7 +73,7 @@ func TestRemoveServerUseCase_Success(t *testing.T) {
 
 	uc := removeserver.New(serverRepo, instanceRepo, &logger)
 	err := uc.Execute(ctx, removeserver.NewRequest(b(DEADBEEF), svr.Addr))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	serverRepo.AssertExpectations(t)
 	instanceRepo.AssertExpectations(t)
@@ -94,7 +94,7 @@ func TestRemoveServerUseCase_ServerAlreadyDeleted(t *testing.T) {
 	ucReq := removeserver.NewRequest(b(DEADBEEF), svr.Addr)
 
 	err := uc.Execute(ctx, ucReq)
-	assert.ErrorIs(t, err, removeserver.ErrServerNotFound)
+	require.ErrorIs(t, err, removeserver.ErrServerNotFound)
 
 	serverRepo.AssertCalled(t, "Get", ctx, svr.Addr)
 	instanceRepo.AssertNotCalled(t, "Get", mock.Anything, mock.Anything)
@@ -118,7 +118,7 @@ func TestRemoveServerUseCase_InstanceAlreadyDeleted(t *testing.T) {
 
 	uc := removeserver.New(serverRepo, instanceRepo, &logger)
 	err := uc.Execute(ctx, removeserver.NewRequest(b(DEADBEEF), svr.Addr))
-	assert.ErrorIs(t, err, removeserver.ErrInstanceNotFound)
+	require.ErrorIs(t, err, removeserver.ErrInstanceNotFound)
 
 	serverRepo.AssertCalled(t, "Get", ctx, svr.Addr)
 	instanceRepo.AssertCalled(t, "Get", ctx, instID)
@@ -144,7 +144,7 @@ func TestRemoveServerUseCase_InstanceAddrDoesNotMatch(t *testing.T) {
 
 	uc := removeserver.New(serverRepo, instanceRepo, &logger)
 	err := uc.Execute(ctx, removeserver.NewRequest(b(DEADBEEF), svr.Addr))
-	assert.ErrorIs(t, err, removeserver.ErrInstanceAddrMismatch)
+	require.ErrorIs(t, err, removeserver.ErrInstanceAddrMismatch)
 
 	serverRepo.AssertCalled(t, "Get", ctx, svr.Addr)
 	instanceRepo.AssertCalled(t, "Get", ctx, instID)

@@ -46,7 +46,7 @@ func TestDetailsProber_Probe_OK(t *testing.T) {
 			fmt.Sprintf(
 				"\\hostname\\-==MYT Co-op Svr==-\\numplayers\\0\\maxplayers\\5\\gametype\\CO-OP"+
 					"\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store\\hostport\\%d"+
-					"\\password\\false\\gamever\\1.1\\round\\1\\numrounds\\1\\timeleft\\153"+
+					"\\password\\false\\gamever\\1.1\\round\\1\\numrounds\\1\\timeleft\\153"+ //nolint:misspell
 					"\\timespecial\\0\\obj_Neutralize_All_Enemies\\1\\obj_Rescue_All_Hostages\\1"+
 					"\\obj_Rescue_Rosenstein\\1\\obj_Rescue_Fillinger\\1\\obj_Rescue_Victims\\1"+
 					"\\obj_Neutralize_Alice\\1\\tocreports\\8/13\\weaponssecured\\4/6\\queryid\\1\\final\\",
@@ -68,7 +68,7 @@ func TestDetailsProber_Probe_OK(t *testing.T) {
 	assert.Equal(t, "8/13", det.Info.TocReports)
 	assert.Equal(t, "4/6", det.Info.WeaponsSecured)
 	assert.Len(t, det.Objectives, 6)
-	assert.Len(t, det.Players, 0)
+	assert.Empty(t, det.Players)
 }
 
 func TestDetailsProber_Probe_Fail(t *testing.T) {
@@ -88,7 +88,7 @@ func TestDetailsProber_Probe_Fail(t *testing.T) {
 				packet := []byte(
 					"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16\\gametype\\VIP Escort" +
 						"\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store\\hostport\\10480" +
-						"\\password\\false\\gamever\\1.1\\round\\4\\numrounds\\5\\timeleft\\1\\timespecial\\0" +
+						"\\password\\false\\gamever\\1.1\\round\\4\\numrounds\\5\\timeleft\\1\\timespecial\\0" + //nolint:misspell
 						"\\swatscore\\0\\suspectsscore\\0\\swatwon\\3\\suspectswon\\0\\final\\",
 				)
 				conn.WriteToUDP(packet, udpAddr) //nolint: errcheck
@@ -101,7 +101,7 @@ func TestDetailsProber_Probe_Fail(t *testing.T) {
 				packet := []byte(
 					"\\hostname\\-==MYT Team Svr==-\\numplayers\\not-an-integer\\maxplayers\\16\\gametype\\VIP Escort" +
 						"\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store\\hostport\\10480" +
-						"\\password\\false\\gamever\\1.1\\round\\4\\numrounds\\5\\timeleft\\1\\timespecial\\0" +
+						"\\password\\false\\gamever\\1.1\\round\\4\\numrounds\\5\\timeleft\\1\\timespecial\\0" + //nolint:misspell
 						"\\swatscore\\0\\suspectsscore\\0\\swatwon\\3\\suspectswon\\0\\final\\\\queryid\\1.1",
 				)
 				conn.WriteToUDP(packet, udpAddr) //nolint: errcheck

@@ -12,7 +12,7 @@ import (
 
 func TestIdentifier_New_OK(t *testing.T) {
 	id, err := instance.NewID([]byte("test"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "test", string(id[:]))
 }
 
@@ -45,7 +45,7 @@ func TestIdentifier_New_Errors(t *testing.T) {
 func TestInstance_New_OK(t *testing.T) {
 	id := instance.MustNewID([]byte("test"))
 	ins, err := instance.New(id, net.ParseIP("2.2.2.2"), 10480)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, id, ins.ID)
 	assert.Equal(t, "2.2.2.2", ins.Addr.GetDottedIP())
 	assert.Equal(t, 10480, ins.Addr.Port)

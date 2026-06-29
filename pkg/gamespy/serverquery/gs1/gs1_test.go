@@ -181,7 +181,7 @@ func TestQuery_ExtendedAdminModUnfragmentedResponse(t *testing.T) {
 	assert.Equal(t, "16", resp.Fields["maxplayers"])
 	assert.Equal(t, "5", resp.Fields["numrounds"])
 	assert.Equal(t, "0", resp.Fields["statsenabled"])
-	assert.Len(t, resp.Players, 0)
+	assert.Empty(t, resp.Players)
 	assert.Equal(t, gs1.VerAM, resp.Version)
 }
 
@@ -237,14 +237,14 @@ func TestQuery_ExtendedAdminModFragmentedResponse(t *testing.T) {
 	assert.Len(t, resp.Players, 16)
 	assert.Equal(t, gs1.VerAM, resp.Version)
 
-	playerNames := make([]string, 0)
+	playerNames := make([]string, 0, len(resp.Players))
 	for _, player := range resp.Players {
 		playerNames = append(playerNames, player["player"])
 	}
-	assert.Equal(t, playerNames, []string{
+	assert.Equal(t, []string{
 		"Bobo_CZECH", "|WM|", "|WM|bravo", "zuoty", "|WM|TC(GER)", "Lio", "jewngleballs", "JingleKat",
 		"whore", "{WRS}|H|unt_fitcoach", "SK", "Crystalcastles", "{Mopnc}", "Gery", "Pepper_boi", "DavidR",
-	})
+	}, playerNames)
 
 	assert.Equal(t, "Gery", resp.Players[13]["player"])
 	assert.Equal(t, "14", resp.Players[13]["ping"])
@@ -261,7 +261,7 @@ func TestQuery_GS1ModUnfragmentedResponse(t *testing.T) {
 		responses <- b(
 			"\\hostname\\-==MYT World Svr==-\\numplayers\\0\\maxplayers\\16\\gametype\\VIP Escort" +
 				"\\gamevariant\\SWAT 4\\mapname\\Enverstar Power Plant\\hostport\\10580" +
-				"\\password\\false\\gamever\\1.1\\round\\2\\numrounds\\5\\timeleft\\109" +
+				"\\password\\false\\gamever\\1.1\\round\\2\\numrounds\\5\\timeleft\\109" + //nolint:misspell
 				"\\timespecial\\0\\swatscore\\0\\suspectsscore\\0\\swatwon\\0\\suspectswon\\0" +
 				"\\queryid\\1\\final\\",
 		)
@@ -299,7 +299,7 @@ func TestQuery_GS1ModFragmentedResponse(t *testing.T) {
 		responses <- b(
 			"\\hostname\\-==MYT Team Svr==-\\numplayers\\13\\maxplayers\\16" +
 				"\\gametype\\VIP Escort\\gamevariant\\SWAT 4\\mapname\\Fairfax Residence" +
-				"\\hostport\\10480\\password\\false\\gamever\\1.1\\round\\5\\numrounds\\5" +
+				"\\hostport\\10480\\password\\false\\gamever\\1.1\\round\\5\\numrounds\\5" + //nolint:misspell
 				"\\timeleft\\286\\timespecial\\0\\swatscore\\41\\suspectsscore\\36\\swatwon" +
 				"\\1\\suspectswon\\2\\player_0\\ugatz\\score_0\\0\\ping_0\\43\\team_0\\1" +
 				"\\deaths_0\\9\\player_1\\|CSI|Miami\\score_1\\8\\ping_1\\104\\team_1\\0" +
@@ -342,7 +342,7 @@ func TestQuery_GS1ModObjectivesAreSupported(t *testing.T) {
 			"single fragment",
 			[][]byte{
 				b("\\hostname\\-==MYT Co-op Svr==-\\numplayers\\0\\maxplayers\\5\\gametype\\CO-OP" +
-					"\\gamevariant\\SWAT 4\\mapname\\DuPlessis Diamond Center\\hostport\\10880\\password\\false" +
+					"\\gamevariant\\SWAT 4\\mapname\\DuPlessis Diamond Center\\hostport\\10880\\password\\false" + //nolint:misspell
 					"\\gamever\\1.1\\round\\1\\numrounds\\1\\timeleft\\316\\timespecial\\0" +
 					"\\obj_Neutralize_All_Enemies\\0\\obj_Rescue_All_Hostages\\0\\tocreports\\0/11" +
 					"\\weaponssecured\\0/0\\queryid\\1\\final\\",
@@ -355,7 +355,7 @@ func TestQuery_GS1ModObjectivesAreSupported(t *testing.T) {
 			[][]byte{
 				b("\\hostname\\[c=0099ff]SEF 7.0 EU [c=ffffff]www.swat4.tk\\numplayers\\2\\maxplayers\\10" +
 					"\\gametype\\CO-OP\\gamevariant\\SEF\\mapname\\Mt. Threshold Research Center" +
-					"\\hostport\\10480\\password\\false\\gamever\\7.0\\round\\1\\numrounds\\1\\timeleft\\0" +
+					"\\hostport\\10480\\password\\false\\gamever\\7.0\\round\\1\\numrounds\\1\\timeleft\\0" + //nolint:misspell
 					"\\timespecial\\0\\obj_Neutralize_All_Enemies\\0\\obj_Rescue_All_Hostages\\0\\queryid\\1",
 				),
 				b("\\obj_Rescue_Sterling\\0\\obj_Neutralize_TerrorLeader\\0\\obj_Secure_Briefcase\\0" +
@@ -379,7 +379,7 @@ func TestQuery_GS1ModObjectivesAreSupported(t *testing.T) {
 				),
 				b("\\hostname\\[c=0099ff]SEF 7.0 EU [c=ffffff]www.swat4.tk\\numplayers\\2\\maxplayers\\10" +
 					"\\gametype\\CO-OP\\gamevariant\\SEF\\mapname\\Mt. Threshold Research Center" +
-					"\\hostport\\10480\\password\\false\\gamever\\7.0\\round\\1\\numrounds\\1\\timeleft\\0" +
+					"\\hostport\\10480\\password\\false\\gamever\\7.0\\round\\1\\numrounds\\1\\timeleft\\0" + //nolint:misspell
 					"\\timespecial\\0\\obj_Neutralize_All_Enemies\\0\\obj_Rescue_All_Hostages\\0\\queryid\\1",
 				),
 			},
@@ -392,7 +392,7 @@ func TestQuery_GS1ModObjectivesAreSupported(t *testing.T) {
 			"incomplete field name",
 			[][]byte{
 				b("\\hostname\\-==MYT Co-op Svr==-\\numplayers\\0\\maxplayers\\5\\gametype\\CO-OP" +
-					"\\gamevariant\\SWAT 4\\mapname\\DuPlessis Diamond Center\\hostport\\10880\\password\\false" +
+					"\\gamevariant\\SWAT 4\\mapname\\DuPlessis Diamond Center\\hostport\\10880\\password\\false" + //nolint:misspell
 					"\\gamever\\1.1\\round\\1\\numrounds\\1\\timeleft\\316\\timespecial\\0" +
 					"\\obj_Neutralize_All_Enemies\\0\\obj_\\0\\tocreports\\0/11" +
 					"\\weaponssecured\\0/0\\queryid\\1\\final\\",
@@ -437,7 +437,7 @@ func TestQuery_GS1ModObjectivesAreSupported(t *testing.T) {
 		responses <- b(
 			"\\hostname\\-==MYT Team Svr==-\\numplayers\\13\\maxplayers\\16" +
 				"\\gametype\\VIP Escort\\gamevariant\\SWAT 4\\mapname\\Fairfax Residence" +
-				"\\hostport\\10480\\password\\false\\gamever\\1.1\\round\\5\\numrounds\\5" +
+				"\\hostport\\10480\\password\\false\\gamever\\1.1\\round\\5\\numrounds\\5" + //nolint:misspell
 				"\\timeleft\\286\\timespecial\\0\\swatscore\\41\\suspectsscore\\36\\swatwon" +
 				"\\1\\suspectswon\\2\\player_0\\ugatz\\score_0\\0\\ping_0\\43\\team_0\\1" +
 				"\\deaths_0\\9\\player_1\\|CSI|Miami\\score_1\\8\\ping_1\\104\\team_1\\0" +

@@ -26,9 +26,9 @@ func TestAPI_Status_OK(t *testing.T) {
 	)
 
 	assert.Equal(t, 200, resp.StatusCode)
-	assert.Equal(t, statusInfo, map[string]string{
+	assert.Equal(t, map[string]string{
 		"BuildCommit":  "foobar",
 		"BuildTime":    "2022-04-24T11:22:33T",
 		"BuildVersion": "v1.0.0",
-	})
+	}, statusInfo)
 }

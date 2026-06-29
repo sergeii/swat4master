@@ -3,27 +3,21 @@ linters:
   default: all
   disable:
     - depguard
-    - dupword
     - err113
     - exhaustruct
     - funcorder
     - funlen
     - gochecknoglobals
-    - godot
     - inamedparam
     - ireturn
     - maintidx
-    - misspell
     - mnd
     - nlreturn
     - noctx
     - noinlineerr
     - paralleltest
-    - prealloc
     - protogetter
     - tagliatelle
-    - testifylint
-    - thelper
     - varnamelen
     - wrapcheck
     - wsl
@@ -39,6 +33,9 @@ linters:
     modernize:
       disable:
         - fmtappendf
+    godot:
+      exclude:
+        - "^\\s*@"  # swagger/godoc annotations
     nolintlint:
       allow-unused: false
     revive:

@@ -26,7 +26,7 @@ func First[T any](slice []T) T {
 }
 
 // Intersection computes the intersection of multiple slices of a generic comparable type
-// and returns a new slice containing the common elements between all input slices
+// and returns a new slice containing the common elements between all input slices.
 func Intersection[T comparable](slices ...[]T) []T {
 	if len(slices) == 0 {
 		return nil

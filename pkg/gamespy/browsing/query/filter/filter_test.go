@@ -53,7 +53,7 @@ func TestIsGoodField(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.field, func(t *testing.T) {
-			assert.Equal(t, filter.IsQueryField(tt.field), tt.want)
+			assert.Equal(t, tt.want, filter.IsQueryField(tt.field))
 		})
 	}
 }
@@ -157,7 +157,7 @@ func TestFilter_Parse(t *testing.T) {
 			if tt.wantErr != nil {
 				assert.ErrorIs(t, err, tt.wantErr)
 			} else {
-				assert.Equal(t, got.String(), tt.want)
+				assert.Equal(t, tt.want, got.String())
 			}
 		})
 	}
@@ -364,10 +364,10 @@ func TestFilter_Match(t *testing.T) {
 
 			match, matchErr := f.Match(&fields)
 			if tt.wantErr != nil {
-				assert.ErrorIs(t, matchErr, tt.wantErr)
-				assert.Equal(t, false, match)
+				require.ErrorIs(t, matchErr, tt.wantErr)
+				assert.False(t, match)
 			} else {
-				assert.NoError(t, matchErr)
+				require.NoError(t, matchErr)
 				assert.Equal(t, tt.want, match)
 			}
 		})

@@ -47,6 +47,7 @@ func sendUDP(address string, req []byte) {
 }
 
 func getMetrics(t *testing.T) map[string]*dto.MetricFamily {
+	t.Helper()
 	resp, err := http.Get("http://localhost:11338/metrics")
 	require.NoError(t, err)
 	defer func() {
@@ -128,7 +129,7 @@ func TestExporter_MasterMetrics(t *testing.T) {
 
 	mf := getMetrics(t)
 
-	assert.True(t, mf["go_goroutines"].Metric[0].Gauge.GetValue() > 0)
+	assert.Positive(t, mf["go_goroutines"].Metric[0].Gauge.GetValue())
 
 	assert.Equal(t, 11, int(mf["reporter_received_bytes_total"].Metric[0].Counter.GetValue()))
 	assert.Equal(t, 7, int(mf["reporter_sent_bytes_total"].Metric[0].Counter.GetValue()))

@@ -23,7 +23,8 @@ import (
 )
 
 func makeAppWithReviver(extra ...fx.Option) (*fx.App, func()) {
-	fxopts := []fx.Option{
+	fxopts := make([]fx.Option, 0, 8+len(extra))
+	fxopts = append(fxopts,
 		fx.Provide(testapp.NoLogging),
 		fx.Provide(testapp.ProvideSettings),
 		fx.Provide(testapp.ProvidePersistence),
@@ -36,7 +37,7 @@ func makeAppWithReviver(extra ...fx.Option) (*fx.App, func()) {
 		reviver.Module,
 		fx.NopLogger,
 		fx.Invoke(func(*reviver.Component) {}),
-	}
+	)
 	fxopts = append(fxopts, extra...)
 	app := fx.New(fxopts...)
 	return app, func() {
@@ -204,5 +205,5 @@ func TestReviver_OK(t *testing.T) {
 	assert.Equal(t, []string{}, result.probes)
 
 	producedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
-	assert.Equal(t, 20.0, producedMetricValue)
+	assert.InDelta(t, 20.0, producedMetricValue, 1e-9)
 }

@@ -347,7 +347,7 @@ func (r *Repository) buildStatusFilters(
 		excludeCmds []*redis.StringSliceCmd,
 	) ([]*redis.StringSliceCmd, []*redis.StringSliceCmd) {
 		if withStatus, ok := fs.GetWithStatus(); ok {
-			keys := make([]string, 0)
+			keys := make([]string, 0) //nolint:prealloc
 			for status := range withStatus.Bits() {
 				keys = append(keys, fmt.Sprintf(statusKeyFmt, status))
 			}
@@ -358,7 +358,7 @@ func (r *Repository) buildStatusFilters(
 		}
 
 		if withNoStatus, ok := fs.GetNoStatus(); ok {
-			keys := make([]string, 0)
+			keys := make([]string, 0) //nolint:prealloc
 			for status := range withNoStatus.Bits() {
 				keys = append(keys, fmt.Sprintf(statusKeyFmt, status))
 			}

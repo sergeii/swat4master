@@ -118,7 +118,7 @@ func TestProbeServerUseCase_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
-	assert.Equal(t, float64(0), probesProducedMetricValue)
+	assert.InDelta(t, float64(0), probesProducedMetricValue, 1e-9)
 
 	serverRepo.AssertExpectations(t)
 	proberMock.AssertExpectations(t)
@@ -181,7 +181,7 @@ func TestProbeServerUseCase_RetryOnFailure(t *testing.T) {
 			require.ErrorIs(t, err, probeserver.ErrProbeRetried)
 
 			probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
-			assert.Equal(t, float64(1), probesProducedMetricValue)
+			assert.InDelta(t, float64(1), probesProducedMetricValue, 1e-9)
 
 			proberMock.AssertExpectations(t)
 			serverRepo.AssertExpectations(t)
@@ -237,7 +237,7 @@ func TestProbeServerUseCase_FailOnOutOfRetries(t *testing.T) {
 	require.ErrorIs(t, err, probeserver.ErrOutOfRetries)
 
 	probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
-	assert.Equal(t, float64(0), probesProducedMetricValue)
+	assert.InDelta(t, float64(0), probesProducedMetricValue, 1e-9)
 
 	serverRepo.AssertExpectations(t)
 	proberMock.AssertExpectations(t)

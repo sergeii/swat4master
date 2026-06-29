@@ -91,35 +91,35 @@ func TestServerObserver_Observe_OK(t *testing.T) {
 	observer.Observe(ctx, collector)
 
 	repoSizeValue := testutil.ToFloat64(collector.ServerRepositorySize)
-	assert.Equal(t, float64(37), repoSizeValue)
+	assert.InDelta(t, float64(37), repoSizeValue, 1e-9)
 
 	discoveredServersWithMasterValue := testutil.ToFloat64(collector.GameDiscoveredServers.WithLabelValues("master"))
-	assert.Equal(t, float64(10), discoveredServersWithMasterValue)
+	assert.InDelta(t, float64(10), discoveredServersWithMasterValue, 1e-9)
 	discoveredServersWithInfoValue := testutil.ToFloat64(collector.GameDiscoveredServers.WithLabelValues("info"))
-	assert.Equal(t, float64(8), discoveredServersWithInfoValue)
+	assert.InDelta(t, float64(8), discoveredServersWithInfoValue, 1e-9)
 	discoveredServersWithDetailsValue := testutil.ToFloat64(collector.GameDiscoveredServers.WithLabelValues("details"))
-	assert.Equal(t, float64(0), discoveredServersWithDetailsValue)
+	assert.InDelta(t, float64(0), discoveredServersWithDetailsValue, 1e-9)
 
 	gamePlayersVipEscortValue := testutil.ToFloat64(collector.GamePlayers.WithLabelValues("VIP Escort"))
-	assert.Equal(t, float64(15), gamePlayersVipEscortValue)
+	assert.InDelta(t, float64(15), gamePlayersVipEscortValue, 1e-9)
 	gamePlayersCoopValue := testutil.ToFloat64(collector.GamePlayers.WithLabelValues("CO-OP"))
-	assert.Equal(t, float64(5), gamePlayersCoopValue)
+	assert.InDelta(t, float64(5), gamePlayersCoopValue, 1e-9)
 	gamePlayersRdValue := testutil.ToFloat64(collector.GamePlayers.WithLabelValues("Rapid Deployment"))
-	assert.Equal(t, float64(0), gamePlayersRdValue)
+	assert.InDelta(t, float64(0), gamePlayersRdValue, 1e-9)
 
 	gameActiveServersVipEscortValue := testutil.ToFloat64(collector.GameActiveServers.WithLabelValues("VIP Escort"))
-	assert.Equal(t, float64(2), gameActiveServersVipEscortValue)
+	assert.InDelta(t, float64(2), gameActiveServersVipEscortValue, 1e-9)
 	gameActiveServersCoopValue := testutil.ToFloat64(collector.GameActiveServers.WithLabelValues("CO-OP"))
-	assert.Equal(t, float64(1), gameActiveServersCoopValue)
+	assert.InDelta(t, float64(1), gameActiveServersCoopValue, 1e-9)
 	gameActiveServersRdValue := testutil.ToFloat64(collector.GameActiveServers.WithLabelValues("Rapid Deployment"))
-	assert.Equal(t, float64(0), gameActiveServersRdValue)
+	assert.InDelta(t, float64(0), gameActiveServersRdValue, 1e-9)
 
 	gamePlayedServersVipEscortValue := testutil.ToFloat64(collector.GamePlayedServers.WithLabelValues("VIP Escort"))
-	assert.Equal(t, float64(1), gamePlayedServersVipEscortValue)
+	assert.InDelta(t, float64(1), gamePlayedServersVipEscortValue, 1e-9)
 	gamePlayedServersCoopValue := testutil.ToFloat64(collector.GamePlayedServers.WithLabelValues("CO-OP"))
-	assert.Equal(t, float64(1), gamePlayedServersCoopValue)
+	assert.InDelta(t, float64(1), gamePlayedServersCoopValue, 1e-9)
 	gamePlayedServersRdValue := testutil.ToFloat64(collector.GamePlayedServers.WithLabelValues("Rapid Deployment"))
-	assert.Equal(t, float64(0), gamePlayedServersRdValue)
+	assert.InDelta(t, float64(0), gamePlayedServersRdValue, 1e-9)
 
 	serverRepo.AssertExpectations(t)
 	serverRepo.AssertCalled(
@@ -155,19 +155,19 @@ func TestServerObserver_Observe_RepoFailure(t *testing.T) {
 	observer.Observe(ctx, collector)
 
 	repoSizeValue := testutil.ToFloat64(collector.ServerRepositorySize)
-	assert.Equal(t, float64(0), repoSizeValue)
+	assert.InDelta(t, float64(0), repoSizeValue, 1e-9)
 
 	discoveredServersWithMasterValue := testutil.ToFloat64(collector.GameDiscoveredServers.WithLabelValues("master"))
-	assert.Equal(t, float64(0), discoveredServersWithMasterValue)
+	assert.InDelta(t, float64(0), discoveredServersWithMasterValue, 1e-9)
 
 	gamePlayersVipEscortValue := testutil.ToFloat64(collector.GamePlayers.WithLabelValues("VIP Escort"))
-	assert.Equal(t, float64(0), gamePlayersVipEscortValue)
+	assert.InDelta(t, float64(0), gamePlayersVipEscortValue, 1e-9)
 
 	gameActiveServersVipEscortValue := testutil.ToFloat64(collector.GameActiveServers.WithLabelValues("VIP Escort"))
-	assert.Equal(t, float64(0), gameActiveServersVipEscortValue)
+	assert.InDelta(t, float64(0), gameActiveServersVipEscortValue, 1e-9)
 
 	gamePlayedServersVipEscortValue := testutil.ToFloat64(collector.GamePlayedServers.WithLabelValues("VIP Escort"))
-	assert.Equal(t, float64(0), gamePlayedServersVipEscortValue)
+	assert.InDelta(t, float64(0), gamePlayedServersVipEscortValue, 1e-9)
 
 	serverRepo.AssertExpectations(t)
 }

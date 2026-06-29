@@ -99,7 +99,7 @@ func TestInstancesRedisRepo_Add_New(t *testing.T) {
 	// And the update time is stored in the sorted set
 	require.Len(t, state.Updates, 1)
 	assert.Equal(t, DEADBEEF, state.Updates[0].ID)
-	assert.Equal(t, float64(now.UnixNano()), state.Updates[0].Time)
+	assert.InDelta(t, float64(now.UnixNano()), state.Updates[0].Time, 1000)
 
 	// When another instance is added at a later time
 	c.Advance(time.Millisecond * 100)
@@ -117,7 +117,7 @@ func TestInstancesRedisRepo_Add_New(t *testing.T) {
 	// And the added instances are sorted by the time of addition
 	require.Len(t, state.Updates, 2)
 	assert.Equal(t, FEEDFOOD, state.Updates[1].ID)
-	assert.Equal(t, float64(c.Now().UnixNano()), state.Updates[1].Time)
+	assert.InDelta(t, float64(c.Now().UnixNano()), state.Updates[1].Time, 1000)
 
 	// When another instance is added at the same time as the last one
 	ins3 := instancefactory.Build(
@@ -155,7 +155,7 @@ func TestInstancesRedisRepo_Add_Existing(t *testing.T) {
 	require.Len(t, state.Items, 1)
 	require.Equal(t, ins, state.Items[DEADBEEF])
 	require.Len(t, state.Updates, 1)
-	assert.Equal(t, float64(then.UnixNano()), state.Updates[0].Time)
+	assert.InDelta(t, float64(then.UnixNano()), state.Updates[0].Time, 1000)
 
 	// When adding another instance with the same ID at a later time
 	c.Advance(time.Millisecond * 100)
@@ -174,7 +174,7 @@ func TestInstancesRedisRepo_Add_Existing(t *testing.T) {
 	require.Len(t, state.Items, 1)
 	assert.Equal(t, other, state.Items[DEADBEEF])
 	assert.Len(t, state.Updates, 1)
-	assert.Equal(t, float64(then.Add(time.Millisecond*100).UnixNano()), state.Updates[0].Time)
+	assert.InDelta(t, float64(then.Add(time.Millisecond*100).UnixNano()), state.Updates[0].Time, 1000)
 }
 
 func TestInstancesRedisRepo_Get_OK(t *testing.T) {

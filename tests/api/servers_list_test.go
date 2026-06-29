@@ -171,7 +171,7 @@ func TestAPI_ListServers_OK(t *testing.T) {
 	assert.Equal(t, "1.1.1.1:10580", svr1.Address)
 	assert.Equal(t, "1.1.1.1", svr1.IP)
 	assert.Equal(t, 10580, svr1.Port)
-	assert.Equal(t, false, svr1.Passworded)
+	assert.False(t, svr1.Passworded)
 	assert.Equal(t, "SWAT 4", svr1.GameName)
 	assert.Equal(t, "VIP Escort", svr1.GameType)
 	assert.Equal(t, "vip-escort", svr1.GameTypeSlug)
@@ -195,7 +195,7 @@ func TestAPI_ListServers_OK(t *testing.T) {
 	assert.Equal(t, "2.2.2.2:10480", svr2.Address)
 	assert.Equal(t, "2.2.2.2", svr2.IP)
 	assert.Equal(t, 10480, svr2.Port)
-	assert.Equal(t, false, svr2.Passworded)
+	assert.False(t, svr2.Passworded)
 	assert.Equal(t, "SWAT 4", svr2.GameName)
 	assert.Equal(t, "CO-OP", svr2.GameType)
 	assert.Equal(t, "co-op", svr2.GameTypeSlug)
@@ -561,5 +561,5 @@ func TestAPI_ListServers_Empty(t *testing.T) {
 		testutils.MustBindJSON(&respJSON),
 	)
 	assert.Equal(t, 200, resp.StatusCode)
-	assert.Len(t, respJSON, 0)
+	assert.Empty(t, respJSON)
 }
