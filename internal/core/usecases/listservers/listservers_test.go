@@ -9,6 +9,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/entities/filterset"
@@ -95,7 +96,7 @@ func TestListServersUseCase_FilterParams(t *testing.T) {
 			ucRequest := listservers.NewRequest(query.Blank, tt.recentness, tt.status)
 
 			_, err := uc.Execute(ctx, ucRequest)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			wantCall := tt.wantCallFactory(clock.Now())
 			mockRepo.AssertCalled(t, "Filter", ctx, mock.MatchedBy(wantCall))
@@ -470,7 +471,7 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 			ucRequest := listservers.NewRequest(tt.query, time.Hour, ds.Info)
 
 			result, err := uc.Execute(ctx, ucRequest)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			actualNames := make([]string, 0, len(result))
 			for _, svr := range result {
@@ -509,7 +510,7 @@ func TestListServersUseCase_Errors(t *testing.T) {
 			ucRequest := listservers.NewRequest(query.Blank, time.Hour, ds.Info)
 
 			_, err := uc.Execute(ctx, ucRequest)
-			assert.ErrorIs(t, err, tt.wantErr)
+			require.ErrorIs(t, err, tt.wantErr)
 
 			mockRepo.AssertExpectations(t)
 		})

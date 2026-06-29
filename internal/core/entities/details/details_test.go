@@ -625,7 +625,7 @@ func TestDetailsFromParams_OK(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := details.NewDetailsFromParams(tt.serverParams, tt.playerParams, tt.objParams)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -668,11 +668,11 @@ func TestDetailsFromParams_ValidateTypes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := details.NewDetailsFromParams(tt.serverParams, tt.playerParams, tt.objParams)
 			if tt.wantErr {
-				assert.ErrorContains(t, err, tt.wantErrMsg)
-				assert.Equal(t, "", got.Info.Hostname)
+				require.ErrorContains(t, err, tt.wantErrMsg)
+				assert.Empty(t, got.Info.Hostname)
 			} else {
-				assert.NoError(t, err)
-				assert.NotEqual(t, "", got.Info.Hostname)
+				require.NoError(t, err)
+				assert.NotEmpty(t, got.Info.Hostname)
 			}
 		})
 	}
@@ -1066,8 +1066,9 @@ func TestDetailsFromParams_ValidateValues(t *testing.T) {
 			require.NoError(t, err)
 			validateErr := got.Validate(validate)
 			if tt.wantErr != nil {
-				assert.Error(t, validateErr)
-				assert.IsType(t, validateErr, tt.wantErr)
+				require.Error(t, validateErr)
+				var valErrs validator.ValidationErrors
+				assert.ErrorAs(t, validateErr, &valErrs)
 			} else {
 				assert.NoError(t, validateErr)
 			}

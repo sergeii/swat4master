@@ -24,7 +24,8 @@ func PrepareTestServer(tb fxtest.TB, extra ...fx.Option) (*httptest.Server, func
 	gin.SetMode(gin.ReleaseMode) // prevent gin from overwriting middlewares
 
 	var router *gin.Engine
-	fxopts := []fx.Option{
+	fxopts := make([]fx.Option, 0, 8+len(extra))
+	fxopts = append(fxopts,
 		fx.Provide(testapp.NoLogging),
 		fx.Provide(testapp.ProvideSettings),
 		fx.Provide(testapp.ProvidePersistence),
@@ -33,7 +34,7 @@ func PrepareTestServer(tb fxtest.TB, extra ...fx.Option) (*httptest.Server, func
 		fx.Provide(rest.NewRouter),
 		fx.NopLogger,
 		fx.Populate(&router),
-	}
+	)
 	fxopts = append(fxopts, extra...)
 
 	app := fxtest.New(tb, fxopts...)

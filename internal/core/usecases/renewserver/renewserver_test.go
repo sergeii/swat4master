@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	"github.com/sergeii/swat4master/internal/core/entities/instance"
@@ -71,7 +71,7 @@ func TestRenewServerUseCase_Success(t *testing.T) {
 
 	uc := renewserver.New(instanceRepo, serverRepo, clock)
 	err := uc.Execute(ctx, renewserver.NewRequest(b(DEADBEEF), svr.Addr.GetIP()))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	updatedSvr := svr
 	updatedSvr.RefreshedAt = passedTime
@@ -97,7 +97,7 @@ func TestRenewServerUseCase_InstanceNotFound(t *testing.T) {
 
 	uc := renewserver.New(instanceRepo, serverRepo, clock)
 	err := uc.Execute(ctx, renewserver.NewRequest(b(DEADBEEF), svr.Addr.GetIP()))
-	assert.ErrorIs(t, err, repositories.ErrInstanceNotFound)
+	require.ErrorIs(t, err, repositories.ErrInstanceNotFound)
 
 	instanceRepo.AssertCalled(t, "Get", ctx, inst.ID)
 	serverRepo.AssertNotCalled(t, "Get", ctx, svr.Addr)
@@ -120,7 +120,7 @@ func TestRenewServerUseCase_ServerNotFound(t *testing.T) {
 
 	uc := renewserver.New(instanceRepo, serverRepo, clock)
 	err := uc.Execute(ctx, renewserver.NewRequest(b(DEADBEEF), svr.Addr.GetIP()))
-	assert.ErrorIs(t, err, repositories.ErrServerNotFound)
+	require.ErrorIs(t, err, repositories.ErrServerNotFound)
 
 	instanceRepo.AssertCalled(t, "Get", ctx, inst.ID)
 	serverRepo.AssertCalled(t, "Get", ctx, svr.Addr)
@@ -143,7 +143,7 @@ func TestRenewServerUseCase_InstanceAddressMismatch(t *testing.T) {
 
 	uc := renewserver.New(instanceRepo, serverRepo, clock)
 	err := uc.Execute(ctx, renewserver.NewRequest(b(DEADBEEF), svr.Addr.GetIP()))
-	assert.ErrorIs(t, err, renewserver.ErrUnknownInstanceID)
+	require.ErrorIs(t, err, renewserver.ErrUnknownInstanceID)
 
 	instanceRepo.AssertCalled(t, "Get", ctx, inst.ID)
 	serverRepo.AssertNotCalled(t, "Get", ctx, mock.Anything)

@@ -40,7 +40,7 @@ func PackBrowserRequest(
 	getChallenge func() []byte,
 	getLengthFunc func([]byte) int,
 ) []byte {
-	req := make([]byte, 0)
+	req := make([]byte, 0)                   //nolint:prealloc
 	req = append(req, []byte{0x00, 0x00}...) // first two bytes are reserved for request length declaration
 	req = append(req, 0x00)                  // request type - always zero
 	req = append(req, 0x01)                  // protocol version, always 0x01

@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	"github.com/sergeii/swat4master/internal/core/entities/details"
@@ -110,7 +111,7 @@ func TestReportServerUseCase_ReportNewServer(t *testing.T) {
 
 	req := reportserver.NewRequest(svrAddr, svrQueryPort, b(DEADBEEF), svrParams)
 	err := uc.Execute(ctx, req)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	serverRepo.AssertCalled(t, "Get", ctx, svrAddr)
 	serverRepo.AssertCalled(
@@ -164,7 +165,7 @@ func TestReportServerUseCase_ReportNewServer(t *testing.T) {
 	)
 
 	probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
-	assert.Equal(t, float64(1), probesProducedMetricValue)
+	assert.InDelta(t, float64(1), probesProducedMetricValue, 1e-9)
 }
 
 func TestReportServerUseCase_ReportExistingServer(t *testing.T) {
@@ -243,7 +244,7 @@ func TestReportServerUseCase_ReportExistingServer(t *testing.T) {
 			uc := reportserver.New(serverRepo, instanceRepo, probeRepo, ucOpts, validate, collector, clock, &logger)
 			req := reportserver.NewRequest(svr.Addr, svr.QueryPort, b(DEADBEEF), updatedParams)
 			err := uc.Execute(ctx, req)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			serverRepo.AssertCalled(t, "Get", ctx, svr.Addr)
 			serverRepo.AssertCalled(
@@ -297,11 +298,11 @@ func TestReportServerUseCase_ReportExistingServer(t *testing.T) {
 					}),
 					mock.Anything,
 				)
-				assert.Equal(t, float64(1), probesProducedMetricValue)
+				assert.InDelta(t, float64(1), probesProducedMetricValue, 1e-9)
 			} else {
 				probeRepo.AssertNotCalled(t, "Add", mock.Anything, mock.Anything)
 				serverRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything)
-				assert.Equal(t, float64(0), probesProducedMetricValue)
+				assert.InDelta(t, float64(0), probesProducedMetricValue, 1e-9)
 			}
 		})
 	}
@@ -358,7 +359,7 @@ func TestReportServerUseCase_InvalidFields(t *testing.T) {
 			uc := reportserver.New(serverRepo, instanceRepo, probeRepo, ucOpts, validate, collector, clock, &logger)
 			req := reportserver.NewRequest(svrAddr, svrQueryPort, b(DEADBEEF), tt.params)
 			err := uc.Execute(ctx, req)
-			assert.ErrorIs(t, err, reportserver.ErrInvalidRequestPayload)
+			require.ErrorIs(t, err, reportserver.ErrInvalidRequestPayload)
 
 			serverRepo.AssertCalled(t, "Get", ctx, svrAddr)
 			serverRepo.AssertNotCalled(t, "Add", mock.Anything, mock.Anything, mock.Anything)
@@ -367,7 +368,7 @@ func TestReportServerUseCase_InvalidFields(t *testing.T) {
 			serverRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything, mock.Anything)
 
 			probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
-			assert.Equal(t, float64(0), probesProducedMetricValue)
+			assert.InDelta(t, float64(0), probesProducedMetricValue, 1e-9)
 		})
 	}
 }

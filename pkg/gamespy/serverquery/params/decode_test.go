@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/params"
 )
@@ -36,7 +37,7 @@ func TestParamsMarshal_OK(t *testing.T) {
 		tocReports:    "1/1",
 	}
 	decoded, err := params.Marshal(&schema)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.Equal(t, map[string]string{
 		"hostname":      "Some Server",

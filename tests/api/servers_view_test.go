@@ -150,7 +150,7 @@ func TestAPI_ViewServer_OK(t *testing.T) {
 	assert.Equal(t, "1.1.1.1:10580", obj.Info.Address)
 	assert.Equal(t, "1.1.1.1", obj.Info.IP)
 	assert.Equal(t, 10580, obj.Info.Port)
-	assert.Equal(t, false, obj.Info.Passworded)
+	assert.False(t, obj.Info.Passworded)
 	assert.Equal(t, "SWAT 4", obj.Info.GameName)
 	assert.Equal(t, "VIP Escort", obj.Info.GameType)
 	assert.Equal(t, "vip-escort", obj.Info.GameTypeSlug)
@@ -168,7 +168,7 @@ func TestAPI_ViewServer_OK(t *testing.T) {
 	assert.Equal(t, 2, obj.Info.SuspectsWon)
 
 	assert.NotNil(t, obj.Players, 7)
-	assert.Len(t, obj.Objectives, 0)
+	assert.Empty(t, obj.Objectives)
 
 	player1 := obj.Players[0]
 	assert.Equal(t, "{FAB}Nikki_Sixx<CPL>", player1.Name)
@@ -273,7 +273,7 @@ func TestAPI_ViewServer_Coop_OK(t *testing.T) {
 	assert.Equal(t, "1.1.1.1:10880", obj.Info.Address)
 	assert.Equal(t, "1.1.1.1", obj.Info.IP)
 	assert.Equal(t, 10880, obj.Info.Port)
-	assert.Equal(t, false, obj.Info.Passworded)
+	assert.False(t, obj.Info.Passworded)
 	assert.Equal(t, "SWAT 4", obj.Info.GameName)
 	assert.Equal(t, "CO-OP", obj.Info.GameType)
 	assert.Equal(t, "co-op", obj.Info.GameTypeSlug)
@@ -346,7 +346,7 @@ func TestAPI_ViewServer_MinimalInfo_OK(t *testing.T) {
 	assert.Equal(t, "1.1.1.1:10480", obj.Info.Address)
 	assert.Equal(t, "1.1.1.1", obj.Info.IP)
 	assert.Equal(t, 10480, obj.Info.Port)
-	assert.Equal(t, false, obj.Info.Passworded)
+	assert.False(t, obj.Info.Passworded)
 	assert.Equal(t, "SWAT 4", obj.Info.GameName)
 	assert.Equal(t, "VIP Escort", obj.Info.GameType)
 	assert.Equal(t, "vip-escort", obj.Info.GameTypeSlug)
@@ -356,8 +356,8 @@ func TestAPI_ViewServer_MinimalInfo_OK(t *testing.T) {
 	assert.Equal(t, 0, obj.Info.PlayerNum)
 	assert.Equal(t, 0, obj.Info.PlayerMax)
 
-	assert.Len(t, obj.Players, 0)
-	assert.Len(t, obj.Objectives, 0)
+	assert.Empty(t, obj.Players)
+	assert.Empty(t, obj.Objectives)
 }
 
 func TestAPI_ViewServer_NoInfo_OK(t *testing.T) {
@@ -381,16 +381,16 @@ func TestAPI_ViewServer_NoInfo_OK(t *testing.T) {
 	)
 	assert.Equal(t, 200, resp.StatusCode)
 
-	assert.Equal(t, "", obj.Info.Hostname)
+	assert.Empty(t, obj.Info.Hostname)
 	assert.Equal(t, "1.1.1.1:10480", obj.Info.Address)
 	assert.Equal(t, "1.1.1.1", obj.Info.IP)
 	assert.Equal(t, 10480, obj.Info.Port)
-	assert.Equal(t, false, obj.Info.Passworded)
-	assert.Equal(t, "", obj.Info.GameName)
-	assert.Equal(t, "", obj.Info.GameType)
-	assert.Equal(t, "", obj.Info.GameTypeSlug)
-	assert.Len(t, obj.Players, 0)
-	assert.Len(t, obj.Objectives, 0)
+	assert.False(t, obj.Info.Passworded)
+	assert.Empty(t, obj.Info.GameName)
+	assert.Empty(t, obj.Info.GameType)
+	assert.Empty(t, obj.Info.GameTypeSlug)
+	assert.Empty(t, obj.Players)
+	assert.Empty(t, obj.Objectives)
 }
 
 func TestAPI_ViewServer_NotFound(t *testing.T) {

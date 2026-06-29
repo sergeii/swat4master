@@ -251,7 +251,7 @@ func TestAPI_AddServer_AlreadyDiscovered(t *testing.T) {
 	assert.Equal(t, "1.1.1.1:10480", obj.Address)
 	assert.Equal(t, "1.1.1.1", obj.IP)
 	assert.Equal(t, 10480, obj.Port)
-	assert.Equal(t, false, obj.Passworded)
+	assert.False(t, obj.Passworded)
 	assert.Equal(t, "SWAT 4", obj.GameName)
 	assert.Equal(t, "VIP Escort", obj.GameType)
 	assert.Equal(t, "vip-escort", obj.GameTypeSlug)

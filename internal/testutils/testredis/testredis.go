@@ -12,6 +12,7 @@ import (
 )
 
 func MakeClientFromMini(t *testing.T, mr *miniredis.Miniredis) *redis.Client {
+	t.Helper()
 	rdb := redis.NewClient(&redis.Options{
 		Addr: mr.Addr(),
 		// https://github.com/redis/go-redis/issues/3536
@@ -26,6 +27,7 @@ func MakeClientFromMini(t *testing.T, mr *miniredis.Miniredis) *redis.Client {
 }
 
 func MakeRealClient(t *testing.T) *redis.Client {
+	t.Helper()
 	client := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 		MaintNotificationsConfig: &maintnotifications.Config{
@@ -40,6 +42,7 @@ func MakeRealClient(t *testing.T) *redis.Client {
 }
 
 func MakeClient(t *testing.T) *redis.Client {
+	t.Helper()
 	mr := miniredis.RunT(t)
 	return MakeClientFromMini(t, mr)
 }

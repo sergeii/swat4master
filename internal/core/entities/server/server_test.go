@@ -154,12 +154,12 @@ func TestServer_New_ValidIPAddress(t *testing.T) {
 func TestServer_DefaultInfo(t *testing.T) {
 	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
-	assert.Equal(t, "", svr.Info.Hostname)
+	assert.Empty(t, svr.Info.Hostname)
 }
 
 func TestServer_InfoIsUpdated(t *testing.T) {
 	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	assert.Equal(t, "", svr.Info.Hostname)
+	assert.Empty(t, svr.Info.Hostname)
 
 	newInfo := infofactory.Build(infofactory.WithFields(
 		infofactory.F{
@@ -179,7 +179,7 @@ func TestServer_InfoIsUpdated(t *testing.T) {
 	assert.Equal(t, "A-Bomb Nightclub", updatedInfo.MapName)
 
 	defaultDetails := svr.Details
-	assert.Equal(t, "", defaultDetails.Info.Hostname)
+	assert.Empty(t, defaultDetails.Info.Hostname)
 	assert.Nil(t, defaultDetails.Players)
 	assert.Nil(t, defaultDetails.Objectives)
 }
@@ -187,14 +187,14 @@ func TestServer_InfoIsUpdated(t *testing.T) {
 func TestServer_DefaultDetails(t *testing.T) {
 	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
 	assert.Equal(t, "1.1.1.1", svr.Addr.GetDottedIP())
-	assert.Equal(t, "", svr.Details.Info.Hostname)
+	assert.Empty(t, svr.Details.Info.Hostname)
 	assert.Nil(t, svr.Details.Players)
 	assert.Nil(t, svr.Details.Objectives)
 }
 
 func TestServer_DetailsAreUpdated(t *testing.T) {
 	svr := server.MustNew(net.ParseIP("1.1.1.1"), 10480, 10481)
-	assert.Equal(t, "", svr.Details.Info.Hostname)
+	assert.Empty(t, svr.Details.Info.Hostname)
 
 	serverParams := map[string]string{
 		"hostname":       "[c=0099ff]SEF 7.0 EU [c=ffffff]www.swat4.tk",

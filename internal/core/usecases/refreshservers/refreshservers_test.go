@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
 	"github.com/sergeii/swat4master/internal/core/entities/filterset"
@@ -67,7 +68,7 @@ func TestRefreshServersUseCase_Success(t *testing.T) {
 	req := refreshservers.NewRequest(deadline)
 	resp, err := uc.Execute(ctx, req)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 2, resp.Count)
 
 	serverRepo.AssertExpectations(t)
@@ -97,7 +98,7 @@ func TestRefreshServersUseCase_Success(t *testing.T) {
 	}
 
 	probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
-	assert.Equal(t, float64(2), probesProducedMetricValue)
+	assert.InDelta(t, float64(2), probesProducedMetricValue, 1e-9)
 }
 
 func TestRefreshServersUseCase_FilterError(t *testing.T) {
@@ -120,7 +121,7 @@ func TestRefreshServersUseCase_FilterError(t *testing.T) {
 	req := refreshservers.NewRequest(time.Now())
 	resp, err := uc.Execute(ctx, req)
 
-	assert.ErrorIs(t, err, filterErr)
+	require.ErrorIs(t, err, filterErr)
 	assert.Equal(t, 0, resp.Count)
 
 	serverRepo.AssertExpectations(t)
@@ -129,7 +130,7 @@ func TestRefreshServersUseCase_FilterError(t *testing.T) {
 	probeRepo.AssertNotCalled(t, "AddBetween", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 
 	probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
-	assert.Equal(t, float64(0), probesProducedMetricValue)
+	assert.InDelta(t, float64(0), probesProducedMetricValue, 1e-9)
 }
 
 func TestRefreshServersUseCase_AddProbeError(t *testing.T) {
@@ -157,12 +158,12 @@ func TestRefreshServersUseCase_AddProbeError(t *testing.T) {
 	req := refreshservers.NewRequest(time.Now())
 	resp, err := uc.Execute(ctx, req)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 0, resp.Count)
 
 	serverRepo.AssertExpectations(t)
 	probeRepo.AssertExpectations(t)
 
 	probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
-	assert.Equal(t, float64(0), probesProducedMetricValue)
+	assert.InDelta(t, float64(0), probesProducedMetricValue, 1e-9)
 }

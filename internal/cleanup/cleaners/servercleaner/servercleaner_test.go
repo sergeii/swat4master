@@ -116,9 +116,9 @@ func TestServerCleaner_Clean_OK(t *testing.T) {
 	}
 
 	cleanerRemovalsWithServersValue := testutil.ToFloat64(collector.CleanerRemovals.WithLabelValues("servers"))
-	assert.Equal(t, float64(2), cleanerRemovalsWithServersValue)
+	assert.InDelta(t, float64(2), cleanerRemovalsWithServersValue, 1e-9)
 	cleanerErrorsWithServersValue := testutil.ToFloat64(collector.CleanerErrors.WithLabelValues("servers"))
-	assert.Equal(t, float64(0), cleanerErrorsWithServersValue)
+	assert.InDelta(t, float64(0), cleanerErrorsWithServersValue, 1e-9)
 }
 
 func TestServerCleaner_Clean_NothingToClean(t *testing.T) {
@@ -149,9 +149,9 @@ func TestServerCleaner_Clean_NothingToClean(t *testing.T) {
 	serverRepo.AssertNotCalled(t, "Remove", mock.Anything, mock.Anything)
 
 	cleanerRemovalsWithServersValue := testutil.ToFloat64(collector.CleanerRemovals.WithLabelValues("servers"))
-	assert.Equal(t, float64(0), cleanerRemovalsWithServersValue)
+	assert.InDelta(t, float64(0), cleanerRemovalsWithServersValue, 1e-9)
 	cleanerErrorsWithServersValue := testutil.ToFloat64(collector.CleanerErrors.WithLabelValues("servers"))
-	assert.Equal(t, float64(0), cleanerErrorsWithServersValue)
+	assert.InDelta(t, float64(0), cleanerErrorsWithServersValue, 1e-9)
 }
 
 func TestServerCleaner_Clean_RepoErrors(t *testing.T) {
@@ -190,7 +190,7 @@ func TestServerCleaner_Clean_RepoErrors(t *testing.T) {
 	serverRepo.AssertNumberOfCalls(t, "Remove", 3)
 
 	cleanerRemovalsWithServersValue := testutil.ToFloat64(collector.CleanerRemovals.WithLabelValues("servers"))
-	assert.Equal(t, float64(2), cleanerRemovalsWithServersValue)
+	assert.InDelta(t, float64(2), cleanerRemovalsWithServersValue, 1e-9)
 	cleanerErrorsWithServersValue := testutil.ToFloat64(collector.CleanerErrors.WithLabelValues("servers"))
-	assert.Equal(t, float64(1), cleanerErrorsWithServersValue)
+	assert.InDelta(t, float64(1), cleanerErrorsWithServersValue, 1e-9)
 }
