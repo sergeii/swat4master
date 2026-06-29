@@ -30,7 +30,8 @@ const (
 type b []byte
 
 func makeAppWithCleaner(extra ...fx.Option) (*fx.App, func()) {
-	fxopts := []fx.Option{
+	fxopts := make([]fx.Option, 0, 8+len(extra))
+	fxopts = append(fxopts,
 		fx.Provide(testapp.NoLogging),
 		fx.Provide(testapp.ProvideSettings),
 		fx.Provide(testapp.ProvidePersistence),
@@ -42,7 +43,7 @@ func makeAppWithCleaner(extra ...fx.Option) (*fx.App, func()) {
 		cleaner.Module,
 		fx.NopLogger,
 		fx.Invoke(func(*cleaner.Component) {}),
-	}
+	)
 	fxopts = append(fxopts, extra...)
 	app := fx.New(fxopts...)
 	return app, func() {
@@ -148,14 +149,14 @@ func TestCleaner_OK(t *testing.T) {
 	require.NoError(t, err)
 
 	serverRemovalsValue := testutil.ToFloat64(collector.CleanerRemovals.WithLabelValues("servers"))
-	assert.Equal(t, 2.0, serverRemovalsValue)
+	assert.InDelta(t, 2.0, serverRemovalsValue, 1e-9)
 	serverErrorsValue := testutil.ToFloat64(collector.CleanerErrors.WithLabelValues("servers"))
-	assert.Equal(t, 0.0, serverErrorsValue)
+	assert.InDelta(t, 0.0, serverErrorsValue, 1e-9)
 
 	instanceRemovalsValue := testutil.ToFloat64(collector.CleanerRemovals.WithLabelValues("instances"))
-	assert.Equal(t, 2.0, instanceRemovalsValue)
+	assert.InDelta(t, 2.0, instanceRemovalsValue, 1e-9)
 	instanceErrorsValue := testutil.ToFloat64(collector.CleanerErrors.WithLabelValues("instances"))
-	assert.Equal(t, 0.0, instanceErrorsValue)
+	assert.InDelta(t, 0.0, instanceErrorsValue, 1e-9)
 }
 
 func TestCleaner_NoErrorWhenNothingToClean(t *testing.T) {
@@ -174,7 +175,7 @@ func TestCleaner_NoErrorWhenNothingToClean(t *testing.T) {
 	for _, kind := range []string{"servers", "instances"} {
 		removalValue := testutil.ToFloat64(collector.CleanerRemovals.WithLabelValues(kind))
 		errorValue := testutil.ToFloat64(collector.CleanerErrors.WithLabelValues(kind))
-		assert.Equal(t, 0.0, removalValue)
-		assert.Equal(t, 0.0, errorValue)
+		assert.InDelta(t, 0.0, removalValue, 1e-9)
+		assert.InDelta(t, 0.0, errorValue, 1e-9)
 	}
 }

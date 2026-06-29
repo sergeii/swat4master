@@ -10,6 +10,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/sergeii/swat4master/internal/persistence/redis/redislock"
@@ -147,7 +148,7 @@ func TestRedisLockManager_Guard_LockNotObtained(t *testing.T) {
 			<-ready
 			return nil
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		close(released)
 	}()
 

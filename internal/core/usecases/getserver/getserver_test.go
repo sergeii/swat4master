@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
@@ -36,7 +37,7 @@ func TestGetServerUseCase_OK(t *testing.T) {
 	uc := getserver.New(mockRepo)
 	got, err := uc.Execute(ctx, addr.MustNewPublicAddr(svr.Addr))
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 10481, got.QueryPort)
 	assert.Equal(t, 10480, got.Info.HostPort)
 	assert.Equal(t, "Swat4 Server", got.Info.Hostname)
@@ -59,7 +60,7 @@ func TestGetServerUseCase_NotFound(t *testing.T) {
 	uc := getserver.New(mockRepo)
 	_, err := uc.Execute(ctx, addr.MustNewPublicAddr(svrAddr))
 
-	assert.ErrorIs(t, err, getserver.ErrServerNotFound)
+	require.ErrorIs(t, err, getserver.ErrServerNotFound)
 
 	mockRepo.AssertExpectations(t)
 }
@@ -114,7 +115,7 @@ func TestGetServerUseCase_ValidateStatus(t *testing.T) {
 			mockRepo.AssertExpectations(t)
 
 			if tt.want {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, "1.1.1.1:10480", got.Addr.String())
 				assert.Equal(t, 10481, got.QueryPort)
 			} else {

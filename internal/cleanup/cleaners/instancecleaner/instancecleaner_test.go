@@ -64,9 +64,9 @@ func TestInstanceCleaner_Clean_OK(t *testing.T) {
 	)
 
 	cleanerRemovalsWithInstancesValue := testutil.ToFloat64(collector.CleanerRemovals.WithLabelValues("instances"))
-	assert.Equal(t, float64(37), cleanerRemovalsWithInstancesValue)
+	assert.InDelta(t, float64(37), cleanerRemovalsWithInstancesValue, 1e-9)
 	cleanerErrorsWithInstancesValue := testutil.ToFloat64(collector.CleanerErrors.WithLabelValues("instances"))
-	assert.Equal(t, float64(0), cleanerErrorsWithInstancesValue)
+	assert.InDelta(t, float64(0), cleanerErrorsWithInstancesValue, 1e-9)
 }
 
 func TestInstanceCleaner_Clean_RepoError(t *testing.T) {
@@ -105,7 +105,7 @@ func TestInstanceCleaner_Clean_RepoError(t *testing.T) {
 	)
 
 	cleanerRemovalsWithInstancesValue := testutil.ToFloat64(collector.CleanerRemovals.WithLabelValues("instances"))
-	assert.Equal(t, float64(0), cleanerRemovalsWithInstancesValue)
+	assert.InDelta(t, float64(0), cleanerRemovalsWithInstancesValue, 1e-9)
 	cleanerErrorsWithInstancesValue := testutil.ToFloat64(collector.CleanerErrors.WithLabelValues("instances"))
-	assert.Equal(t, float64(1), cleanerErrorsWithInstancesValue)
+	assert.InDelta(t, float64(1), cleanerErrorsWithInstancesValue, 1e-9)
 }

@@ -29,7 +29,8 @@ import (
 )
 
 func makeAppWithBrowser(extra ...fx.Option) (*fx.App, func()) {
-	fxopts := []fx.Option{
+	fxopts := make([]fx.Option, 0, 9+len(extra))
+	fxopts = append(fxopts,
 		fx.Provide(testapp.NoLogging),
 		fx.Provide(testapp.ProvideSettings),
 		fx.Provide(testapp.ProvidePersistence),
@@ -45,7 +46,7 @@ func makeAppWithBrowser(extra ...fx.Option) (*fx.App, func()) {
 		browser.Module,
 		fx.NopLogger,
 		fx.Invoke(func(_ *browser.Component) {}),
-	}
+	)
 	fxopts = append(fxopts, extra...)
 	app := fx.New(fxopts...)
 	return app, func() {
@@ -311,7 +312,7 @@ func TestBrowser_ParseResponse(t *testing.T) {
 	unparsed := resp[8:]
 	for range fieldCount {
 		field, rem := binutils.ConsumeCString(unparsed)
-		assert.True(t, len(field) > 0)
+		assert.NotEmpty(t, field)
 		assert.Equal(t, uint8(0), rem[0])
 		// consume extra null byte at the end of the field
 		unparsed = rem[1:]
@@ -328,7 +329,7 @@ func TestBrowser_ParseResponse(t *testing.T) {
 			assert.Equal(t, uint8(0xff), unparsed[0])
 			unparsed = unparsed[1:] // skip leading 0xff
 			fieldValue, rem := binutils.ConsumeCString(unparsed)
-			assert.True(t, len(fieldValue) > 0)
+			assert.NotEmpty(t, fieldValue)
 			params[fields[i]] = string(fieldValue)
 			unparsed = rem
 		}
@@ -352,7 +353,7 @@ func TestBrowser_ParseResponse(t *testing.T) {
 		for _, f := range fields {
 			svrField, ok := svr[f]
 			assert.True(t, ok)
-			assert.True(t, svrField != "")
+			assert.NotEmpty(t, svrField)
 		}
 	}
 
@@ -545,12 +546,12 @@ func TestBrowser_ValidateRequest(t *testing.T) {
 				resp := gscrypt.Decrypt(gameKey, clientChallenge, respEnc)
 				servers := tu.UnpackServerList(resp)
 				assert.Len(t, servers, 1)
-				assert.True(t, metricSent > 0)
-				assert.Equal(t, float64(0), metricErrors)
+				assert.Positive(t, metricSent)
+				assert.InDelta(t, float64(0), metricErrors, 1e-9)
 			} else {
-				assert.ErrorIs(t, err, io.EOF)
-				assert.Equal(t, float64(0), metricSent)
-				assert.Equal(t, float64(1), metricErrors)
+				require.ErrorIs(t, err, io.EOF)
+				assert.InDelta(t, float64(0), metricSent, 1e-9)
+				assert.InDelta(t, float64(1), metricErrors, 1e-9)
 			}
 		})
 	}
@@ -612,13 +613,13 @@ func TestBrowser_IgnoreInvalidPayload(t *testing.T) {
 			client := tu.NewTCPClient("localhost:13382", 2048, time.Millisecond*10)
 			defer client.Close()
 			_, err := client.Send(tt.payload)
-			assert.ErrorIs(t, err, io.EOF)
+			require.ErrorIs(t, err, io.EOF)
 
 			metricErrors := testutil.ToFloat64(collector.BrowserErrors)
 			metricSent := testutil.ToFloat64(collector.BrowserSent)
 
-			assert.Equal(t, float64(0), metricSent)
-			assert.Equal(t, float64(1), metricErrors)
+			assert.InDelta(t, float64(0), metricSent, 1e-9)
+			assert.InDelta(t, float64(1), metricErrors, 1e-9)
 		})
 	}
 }

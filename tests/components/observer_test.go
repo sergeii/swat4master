@@ -50,5 +50,5 @@ func TestObserver_Run(t *testing.T) {
 	<-time.After(time.Millisecond * 100)
 
 	valueAfterTick := testutil.ToFloat64(collector.ServerRepositorySize)
-	assert.Equal(t, 1.0, valueAfterTick)
+	assert.InDelta(t, 1.0, valueAfterTick, 1e-9)
 }

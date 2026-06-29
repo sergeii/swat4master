@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 )
@@ -47,7 +48,7 @@ func TestPublicAddr(t *testing.T) {
 			publicAddr, err := addr.NewPublicAddr(anyAddr)
 
 			if tt.want {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, anyAddr, publicAddr.ToAddr())
 			} else {
 				assert.ErrorIs(t, err, addr.ErrInvalidPublicIP)

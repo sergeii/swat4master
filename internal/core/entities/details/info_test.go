@@ -150,7 +150,7 @@ func TestInfoFromParams_OK(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := details.NewInfoFromParams(tt.params)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -232,8 +232,9 @@ func TestInfoFromParams_Validation(t *testing.T) {
 			require.NoError(t, err)
 			validateErr := got.Validate(validate)
 			if tt.wantErr != nil {
-				assert.Error(t, validateErr)
-				assert.IsType(t, validateErr, tt.wantErr)
+				require.Error(t, validateErr)
+				var valErrs validator.ValidationErrors
+				assert.ErrorAs(t, validateErr, &valErrs)
 			} else {
 				assert.NoError(t, validateErr)
 			}

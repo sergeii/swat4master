@@ -43,7 +43,7 @@ type FieldValue struct {
 }
 
 // Evaluate obtains the actual value from the provided fieldset
-// The obtained value is then used for comparison, such as numplayers!=maxplayers
+// The obtained value is then used for comparison, such as numplayers!=maxplayers.
 func (fv FieldValue) Evaluate(fields any) (any, error) {
 	value, err := getStructField(fields, fv.field)
 	if err != nil {
@@ -67,7 +67,7 @@ func (f Filter) String() string {
 	return fmt.Sprintf("%s%s%v", f.field, f.rawop, f.value)
 }
 
-// Match checks whether this filter instance matches either of the provided field set
+// Match checks whether this filter instance matches either of the provided field set.
 func (f Filter) Match(fields any) (bool, error) {
 	fieldValue, err := getStructField(fields, f.field)
 	if err != nil {
@@ -187,8 +187,8 @@ func MustNew(field, rawOp string, value any) Filter {
 // Parse accepts a string in the form of "<field><op><value>" that represents
 // a single filter value for the specified server field.
 // Examples: numplayers!=maxplayers, password=0, gamevariant='SWAT 4'
-// Returns an instance of Filter
-func Parse(filter string) (Filter, error) { //nolint: cyclop
+// Returns an instance of Filter.
+func Parse(filter string) (Filter, error) { //nolint:cyclop
 	var fieldName, op string
 	filterBytes := []byte(filter)
 	i, j := 0, 0

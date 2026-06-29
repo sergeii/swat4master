@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
 	ds "github.com/sergeii/swat4master/internal/core/entities/discovery/status"
@@ -152,9 +153,9 @@ func TestAddServerUseCase_ServerExists(t *testing.T) {
 			addedSvr, err := uc.Execute(ctx, addr.MustNewPublicAddr(svr.Addr))
 
 			if tt.wantErr != nil {
-				assert.ErrorIs(t, err, tt.wantErr)
+				require.ErrorIs(t, err, tt.wantErr)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, 10481, addedSvr.QueryPort)
 				assert.Equal(t, 10480, addedSvr.Info.HostPort)
 				assert.Equal(t, "Swat4 Server", addedSvr.Info.Hostname)
@@ -185,11 +186,11 @@ func TestAddServerUseCase_ServerExists(t *testing.T) {
 					repositories.NC,
 					repositories.NC,
 				)
-				assert.Equal(t, float64(1), probesProducedMetricValue)
+				assert.InDelta(t, float64(1), probesProducedMetricValue, 1e-9)
 			} else {
 				serverRepo.AssertNotCalled(t, "Update", ctx, mock.Anything, mock.Anything)
 				probeRepo.AssertNotCalled(t, "AddBetween", ctx, mock.Anything, mock.Anything, mock.Anything)
-				assert.Equal(t, float64(0), probesProducedMetricValue)
+				assert.InDelta(t, float64(0), probesProducedMetricValue, 1e-9)
 			}
 		})
 	}
@@ -215,7 +216,7 @@ func TestAddServerUseCase_ServerDoesNotExist(t *testing.T) {
 	}
 	uc := addserver.New(serverRepo, probeRepo, ucOpts, collector, &logger)
 	_, err := uc.Execute(ctx, addr.MustNewPublicAddr(newSvr.Addr))
-	assert.ErrorIs(t, err, addserver.ErrServerDiscoveryInProgress)
+	require.ErrorIs(t, err, addserver.ErrServerDiscoveryInProgress)
 
 	serverRepo.AssertCalled(t, "Get", ctx, newSvr.Addr)
 	serverRepo.AssertCalled(t, "Add", ctx, server.MustNewFromAddr(newSvr.Addr, 10481), mock.Anything)
@@ -239,5 +240,5 @@ func TestAddServerUseCase_ServerDoesNotExist(t *testing.T) {
 	)
 
 	probesProducedMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
-	assert.Equal(t, float64(1), probesProducedMetricValue)
+	assert.InDelta(t, float64(1), probesProducedMetricValue, 1e-9)
 }

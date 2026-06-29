@@ -90,6 +90,7 @@ type testState struct {
 }
 
 func setup(t *testing.T) testState {
+	t.Helper()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 	logger := zerolog.Nop()
@@ -189,8 +190,8 @@ func TestServersRedisRepo_Add_OK(t *testing.T) {
 	assert.ElementsMatch(t, []string{"1.1.1.1:10480"}, state.Statuses["info"])
 
 	assert.EqualExportedValues(t, added1, state.Items["1.1.1.1:10480"])
-	assert.Equal(t, float64(then.UnixNano()), state.Refreshes[0].Time)
-	assert.Equal(t, float64(then.Add(time.Millisecond*10).UnixNano()), state.Updates[0].Time)
+	assert.InDelta(t, float64(then.UnixNano()), state.Refreshes[0].Time, 1000)
+	assert.InDelta(t, float64(then.Add(time.Millisecond*10).UnixNano()), state.Updates[0].Time, 1000)
 
 	// When adding more servers to the repository a few moments later
 	svr2 := serverfactory.Build(
@@ -218,9 +219,9 @@ func TestServersRedisRepo_Add_OK(t *testing.T) {
 	assert.ElementsMatch(t, []string{"1.1.1.1:10480", "2.2.2.2:10580", "3.3.3.3:10480"}, state.Statuses["info"])
 	assert.ElementsMatch(t, []string{"2.2.2.2:10580", "3.3.3.3:10480"}, state.Statuses["details"])
 
-	assert.Equal(t, float64(then.Add(time.Millisecond*10).UnixNano()), state.Refreshes[1].Time)
-	assert.Equal(t, float64(then.Add(time.Millisecond*20).UnixNano()), state.Updates[1].Time)
-	assert.Equal(t, float64(then.Add(time.Millisecond*30).UnixNano()), state.Updates[2].Time)
+	assert.InDelta(t, float64(then.Add(time.Millisecond*10).UnixNano()), state.Refreshes[1].Time, 1000)
+	assert.InDelta(t, float64(then.Add(time.Millisecond*20).UnixNano()), state.Updates[1].Time, 1000)
+	assert.InDelta(t, float64(then.Add(time.Millisecond*30).UnixNano()), state.Updates[2].Time, 1000)
 }
 
 func TestServersRedisRepo_Add_OnConflictIgnore(t *testing.T) {
@@ -271,9 +272,9 @@ func TestServersRedisRepo_Add_OnConflictIgnore(t *testing.T) {
 
 	// And the server retains the original refresh time and update time
 	assert.ElementsMatch(t, []string{"1.1.1.1:10480"}, state.RefreshesKeys)
-	assert.Equal(t, float64(then.UnixNano()), state.Refreshes[0].Time)
+	assert.InDelta(t, float64(then.UnixNano()), state.Refreshes[0].Time, 1000)
 	assert.ElementsMatch(t, []string{"1.1.1.1:10480"}, state.UpdatesKeys)
-	assert.Equal(t, float64(then.UnixNano()), state.Updates[0].Time)
+	assert.InDelta(t, float64(then.UnixNano()), state.Updates[0].Time, 1000)
 }
 
 func TestServersRedisRepo_Add_OnConflictUpdate(t *testing.T) {
@@ -320,10 +321,10 @@ func TestServersRedisRepo_Add_OnConflictUpdate(t *testing.T) {
 
 	// And the server retains the original refresh time
 	assert.ElementsMatch(t, []string{"1.1.1.1:10480"}, state.RefreshesKeys)
-	assert.Equal(t, float64(then.UnixNano()), state.Refreshes[0].Time)
+	assert.InDelta(t, float64(then.UnixNano()), state.Refreshes[0].Time, 1000)
 	// but the update time is updated
 	assert.ElementsMatch(t, []string{"1.1.1.1:10480"}, state.UpdatesKeys)
-	assert.Equal(t, float64(then.Add(time.Second).UnixNano()), state.Updates[0].Time)
+	assert.InDelta(t, float64(then.Add(time.Second).UnixNano()), state.Updates[0].Time, 1000)
 }
 
 func TestServersRedisRepo_Add_OnConflictUpdateConcurrently(t *testing.T) {
@@ -413,17 +414,17 @@ func TestServersRedisRepo_Update_OK(t *testing.T) {
 	assert.EqualExportedValues(t, svr3, state.Items["3.3.3.3:10480"])
 
 	assert.ElementsMatch(t, []string{"1.1.1.1:10480", "2.2.2.2:10580", "3.3.3.3:10480"}, state.UpdatesKeys)
-	assert.Equal(t, float64(then.UnixNano()), state.Updates[0].Time)
+	assert.InDelta(t, float64(then.UnixNano()), state.Updates[0].Time, 1000)
 	assert.Equal(t, "1.1.1.1:10480", state.Updates[0].Addr)
-	assert.Equal(t, float64(then.UnixNano()), state.Updates[1].Time)
+	assert.InDelta(t, float64(then.UnixNano()), state.Updates[1].Time, 1000)
 	assert.Equal(t, "3.3.3.3:10480", state.Updates[1].Addr)
-	assert.Equal(t, float64(then.Add(time.Second).UnixNano()), state.Updates[2].Time)
+	assert.InDelta(t, float64(then.Add(time.Second).UnixNano()), state.Updates[2].Time, 1000)
 	assert.Equal(t, "2.2.2.2:10580", state.Updates[2].Addr)
 
 	assert.ElementsMatch(t, []string{"2.2.2.2:10580", "3.3.3.3:10480"}, state.RefreshesKeys)
-	assert.Equal(t, float64(then.UnixNano()), state.Refreshes[0].Time)
+	assert.InDelta(t, float64(then.UnixNano()), state.Refreshes[0].Time, 1000)
 	assert.Equal(t, "3.3.3.3:10480", state.Refreshes[0].Addr)
-	assert.Equal(t, float64(then.Add(time.Second).UnixNano()), state.Refreshes[1].Time)
+	assert.InDelta(t, float64(then.Add(time.Second).UnixNano()), state.Refreshes[1].Time, 1000)
 	assert.Equal(t, "2.2.2.2:10580", state.Refreshes[1].Addr)
 
 	assert.ElementsMatch(t, []string{"1.1.1.1:10480", "2.2.2.2:10580"}, state.Statuses["master"])
@@ -454,15 +455,15 @@ func TestServersRedisRepo_Update_OK(t *testing.T) {
 	assert.EqualExportedValues(t, updated2, state.Items["2.2.2.2:10580"])
 
 	assert.ElementsMatch(t, []string{"1.1.1.1:10480", "2.2.2.2:10580", "3.3.3.3:10480"}, state.UpdatesKeys)
-	assert.Equal(t, float64(then.UnixNano()), state.Updates[0].Time)
+	assert.InDelta(t, float64(then.UnixNano()), state.Updates[0].Time, 1000)
 	assert.Equal(t, "1.1.1.1:10480", state.Updates[0].Addr)
-	assert.Equal(t, float64(then.Add(time.Second).UnixNano()), state.Updates[1].Time)
+	assert.InDelta(t, float64(then.Add(time.Second).UnixNano()), state.Updates[1].Time, 1000)
 	assert.Equal(t, "2.2.2.2:10580", state.Updates[1].Addr)
-	assert.Equal(t, float64(then.Add(time.Second*2).UnixNano()), state.Updates[2].Time)
+	assert.InDelta(t, float64(then.Add(time.Second*2).UnixNano()), state.Updates[2].Time, 1000)
 	assert.Equal(t, "3.3.3.3:10480", state.Updates[2].Addr)
 
 	assert.ElementsMatch(t, []string{"2.2.2.2:10580"}, state.RefreshesKeys)
-	assert.Equal(t, float64(then.Add(time.Second).UnixNano()), state.Refreshes[0].Time)
+	assert.InDelta(t, float64(then.Add(time.Second).UnixNano()), state.Refreshes[0].Time, 1000)
 	assert.Equal(t, "2.2.2.2:10580", state.Refreshes[0].Addr)
 
 	assert.ElementsMatch(t, []string{"1.1.1.1:10480", "2.2.2.2:10580", "3.3.3.3:10480"}, state.Statuses["master"])
@@ -490,7 +491,7 @@ func TestServersRedisRepo_Update_OnConflictIgnore(t *testing.T) {
 	ready := make(chan struct{})
 	go func(a addr.Addr, now time.Time, ready chan struct{}) {
 		conflicted, err := ts.Repo.Get(ctx, a)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, 1, conflicted.Version)
 
 		conflicted.UpdateDiscoveryStatus(ds.Port)
@@ -523,8 +524,8 @@ func TestServersRedisRepo_Update_OnConflictIgnore(t *testing.T) {
 
 	assert.ElementsMatch(t, []string{"1.1.1.1:10480"}, state.UpdatesKeys)
 	assert.ElementsMatch(t, []string{"1.1.1.1:10480"}, state.RefreshesKeys)
-	assert.Equal(t, float64(then.Add(time.Second).UnixNano()), state.Updates[0].Time)
-	assert.Equal(t, float64(then.Add(time.Second).UnixNano()), state.Refreshes[0].Time)
+	assert.InDelta(t, float64(then.Add(time.Second).UnixNano()), state.Updates[0].Time, 1000)
+	assert.InDelta(t, float64(then.Add(time.Second).UnixNano()), state.Refreshes[0].Time, 1000)
 }
 
 func TestServersRedisRepo_Update_OnConflictUpdate(t *testing.T) {
@@ -545,7 +546,7 @@ func TestServersRedisRepo_Update_OnConflictUpdate(t *testing.T) {
 	ready := make(chan struct{})
 	go func(a addr.Addr, now time.Time, ready chan struct{}) {
 		conflicted, err := ts.Repo.Get(ctx, a)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, 1, conflicted.Version)
 
 		conflicted.UpdateDiscoveryStatus(ds.Port)
@@ -579,9 +580,9 @@ func TestServersRedisRepo_Update_OnConflictUpdate(t *testing.T) {
 
 	assert.ElementsMatch(t, []string{"1.1.1.1:10480"}, state.UpdatesKeys)
 	assert.ElementsMatch(t, []string{"1.1.1.1:10480"}, state.RefreshesKeys)
-	assert.Equal(t, float64(then.Add(2*time.Second).UnixNano()), state.Updates[0].Time)
+	assert.InDelta(t, float64(then.Add(2*time.Second).UnixNano()), state.Updates[0].Time, 1000)
 	// the refresh time was not updated during the conflict resolution
-	assert.Equal(t, float64(then.Add(time.Second).UnixNano()), state.Refreshes[0].Time)
+	assert.InDelta(t, float64(then.Add(time.Second).UnixNano()), state.Refreshes[0].Time, 1000)
 }
 
 func TestServersRedisRepo_Update_OnConflictUpdateConcurrently(t *testing.T) {
@@ -737,7 +738,7 @@ func TestServersRedisRepo_Remove_OnConflictResolve(t *testing.T) {
 
 	go func(a addr.Addr, ready chan struct{}) {
 		conflicted, err := ts.Repo.Get(ctx, a)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, 1, conflicted.Version)
 		conflicted.UpdateDiscoveryStatus(ds.Port | ds.DetailsRetry)
 		tu.Must(ts.Repo.Update(ctx, conflicted, func(_ *server.Server) bool {
@@ -804,7 +805,7 @@ func TestServersRedisRepo_Remove_OnConflictIgnore(t *testing.T) {
 
 	go func(a addr.Addr, ready chan struct{}) {
 		conflicted, err := ts.Repo.Get(ctx, a)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, 1, conflicted.Version)
 		tu.Must(ts.Repo.Update(ctx, conflicted, func(_ *server.Server) bool {
 			panic("should not be called")
@@ -1258,7 +1259,7 @@ func TestServersRedisRepo_Filter_NoRefreshedServers(t *testing.T) {
 			// Then no servers are expected to be returned
 			result, err := ts.Repo.Filter(ctx, filter)
 			require.NoError(t, err)
-			assert.Equal(t, 0, len(result))
+			assert.Empty(t, result)
 		})
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/params"
 )
@@ -43,19 +44,19 @@ func TestParamsUnmarshal_OK(t *testing.T) {
 	}
 
 	err := params.Unmarshal(data, &schema)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.Equal(t, "Some Server", schema.Hostname)
 	assert.Equal(t, 10480, schema.HostPort)
-	assert.Equal(t, true, schema.Password)
+	assert.True(t, schema.Password)
 	assert.Equal(t, "A-Bomb Nightclub", schema.Map)
-	assert.Equal(t, false, schema.VIPEscaped)
-	assert.Equal(t, true, schema.BombsExploded)
-	assert.Equal(t, "", schema.GameType)
+	assert.False(t, schema.VIPEscaped)
+	assert.True(t, schema.BombsExploded)
+	assert.Empty(t, schema.GameType)
 	assert.Equal(t, 0, schema.Round)
-	assert.Equal(t, false, schema.StatsEnabled)
-	assert.Equal(t, "", schema.gameVariant)
-	assert.Equal(t, "", schema.tocReports)
+	assert.False(t, schema.StatsEnabled)
+	assert.Empty(t, schema.gameVariant)
+	assert.Empty(t, schema.tocReports)
 }
 
 func TestParamsUnmarshal_ValueErrors(t *testing.T) {

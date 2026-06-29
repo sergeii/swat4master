@@ -99,7 +99,7 @@ func TestProbesRedisRepo_Add_OK(t *testing.T) {
 	item := state.Items[itemID]
 	assert.Equal(t, prb1, item.Probe)
 	assert.True(t, item.Expires.IsZero())
-	assert.Equal(t, float64(now.UnixNano()), state.QueueMembers[itemID])
+	assert.InDelta(t, float64(now.UnixNano()), state.QueueMembers[itemID], 1000)
 
 	// When the clock is advanced by a small amount of time
 	c.Advance(time.Millisecond)
@@ -118,7 +118,7 @@ func TestProbesRedisRepo_Add_OK(t *testing.T) {
 	// the second probe should be the second one in the queue and have a later expiration time
 	otherItemID := slice.First(qKeys[1:])
 	otherItem := state.Items[otherItemID]
-	assert.Equal(t, state.QueueMembers[otherItemID], float64(now.Add(time.Millisecond).UnixNano()))
+	assert.InDelta(t, float64(now.Add(time.Millisecond).UnixNano()), state.QueueMembers[otherItemID], 1000)
 	assert.Equal(t, prb2, otherItem.Probe)
 	assert.True(t, otherItem.Expires.IsZero())
 }
@@ -147,7 +147,7 @@ func TestProbesRedisRepo_AddBetween_After(t *testing.T) {
 	assert.Len(t, state.Items, 1)
 	itemID := slice.First(ids(state.Queue))
 	item := state.Items[itemID]
-	assert.Equal(t, float64(now.Add(time.Millisecond*50).UnixNano()), state.QueueMembers[itemID])
+	assert.InDelta(t, float64(now.Add(time.Millisecond*50).UnixNano()), state.QueueMembers[itemID], 1000)
 	assert.Equal(t, prb1, item.Probe)
 	assert.True(t, item.Expires.IsZero())
 
@@ -177,11 +177,11 @@ func TestProbesRedisRepo_AddBetween_After(t *testing.T) {
 
 	qKeys := ids(state.Queue)
 	assert.Equal(t, prb3, state.Items[qKeys[0]].Probe)
-	assert.Equal(t, float64(now.Add(time.Millisecond*10).UnixNano()), state.QueueMembers[qKeys[0]])
+	assert.InDelta(t, float64(now.Add(time.Millisecond*10).UnixNano()), state.QueueMembers[qKeys[0]], 1000)
 	assert.Equal(t, state.Items[qKeys[1]].Probe, prb1)
-	assert.Equal(t, float64(now.Add(time.Millisecond*50).UnixNano()), state.QueueMembers[qKeys[1]])
+	assert.InDelta(t, float64(now.Add(time.Millisecond*50).UnixNano()), state.QueueMembers[qKeys[1]], 1000)
 	assert.Equal(t, state.Items[qKeys[2]].Probe, prb2)
-	assert.Equal(t, float64(now.Add(time.Millisecond*100).UnixNano()), state.QueueMembers[qKeys[2]])
+	assert.InDelta(t, float64(now.Add(time.Millisecond*100).UnixNano()), state.QueueMembers[qKeys[2]], 1000)
 }
 
 func TestProbesRedisRepo_AddBetween_Before(t *testing.T) {
@@ -272,7 +272,7 @@ func TestProbesRedisRepo_AddBetween_Both(t *testing.T) {
 	assert.Len(t, state.Items, 1)
 	itemID := slice.First(ids(state.Queue))
 	item := state.Items[itemID]
-	assert.Equal(t, state.QueueMembers[itemID], float64(now.Add(time.Millisecond*10).UnixNano()))
+	assert.InDelta(t, float64(now.Add(time.Millisecond*10).UnixNano()), state.QueueMembers[itemID], 1000)
 	assert.Equal(t, prb1, item.Probe)
 	assert.Equal(t, micro(now.Add(time.Millisecond*49)), micro(item.Expires))
 
@@ -312,16 +312,16 @@ func TestProbesRedisRepo_AddBetween_Both(t *testing.T) {
 	// the probes should be in the queue in the order of their readiness,
 	// and they should have the correct expiration times
 	qKeys := ids(state.Queue)
-	assert.Equal(t, state.QueueMembers[qKeys[0]], float64(now.Add(-time.Millisecond*600).UnixNano()))
+	assert.InDelta(t, float64(now.Add(-time.Millisecond*600).UnixNano()), state.QueueMembers[qKeys[0]], 1000)
 	assert.Equal(t, prb4, state.Items[qKeys[0]].Probe)
 	assert.Equal(t, micro(now.Add(-time.Millisecond*300)), micro(state.Items[qKeys[0]].Expires))
-	assert.Equal(t, state.QueueMembers[qKeys[1]], float64(now.Add(time.Millisecond*1).UnixNano()))
+	assert.InDelta(t, float64(now.Add(time.Millisecond*1).UnixNano()), state.QueueMembers[qKeys[1]], 1000)
 	assert.Equal(t, prb3, state.Items[qKeys[1]].Probe)
 	assert.Equal(t, micro(now.Add(time.Millisecond*50)), micro(state.Items[qKeys[1]].Expires))
-	assert.Equal(t, state.QueueMembers[qKeys[2]], float64(now.Add(time.Millisecond*10).UnixNano()))
+	assert.InDelta(t, float64(now.Add(time.Millisecond*10).UnixNano()), state.QueueMembers[qKeys[2]], 1000)
 	assert.Equal(t, prb1, state.Items[qKeys[2]].Probe)
 	assert.Equal(t, micro(now.Add(time.Millisecond*49)), micro(state.Items[qKeys[2]].Expires))
-	assert.Equal(t, state.QueueMembers[qKeys[3]], float64(now.Add(time.Millisecond*15).UnixNano()))
+	assert.InDelta(t, float64(now.Add(time.Millisecond*15).UnixNano()), state.QueueMembers[qKeys[3]], 1000)
 	assert.Equal(t, prb2, state.Items[qKeys[3]].Probe)
 	assert.Equal(t, micro(now.Add(time.Millisecond*100)), micro(state.Items[qKeys[3]].Expires))
 }
@@ -369,8 +369,8 @@ func TestProbesRedisRepo_AddBetween_AfterGreaterThanBefore(t *testing.T) {
 			// Then the probe should not be added to the queue
 			require.NoError(t, err)
 			state := collectQueueState(ctx, rdb)
-			assert.Len(t, state.Queue, 0)
-			assert.Len(t, state.Items, 0)
+			assert.Empty(t, state.Queue)
+			assert.Empty(t, state.Items)
 		})
 	}
 }
@@ -442,8 +442,8 @@ func TestProbesRedisRepo_Pop_OK(t *testing.T) {
 	assert.Equal(t, prb4, got)
 	// And the queue should be empty
 	state = collectQueueState(ctx, rdb)
-	assert.Len(t, state.Queue, 0)
-	assert.Len(t, state.Items, 0)
+	assert.Empty(t, state.Queue)
+	assert.Empty(t, state.Items)
 
 	// When the Pop method is called again
 	_, err = repo.Pop(ctx)
@@ -651,8 +651,8 @@ func TestProbesRedisRepo_PopMany_OK(t *testing.T) {
 	assert.Equal(t, 0, expired)
 	// And the queue should be empty
 	state = collectQueueState(ctx, rdb)
-	assert.Len(t, state.Queue, 0)
-	assert.Len(t, state.Items, 0)
+	assert.Empty(t, state.Queue)
+	assert.Empty(t, state.Items)
 }
 
 func TestProbesRedisRepo_PopManyAddRace(t *testing.T) { //nolint:gocognit
@@ -801,8 +801,8 @@ func TestProbesRedisRepo_PopManyAddRace(t *testing.T) { //nolint:gocognit
 	// and the queue should be exhausted
 	rdb := testredis.MakeClientFromMini(t, mr)
 	state := collectQueueState(ctx, rdb)
-	assert.Len(t, state.Queue, 0)
-	assert.Len(t, state.Items, 0)
+	assert.Empty(t, state.Queue)
+	assert.Empty(t, state.Items)
 }
 
 func TestProbesRedisRepo_PopMany_Zero(t *testing.T) {
@@ -833,7 +833,7 @@ func TestProbesRedisRepo_PopMany_Zero(t *testing.T) {
 	popped, expired, err := repo.PopMany(ctx, 0)
 	require.NoError(t, err)
 	// Then it should return no probes
-	assert.Len(t, popped, 0)
+	assert.Empty(t, popped)
 	// And indicate that 1 probe has expired
 	assert.Equal(t, 0, expired)
 
@@ -868,7 +868,7 @@ func TestProbesRedisRepo_PopMany_NotReady(t *testing.T) {
 	popped, expired, err := repo.PopMany(ctx, 3)
 	require.NoError(t, err)
 	// Then it should return no probes
-	assert.Len(t, popped, 0)
+	assert.Empty(t, popped)
 	assert.Equal(t, 0, expired)
 
 	// And the queue should still contain both non-ready probes
@@ -899,8 +899,8 @@ func TestProbesRedisRepo_PopMany_NotReady(t *testing.T) {
 	assert.Equal(t, 0, expired)
 	// And the queue should be empty
 	state = collectQueueState(ctx, rdb)
-	assert.Len(t, state.Queue, 0)
-	assert.Len(t, state.Items, 0)
+	assert.Empty(t, state.Queue)
+	assert.Empty(t, state.Items)
 }
 
 func TestProbesRedisRepo_PopMany_Expired(t *testing.T) {
@@ -922,13 +922,13 @@ func TestProbesRedisRepo_PopMany_Expired(t *testing.T) {
 	popped, expired, err := repo.PopMany(ctx, 3)
 	require.NoError(t, err)
 	// Then it should return the expired probe count but no probes
-	assert.Len(t, popped, 0)
+	assert.Empty(t, popped)
 	assert.Equal(t, 2, expired)
 
 	// And the queue should be empty
 	state := collectQueueState(ctx, rdb)
-	assert.Len(t, state.Queue, 0)
-	assert.Len(t, state.Items, 0)
+	assert.Empty(t, state.Queue)
+	assert.Empty(t, state.Items)
 }
 
 func TestProbesRedisRepo_PopMany_Mixed(t *testing.T) {
@@ -1005,7 +1005,7 @@ func TestProbesRedisRepo_PopMany_Empty(t *testing.T) {
 
 			popped, expired, err := repo.PopMany(ctx, tt.count)
 			require.NoError(t, err)
-			assert.Equal(t, 0, len(popped))
+			assert.Empty(t, popped)
 			assert.Equal(t, 0, expired)
 		})
 	}
@@ -1021,7 +1021,7 @@ func TestProbesRedisRepo_Count(t *testing.T) {
 
 	assertCount := func(expected int) {
 		cnt, err := repo.Count(ctx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, expected, cnt)
 	}
 

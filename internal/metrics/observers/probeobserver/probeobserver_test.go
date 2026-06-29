@@ -38,7 +38,7 @@ func TestProbeObserver_Observe_OK(t *testing.T) {
 	observer.Observe(ctx, collector)
 
 	repoSizeValue := testutil.ToFloat64(collector.ProbeRepositorySize)
-	assert.Equal(t, float64(37), repoSizeValue)
+	assert.InDelta(t, float64(37), repoSizeValue, 1e-9)
 
 	probeRepo.AssertExpectations(t)
 }
@@ -56,7 +56,7 @@ func TestProbeObserver_Observe_RepoFailure(t *testing.T) {
 	observer.Observe(ctx, collector)
 
 	repoSizeValue := testutil.ToFloat64(collector.ProbeRepositorySize)
-	assert.Equal(t, float64(0), repoSizeValue)
+	assert.InDelta(t, float64(0), repoSizeValue, 1e-9)
 
 	probeRepo.AssertExpectations(t)
 }

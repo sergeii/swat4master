@@ -31,7 +31,8 @@ import (
 )
 
 func makeAppWithReporter(extra ...fx.Option) (*fx.App, func()) {
-	fxopts := []fx.Option{
+	fxopts := make([]fx.Option, 0, 8+len(extra))
+	fxopts = append(fxopts,
 		fx.Provide(testapp.NoLogging),
 		fx.Provide(testapp.ProvideSettings),
 		fx.Provide(testapp.ProvidePersistence),
@@ -43,7 +44,7 @@ func makeAppWithReporter(extra ...fx.Option) (*fx.App, func()) {
 		reporter.Module,
 		fx.NopLogger,
 		fx.Invoke(func(*reporter.Component) {}),
-	}
+	)
 	fxopts = append(fxopts, extra...)
 	app := fx.New(fxopts...)
 	return app, func() {
@@ -63,7 +64,7 @@ func TestReporter_Available_OK(t *testing.T) {
 	assert.Equal(t, []byte{0xfe, 0xfd, 0x09, 0x00, 0x00, 0x00, 0x00}, resp)
 
 	metricValue := testutil.ToFloat64(collector.ReporterRequests)
-	assert.Equal(t, float64(1), metricValue)
+	assert.InDelta(t, float64(1), metricValue, 1e-9)
 }
 
 func TestReporter_Challenge_OK(t *testing.T) {
@@ -78,7 +79,7 @@ func TestReporter_Challenge_OK(t *testing.T) {
 	assert.Equal(t, []byte{0xfe, 0xfd, 0x0a, 0xfa, 0xca, 0xde, 0xaf}, resp)
 
 	metricValue := testutil.ToFloat64(collector.ReporterRequests)
-	assert.Equal(t, float64(1), metricValue)
+	assert.InDelta(t, float64(1), metricValue, 1e-9)
 }
 
 func TestReporter_Challenge_InvalidInstanceID(t *testing.T) {
@@ -149,22 +150,22 @@ func TestReporter_Heartbeat_OK(t *testing.T) {
 	resp, err := client.Send(req)
 	require.NoError(t, err)
 
-	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
-	assert.Equal(t, resp[3:7], []byte{0xfe, 0xed, 0xf0, 0x0d})
-	assert.Equal(t, resp[7:13], []byte{0x44, 0x3d, 0x73, 0x7e, 0x6a, 0x59})
+	assert.Equal(t, []byte{0xfe, 0xfd, 0x01}, resp[:3])
+	assert.Equal(t, []byte{0xfe, 0xed, 0xf0, 0x0d}, resp[3:7])
+	assert.Equal(t, []byte{0x44, 0x3d, 0x73, 0x7e, 0x6a, 0x59}, resp[7:13])
 
 	respAddr := make([]byte, 7)
 	tu.Must(hex.Decode(respAddr, resp[13:27]))
-	assert.Equal(t, respAddr[0], uint8(0x00))
+	assert.Equal(t, uint8(0x00), respAddr[0])
 	assert.Equal(t, "127.0.0.1", net.IPv4(respAddr[1], respAddr[2], respAddr[3], respAddr[4]).String())
 	assert.Equal(t, client.LocalAddr.Port, int(binary.BigEndian.Uint16(respAddr[5:7])))
 	assert.Equal(t, uint8(0x00), resp[27])
 
 	reporterRequestsMetricValue := testutil.ToFloat64(collector.ReporterRequests)
-	assert.Equal(t, float64(1), reporterRequestsMetricValue)
+	assert.InDelta(t, float64(1), reporterRequestsMetricValue, 1e-9)
 
 	producedProbesMetricValue := testutil.ToFloat64(collector.DiscoveryQueueProduced)
-	assert.Equal(t, float64(1), producedProbesMetricValue)
+	assert.InDelta(t, float64(1), producedProbesMetricValue, 1e-9)
 }
 
 func TestReporter_Heartbeat_ServerIsAddedAndThenUpdated(t *testing.T) {
@@ -192,7 +193,7 @@ func TestReporter_Heartbeat_ServerIsAddedAndThenUpdated(t *testing.T) {
 
 	// server is stored with the correct discovery status
 	svr, err := serverRepo.Get(ctx, addr.MustNewFromDotted("127.0.0.1", 10480))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 10480, svr.Addr.Port)
 	assert.Equal(t, 10480, svr.Info.HostPort)
 	assert.Equal(t, 10484, svr.QueryPort)
@@ -203,12 +204,12 @@ func TestReporter_Heartbeat_ServerIsAddedAndThenUpdated(t *testing.T) {
 
 	// instance is stored with the server's address
 	inst, err := instanceRepo.Get(ctx, instance.MustNewID([]byte{0xfe, 0xed, 0xf0, 0x0d}))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "127.0.0.1:10480", inst.Addr.String())
 
 	// probe is added to discover the server's port
 	prb, err := probeRepo.Peek(ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "127.0.0.1:10480", prb.Addr.String())
 	assert.Equal(t, 10480, prb.Port)
 	assert.Equal(t, probe.GoalPort, prb.Goal)
@@ -224,7 +225,7 @@ func TestReporter_Heartbeat_ServerIsAddedAndThenUpdated(t *testing.T) {
 
 	// server is updated with the new info
 	svr, err = serverRepo.Get(ctx, addr.MustNewFromDotted("127.0.0.1", 10480))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 15, svr.Info.NumPlayers)
 	assert.Equal(t, "VIP Escort", svr.Info.GameType)
 	assert.Equal(t, "Food Wall Restaurant", svr.Info.MapName)
@@ -408,7 +409,7 @@ func TestReporter_Heartbeat_ServerIsRefreshed(t *testing.T) {
 		ctx,
 		filterset.NewServerFilterSet().ActiveAfter(afterInitial).WithStatus(ds.Master),
 	)
-	assert.Len(t, updatedAfterInitial, 0)
+	assert.Empty(t, updatedAfterInitial)
 
 	// successive report refreshes the server
 	tu.SendUDP("127.0.0.1:33811", req)
@@ -436,7 +437,7 @@ func TestReporter_Heartbeat_ServerIsRemoved(t *testing.T) {
 	reportReq := tu.PackHeartbeatRequest([]byte{0xfe, 0xed, 0xf0, 0x0d}, tu.GenServerParams())
 	resp, err := client.Send(reportReq)
 	require.NoError(t, err)
-	assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
+	assert.Equal(t, []byte{0xfe, 0xfd, 0x01}, resp[:3])
 
 	serverCount, _ := serverRepo.Count(ctx)
 	assert.Equal(t, 1, serverCount)
@@ -461,9 +462,9 @@ func TestReporter_Heartbeat_ServerIsRemoved(t *testing.T) {
 	assert.Equal(t, 0, serverCount)
 
 	removalMetricValue := testutil.ToFloat64(collector.ReporterRemovals)
-	assert.Equal(t, float64(1), removalMetricValue)
+	assert.InDelta(t, float64(1), removalMetricValue, 1e-9)
 	requestMetricValue := testutil.ToFloat64(collector.ReporterRequests)
-	assert.Equal(t, float64(2), requestMetricValue)
+	assert.InDelta(t, float64(2), requestMetricValue, 1e-9)
 }
 
 func TestReporter_Heartbeat_ServerRemovalIsValidated(t *testing.T) {
@@ -543,10 +544,10 @@ func TestReporter_Heartbeat_ServerRemovalIsValidated(t *testing.T) {
 			metricValue := testutil.ToFloat64(collector.ReporterRemovals)
 			if tt.wantSuccess {
 				assert.Equal(t, 0, serverCount)
-				assert.Equal(t, float64(1), metricValue)
+				assert.InDelta(t, float64(1), metricValue, 1e-9)
 			} else {
 				assert.Equal(t, 1, serverCount)
-				assert.Equal(t, float64(0), metricValue)
+				assert.InDelta(t, float64(0), metricValue, 1e-9)
 			}
 		})
 	}
@@ -626,7 +627,7 @@ func TestReporter_Heartbeat_InvalidPayload(t *testing.T) {
 				require.ErrorIs(t, err, os.ErrDeadlineExceeded)
 			} else {
 				require.NoError(t, err)
-				assert.Equal(t, resp[:3], []byte{0xfe, 0xfd, 0x01})
+				assert.Equal(t, []byte{0xfe, 0xfd, 0x01}, resp[:3])
 			}
 		})
 	}
@@ -664,12 +665,12 @@ func TestReporter_Keepalive_ServerIsRefreshed(t *testing.T) {
 		ctx,
 		filterset.NewServerFilterSet().ActiveAfter(afterInitial).WithStatus(ds.Master),
 	)
-	assert.Len(t, updatedBeforeInitial, 0)
+	assert.Empty(t, updatedBeforeInitial)
 
 	// keepalive request
 	_, err = client.Send([]byte{0x08, 0xfe, 0xed, 0xf0, 0x0d})
 	// no response expected
-	assert.ErrorIs(t, err, os.ErrDeadlineExceeded)
+	require.ErrorIs(t, err, os.ErrDeadlineExceeded)
 
 	// server is refreshed
 	updatedBeforeInitialRepeated, _ := serverRepo.Filter(
@@ -751,11 +752,11 @@ func TestReporter_Keepalive_Errors(t *testing.T) {
 			// send keepalive request in a while
 			_, err := client.Send(tt.payload)
 			// no response expected
-			assert.ErrorIs(t, err, os.ErrDeadlineExceeded)
+			require.ErrorIs(t, err, os.ErrDeadlineExceeded)
 
 			updatedAfterKA, _ := serverRepo.Filter(ctx, filterset.NewServerFilterSet().ActiveAfter(beforeKA))
 			if tt.wantErr {
-				assert.Len(t, updatedAfterKA, 0)
+				assert.Empty(t, updatedAfterKA)
 			} else {
 				assert.Len(t, updatedAfterKA, 1)
 			}

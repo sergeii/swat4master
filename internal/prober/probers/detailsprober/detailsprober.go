@@ -51,7 +51,7 @@ func New(
 // Probe probes specified server's GS1 query port
 // On success, update the server's extended params
 // In case a server with specified identifier does not exit,
-// create the server beforehand
+// create the server beforehand.
 func (p DetailsProber) Probe(
 	ctx context.Context,
 	svrAddr addr.Addr,
