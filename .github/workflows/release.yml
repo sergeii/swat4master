@@ -25,7 +25,7 @@ jobs:
       changelog: ${{ steps.plan.outputs.changelog }}
       date: ${{ steps.build_meta.outputs.date }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: mathieudutour/github-tag-action@v6.2
         id: plan
@@ -61,7 +61,7 @@ jobs:
             name: linux/arm64
             runner: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -107,7 +107,7 @@ jobs:
         goos: [darwin, linux]
         goarch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v6
         with:
@@ -175,7 +175,7 @@ jobs:
     needs: [plan-release-tag, push-image-manifest, build-binaries]
     if: needs.plan-release-tag.outputs.tag != ''
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/download-artifact@v8
         with:
