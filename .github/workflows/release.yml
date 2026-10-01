@@ -27,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: mathieudutour/github-tag-action@v6.2
+      - uses: mathieudutour/github-tag-action@v7
         id: plan
         with:
           dry_run: true
@@ -183,7 +183,7 @@ jobs:
           merge-multiple: true
 
       - name: Create git tag
-        uses: mathieudutour/github-tag-action@v6.2
+        uses: mathieudutour/github-tag-action@v7
         with:
           commit_sha: ${{ github.sha }}
           custom_tag: ${{ needs.plan-release-tag.outputs.tag }}
