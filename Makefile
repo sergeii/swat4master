@@ -22,7 +22,7 @@ generate-api-docs:
 
 .PHONY: build
 build:
-	CGO_ENABLED=0 GOEXPERIMENT=loopvar \
+	CGO_ENABLED=0 \
 		GOOS=$(GOOS) GOARCH=$(GOARCH) \
 		go build -v \
 		-ldflags="$(LDFLAGS)" \
