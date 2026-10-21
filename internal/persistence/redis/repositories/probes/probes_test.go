@@ -676,7 +676,7 @@ func TestProbesRedisRepo_PopManyAddRace(t *testing.T) { //nolint:gocognit
 	stop := make(chan struct{})
 	todo := make(chan produceable, testSize)
 	popped := make(chan probe.Probe, testSize)
-	var expiredCnt int64
+	var expiredCnt atomic.Int64
 
 	// And a highly concurrent environment
 	// where Add and PopMany operations are performed simultaneously
@@ -714,7 +714,7 @@ func TestProbesRedisRepo_PopManyAddRace(t *testing.T) { //nolint:gocognit
 			for _, prb := range readyProbes {
 				popped <- prb
 			}
-			atomic.AddInt64(&expiredCnt, int64(expired))
+			expiredCnt.Add(int64(expired))
 		}
 	}
 
@@ -796,7 +796,7 @@ func TestProbesRedisRepo_PopManyAddRace(t *testing.T) { //nolint:gocognit
 		}
 	}
 	assert.ElementsMatch(t, wantConsumed, consumed)
-	assert.Equal(t, atomic.LoadInt64(&expiredCnt), expiredCnt)
+	assert.Equal(t, int64(wantExpiredCnt), expiredCnt.Load())
 
 	// and the queue should be exhausted
 	rdb := testredis.MakeClientFromMini(t, mr)

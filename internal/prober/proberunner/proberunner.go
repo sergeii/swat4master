@@ -32,7 +32,7 @@ type Runner struct {
 	metrics   *metrics.Collector
 	logger    *zerolog.Logger
 	queue     chan probe.Probe
-	busy      int64
+	busy      atomic.Int64
 }
 
 func New(
@@ -90,11 +90,11 @@ func (r *Runner) scheduler(ctx context.Context) {
 }
 
 func (r *Runner) probe(ctx context.Context, prb probe.Probe) {
-	atomic.AddInt64(&r.busy, 1)
+	r.busy.Add(1)
 	r.metrics.DiscoveryWorkersBusy.Inc()
 	r.metrics.DiscoveryWorkersAvailable.Dec()
 	defer func() {
-		atomic.AddInt64(&r.busy, -1)
+		r.busy.Add(-1)
 		r.metrics.DiscoveryWorkersBusy.Dec()
 		r.metrics.DiscoveryWorkersAvailable.Inc()
 	}()
@@ -104,7 +104,7 @@ func (r *Runner) probe(ctx context.Context, prb probe.Probe) {
 
 	r.logger.Debug().
 		Stringer("addr", prb.Addr).Stringer("goal", prb.Goal).
-		Int64("busyness", atomic.LoadInt64(&r.busy)).Int("retries", prb.Retries).
+		Int64("busyness", r.busy.Load()).Int("retries", prb.Retries).
 		Msg("About to start probing")
 
 	prober, err := r.selectProber(prb.Goal)
@@ -138,7 +138,7 @@ func (r *Runner) probe(ctx context.Context, prb probe.Probe) {
 
 	r.logger.Debug().
 		Stringer("addr", prb.Addr).Stringer("goal", prb.Goal).
-		Int64("busyness", atomic.LoadInt64(&r.busy)).
+		Int64("busyness", r.busy.Load()).
 		Dur("elapsed", time.Since(before)).
 		Msg("Finished probing")
 
@@ -189,9 +189,9 @@ func (r *Runner) schedule(ctx context.Context) {
 }
 
 func (r *Runner) Busy() int {
-	return int(atomic.LoadInt64(&r.busy))
+	return int(r.busy.Load())
 }
 
 func (r *Runner) Available() int {
-	return r.opts.Concurrency - int(atomic.LoadInt64(&r.busy))
+	return r.opts.Concurrency - int(r.busy.Load())
 }
