@@ -63,7 +63,8 @@ func New(
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			go run(stop, stopped, clock, logger, collector, cfg) //nolint: contextcheck
+			// worker outlives the startup context and stops through lifecycle channels
+			go run(stop, stopped, clock, logger, collector, cfg) //nolint:contextcheck,gosec
 			return nil
 		},
 		OnStop: func(context.Context) error {

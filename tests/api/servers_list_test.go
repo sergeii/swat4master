@@ -1,7 +1,6 @@
 package api_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -48,7 +47,7 @@ type serverListSchema struct {
 }
 
 func TestAPI_ListServers_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts, repos, cancel := testutils.PrepareTestServerWithRepos(
 		t,
 		fx.Decorate(func(settings settings.Settings) settings.Settings {
@@ -379,7 +378,7 @@ func TestAPI_ListServers_Filters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			ts, repos, cancel := testutils.PrepareTestServerWithRepos(
 				t,
 				fx.Decorate(func(settings settings.Settings) settings.Settings {

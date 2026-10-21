@@ -1,7 +1,6 @@
 package api_test
 
 import (
-	"context"
 	"net/http"
 	"testing"
 
@@ -123,7 +122,7 @@ func TestAPI_ViewServer_OK(t *testing.T) {
 		},
 	}
 
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 	defer cancel()
 
@@ -245,7 +244,7 @@ func TestAPI_ViewServer_Coop_OK(t *testing.T) {
 		},
 	}
 
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 	defer cancel()
 
@@ -322,7 +321,7 @@ func TestAPI_ViewServer_MinimalInfo_OK(t *testing.T) {
 		"gametype":    "VIP Escort",
 	}
 
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 	defer cancel()
 
@@ -361,7 +360,7 @@ func TestAPI_ViewServer_MinimalInfo_OK(t *testing.T) {
 }
 
 func TestAPI_ViewServer_NoInfo_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 	defer cancel()
 
@@ -418,7 +417,7 @@ func TestAPI_ViewServer_NotFound(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 			defer cancel()
 
@@ -530,7 +529,7 @@ func TestAPI_ViewServer_ValidateAddress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 			defer cancel()
 
@@ -571,7 +570,7 @@ func TestAPI_ViewServer_ValidateStatus(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 			defer cancel()
 

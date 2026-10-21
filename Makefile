@@ -13,18 +13,16 @@ LDFLAGS := \
 	-X '$(PKG)/build.Commit=$(BUILD_COMMIT)' \
 	-X '$(PKG)/build.Version=$(BUILD_VERSION)'
 
-SWAG := github.com/swaggo/swag/cmd/swag@v1.16.6
-
 .PHONY: generate-api-docs
 generate-api-docs:
-	go run $(SWAG) init \
+	go tool swag init \
 		-g schema.go \
 		-o api/docs/ \
 		-d api/,internal/rest/
 
 .PHONY: build
 build:
-	CGO_ENABLED=0 GOEXPERIMENT=loopvar \
+	CGO_ENABLED=0 \
 		GOOS=$(GOOS) GOARCH=$(GOARCH) \
 		go build -v \
 		-ldflags="$(LDFLAGS)" \

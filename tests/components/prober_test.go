@@ -49,34 +49,34 @@ func TestProber_Run(t *testing.T) {
 		fx.Populate(&serverRepo, &probeRepo),
 	)
 
-	var i1 int64
+	var i1 atomic.Int64
 	responses1 := make(chan []byte)
 	udp1, cancel1 := gs1.ServerFactory(
 		func(_ context.Context, conn *net.UDPConn, addr *net.UDPAddr, _ []byte) {
 			packet := <-responses1
 			conn.WriteToUDP(packet, addr) //nolint: errcheck
-			atomic.AddInt64(&i1, 1)
+			i1.Add(1)
 		},
 	)
 	udpAddr1 := udp1.LocalAddr()
 	defer cancel1()
 
 	responses2 := make(chan []byte)
-	var i2 int64
+	var i2 atomic.Int64
 	udp2, cancel2 := gs1.ServerFactory(
 		func(_ context.Context, conn *net.UDPConn, addr *net.UDPAddr, _ []byte) {
 			packet := <-responses2
 			conn.WriteToUDP(packet, addr) //nolint: errcheck
-			atomic.AddInt64(&i2, 1)
+			i2.Add(1)
 		},
 	)
 	udpAddr2 := udp2.LocalAddr()
 	defer cancel2()
 
-	var i3 int64
+	var i3 atomic.Int64
 	udp3, cancel3 := gs1.ServerFactory(
 		func(_ context.Context, _ *net.UDPConn, _ *net.UDPAddr, _ []byte) {
-			atomic.AddInt64(&i3, 1)
+			i3.Add(1)
 		},
 	)
 	udpAddr3 := udp3.LocalAddr()
@@ -148,7 +148,7 @@ func TestProber_Run(t *testing.T) {
 	svr4.UpdateInfo(info)
 	svr4.UpdateDiscoveryStatus(ds.Master)
 
-	app.Start(context.TODO()) //nolint: errcheck
+	app.Start(t.Context()) //nolint: errcheck
 	defer func() {
 		app.Stop(context.TODO()) //nolint: errcheck
 	}()
@@ -173,7 +173,7 @@ func TestProber_Run(t *testing.T) {
 	assert.True(t, updatedSvr1.HasDiscoveryStatus(ds.Master|ds.Port|ds.Info|ds.Details))
 	assert.Equal(t, "-==MYT Team Svr==-", updatedSvr1.Info.Hostname)
 	assert.Equal(t, 16, updatedSvr1.Info.MaxPlayers)
-	assert.Equal(t, int64(1), atomic.LoadInt64(&i1))
+	assert.Equal(t, int64(1), i1.Load())
 
 	assert.Equal(t, "-==MYT Team Svr==-", updatedSvr1.Details.Info.Hostname)
 	assert.Equal(t, 16, updatedSvr1.Details.Info.MaxPlayers)
@@ -182,12 +182,12 @@ func TestProber_Run(t *testing.T) {
 	updatedSvr2, _ := serverRepo.Get(ctx, svr2.Addr)
 	assert.True(t, updatedSvr2.HasDiscoveryStatus(ds.Master|ds.Port|ds.Info|ds.Details))
 	assert.Equal(t, "[c=ffff00]WWW.EPiCS.TOP", updatedSvr2.Info.Hostname)
-	assert.Equal(t, int64(1), atomic.LoadInt64(&i2))
+	assert.Equal(t, int64(1), i2.Load())
 
 	retriedSvr, _ := serverRepo.Get(ctx, svr3.Addr)
 	assert.True(t, retriedSvr.HasDiscoveryStatus(ds.Master|ds.Port|ds.DetailsRetry))
 	assert.Equal(t, "Swat4 Server", retriedSvr.Info.Hostname)
-	assert.Equal(t, int64(1), atomic.LoadInt64(&i3))
+	assert.Equal(t, int64(1), i3.Load())
 
 	notUpdatedSvr, _ := serverRepo.Get(ctx, svr4.Addr)
 	assert.Equal(t, ds.Master, notUpdatedSvr.DiscoveryStatus)

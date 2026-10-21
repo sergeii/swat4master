@@ -41,7 +41,7 @@ func (m *MockServerRepository) Remove(
 }
 
 // func TestCleanServersUseCase_RemoveErrors(t *testing.T) {
-//	ctx := context.TODO()
+//	ctx := t.Context()
 //	logger := zerolog.Nop()
 //
 //	until := time.Now().Add(-24 * time.Hour) // Example time filter
@@ -71,7 +71,7 @@ func (m *MockServerRepository) Remove(
 // }
 
 func TestServerCleaner_Clean_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 
 	manager := cleanup.NewManager()
 	collector := metrics.New()
@@ -122,7 +122,7 @@ func TestServerCleaner_Clean_OK(t *testing.T) {
 }
 
 func TestServerCleaner_Clean_NothingToClean(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 
 	manager := cleanup.NewManager()
 	collector := metrics.New()
@@ -155,7 +155,7 @@ func TestServerCleaner_Clean_NothingToClean(t *testing.T) {
 }
 
 func TestServerCleaner_Clean_RepoErrors(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 
 	manager := cleanup.NewManager()
 	collector := metrics.New()

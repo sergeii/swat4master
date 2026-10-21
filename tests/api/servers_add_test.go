@@ -2,7 +2,6 @@ package api_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -57,7 +56,7 @@ type serverAddErrorSchema struct {
 }
 
 func TestAPI_AddServer_SubmitNew(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 	defer cancel()
 
@@ -156,7 +155,7 @@ func TestAPI_AddServer_SubmitExisting(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 			defer cancel()
 
@@ -202,7 +201,7 @@ func TestAPI_AddServer_SubmitExisting(t *testing.T) {
 }
 
 func TestAPI_AddServer_AlreadyDiscovered(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 	defer cancel()
 
@@ -328,7 +327,7 @@ func TestAPI_AddServer_ValidateAddress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			ts, repos, cancel := testutils.PrepareTestServerWithRepos(t)
 			defer cancel()
 

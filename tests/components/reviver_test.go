@@ -83,7 +83,7 @@ func TestReviver_OK(t *testing.T) {
 	var probeRepo repositories.ProbeRepository
 	var collector *metrics.Collector
 
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	now := time.Now()

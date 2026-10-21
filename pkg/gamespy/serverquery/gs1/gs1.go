@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"sort"
+	"slices"
 	"strconv"
 	"time"
 
@@ -80,19 +80,11 @@ func Query(ctx context.Context, addr netip.AddrPort, timeout time.Duration) (Res
 		return Blank, err
 	}
 
-	closing := make(chan struct{})
-	defer func() {
-		close(closing)
-		conn.Close()
-	}()
-
-	go func() {
-		select {
-		case <-ctx.Done():
-			conn.SetReadDeadline(time.Now()) //nolint: errcheck
-		case <-closing:
-		}
-	}()
+	defer conn.Close()
+	stop := context.AfterFunc(ctx, func() {
+		conn.SetReadDeadline(time.Now()) //nolint: errcheck
+	})
+	defer stop()
 
 	_, err = conn.Write([]byte("\\status\\"))
 	if err != nil {
@@ -361,7 +353,7 @@ func collectPlayers(playersByID map[int]map[string]string) []map[string]string {
 	for id := range playersByID {
 		sortedIDs = append(sortedIDs, id)
 	}
-	sort.Ints(sortedIDs)
+	slices.Sort(sortedIDs)
 	for _, id := range sortedIDs {
 		players = append(players, playersByID[id])
 	}
@@ -386,8 +378,8 @@ func consumeFieldFromRight(payload []byte) ([]byte, []byte) {
 	}
 	consumed := payload
 	// \field1\field2\...\fieldN
-	if i := bytes.LastIndexByte(consumed, '\\'); i != -1 {
-		return consumed[i+1:], consumed[:i]
+	if before, after, found := bytes.CutLast(consumed, []byte{'\\'}); found {
+		return after, before
 	}
 	return consumed, nil
 }

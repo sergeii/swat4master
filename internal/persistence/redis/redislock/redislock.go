@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 )
@@ -26,7 +26,7 @@ func NewManager(client *redis.Client, logger *zerolog.Logger) *Manager {
 }
 
 func (m *Manager) Guard(ctx context.Context, key string, ttl time.Duration, op func(tx *redis.Tx) error) error {
-	token := uuid.NewString()
+	token := uuid.NewV4().String()
 
 	_, err := m.client.SetArgs(ctx, key, token, redis.SetArgs{Mode: "NX", TTL: ttl}).Result()
 	if errors.Is(err, redis.Nil) {
@@ -38,6 +38,7 @@ func (m *Manager) Guard(ctx context.Context, key string, ttl time.Duration, op f
 		return fmt.Errorf("guard: take lock ownership: %w", err)
 	}
 	defer func() {
+		// in case cancellation prevents release, the lock expires after its remaining TTL
 		if err := m.release(ctx, key, token); err != nil {
 			// The lock ownership has been lost while trying to release it
 			// Because that's what we wanted in the first place, this is absolutely acceptable

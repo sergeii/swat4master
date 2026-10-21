@@ -5,9 +5,12 @@ linters:
     - depguard
     - err113
     - exhaustruct
+    - exhaustruct_v5
     - funcorder
     - funlen
+    - gomodguard  # Deprecated; replaced by gomodguard_v2.
     - gochecknoglobals
+    - goconst
     - inamedparam
     - ireturn
     - maintidx
@@ -30,9 +33,6 @@ linters:
       checks:
         - all
         - '-QF1008'  # "could remove embedded field "..." from selector"
-    modernize:
-      disable:
-        - fmtappendf
     godot:
       exclude:
         - "^\\s*@"  # swagger/godoc annotations

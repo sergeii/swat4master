@@ -77,7 +77,7 @@ func collectQueueState(ctx context.Context, rdb *redis.Client) qState {
 }
 
 func TestProbesRedisRepo_Add_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 
@@ -124,7 +124,7 @@ func TestProbesRedisRepo_Add_OK(t *testing.T) {
 }
 
 func TestProbesRedisRepo_AddBetween_After(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 
@@ -185,7 +185,7 @@ func TestProbesRedisRepo_AddBetween_After(t *testing.T) {
 }
 
 func TestProbesRedisRepo_AddBetween_Before(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 
@@ -249,7 +249,7 @@ func TestProbesRedisRepo_AddBetween_Before(t *testing.T) {
 }
 
 func TestProbesRedisRepo_AddBetween_Both(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 
@@ -354,7 +354,7 @@ func TestProbesRedisRepo_AddBetween_AfterGreaterThanBefore(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			c := clockwork.NewFakeClock()
 			rdb := testredis.MakeClient(t)
 
@@ -376,7 +376,7 @@ func TestProbesRedisRepo_AddBetween_AfterGreaterThanBefore(t *testing.T) {
 }
 
 func TestProbesRedisRepo_Pop_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 
@@ -452,7 +452,7 @@ func TestProbesRedisRepo_Pop_OK(t *testing.T) {
 }
 
 func TestProbesRedisRepo_Pop_Empty(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 
@@ -466,7 +466,7 @@ func TestProbesRedisRepo_Pop_Empty(t *testing.T) {
 }
 
 func TestProbesRedisRepo_Pop_Expired(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 
@@ -487,7 +487,7 @@ func TestProbesRedisRepo_Pop_Expired(t *testing.T) {
 }
 
 func TestProbesRedisRepo_Pop_NotReady(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 
@@ -559,7 +559,7 @@ func TestProbesRedisRepo_Peek(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			c := clockwork.NewFakeClock()
 			rdb := testredis.MakeClient(t)
 
@@ -588,7 +588,7 @@ func TestProbesRedisRepo_Peek(t *testing.T) {
 }
 
 func TestProbesRedisRepo_Peek_Empty(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 
@@ -601,7 +601,7 @@ func TestProbesRedisRepo_Peek_Empty(t *testing.T) {
 }
 
 func TestProbesRedisRepo_PopMany_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 
@@ -656,7 +656,7 @@ func TestProbesRedisRepo_PopMany_OK(t *testing.T) {
 }
 
 func TestProbesRedisRepo_PopManyAddRace(t *testing.T) { //nolint:gocognit
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewRealClock()
 	mr := miniredis.RunT(t)
 
@@ -676,7 +676,7 @@ func TestProbesRedisRepo_PopManyAddRace(t *testing.T) { //nolint:gocognit
 	stop := make(chan struct{})
 	todo := make(chan produceable, testSize)
 	popped := make(chan probe.Probe, testSize)
-	var expiredCnt int64
+	var expiredCnt atomic.Int64
 
 	// And a highly concurrent environment
 	// where Add and PopMany operations are performed simultaneously
@@ -714,7 +714,7 @@ func TestProbesRedisRepo_PopManyAddRace(t *testing.T) { //nolint:gocognit
 			for _, prb := range readyProbes {
 				popped <- prb
 			}
-			atomic.AddInt64(&expiredCnt, int64(expired))
+			expiredCnt.Add(int64(expired))
 		}
 	}
 
@@ -796,7 +796,7 @@ func TestProbesRedisRepo_PopManyAddRace(t *testing.T) { //nolint:gocognit
 		}
 	}
 	assert.ElementsMatch(t, wantConsumed, consumed)
-	assert.Equal(t, atomic.LoadInt64(&expiredCnt), expiredCnt)
+	assert.Equal(t, int64(wantExpiredCnt), expiredCnt.Load())
 
 	// and the queue should be exhausted
 	rdb := testredis.MakeClientFromMini(t, mr)
@@ -806,7 +806,7 @@ func TestProbesRedisRepo_PopManyAddRace(t *testing.T) { //nolint:gocognit
 }
 
 func TestProbesRedisRepo_PopMany_Zero(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 
@@ -850,7 +850,7 @@ func TestProbesRedisRepo_PopMany_Zero(t *testing.T) {
 }
 
 func TestProbesRedisRepo_PopMany_NotReady(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 
@@ -904,7 +904,7 @@ func TestProbesRedisRepo_PopMany_NotReady(t *testing.T) {
 }
 
 func TestProbesRedisRepo_PopMany_Expired(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 
@@ -932,7 +932,7 @@ func TestProbesRedisRepo_PopMany_Expired(t *testing.T) {
 }
 
 func TestProbesRedisRepo_PopMany_Mixed(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 
@@ -997,7 +997,7 @@ func TestProbesRedisRepo_PopMany_Empty(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			c := clockwork.NewFakeClock()
 			rdb := testredis.MakeClient(t)
 
@@ -1012,7 +1012,7 @@ func TestProbesRedisRepo_PopMany_Empty(t *testing.T) {
 }
 
 func TestProbesRedisRepo_Count(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 

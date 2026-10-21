@@ -65,7 +65,7 @@ func (m *MockProbeRepository) AddBetween(
 }
 
 func TestAddServerUseCase_ServerExists(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 
 	tests := []struct {
 		name      string
@@ -197,7 +197,7 @@ func TestAddServerUseCase_ServerExists(t *testing.T) {
 }
 
 func TestAddServerUseCase_ServerDoesNotExist(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	logger := zerolog.Nop()
 	collector := metrics.New()
 

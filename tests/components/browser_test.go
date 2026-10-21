@@ -146,7 +146,7 @@ func TestBrowser_Filters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var serverRepo repositories.ServerRepository
 
-			ctx := context.TODO()
+			ctx := t.Context()
 			app, cancel := makeAppWithBrowser(
 				fx.Populate(&serverRepo),
 			)
@@ -259,7 +259,7 @@ func TestBrowser_Filters(t *testing.T) {
 func TestBrowser_ParseResponse(t *testing.T) {
 	var repo repositories.ServerRepository
 
-	ctx := context.TODO()
+	ctx := t.Context()
 	app, cancel := makeAppWithBrowser(fx.Populate(&repo))
 	defer cancel()
 	tu.MustNoErr(app.Start(ctx))
@@ -496,7 +496,7 @@ func TestBrowser_ValidateRequest(t *testing.T) {
 			var serverRepo repositories.ServerRepository
 			var collector *metrics.Collector
 
-			ctx := context.TODO()
+			ctx := t.Context()
 			app, cancel := makeAppWithBrowser(
 				fx.Populate(&serverRepo, &collector),
 			)
@@ -586,7 +586,7 @@ func TestBrowser_IgnoreInvalidPayload(t *testing.T) {
 			var serverRepo repositories.ServerRepository
 			var collector *metrics.Collector
 
-			ctx := context.TODO()
+			ctx := t.Context()
 			app, cancel := makeAppWithBrowser(
 				fx.Populate(&serverRepo, &collector),
 			)

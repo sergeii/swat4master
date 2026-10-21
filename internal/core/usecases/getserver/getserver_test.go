@@ -27,7 +27,7 @@ func (m *MockServerRepository) Get(ctx context.Context, addr addr.Addr) (server.
 }
 
 func TestGetServerUseCase_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 
 	svr := serverfactory.Build(serverfactory.WithDiscoveryStatus(ds.Details))
 
@@ -50,7 +50,7 @@ func TestGetServerUseCase_OK(t *testing.T) {
 }
 
 func TestGetServerUseCase_NotFound(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 
 	svrAddr := addr.MustNewFromDotted("1.1.1.1", 10480)
 
@@ -99,7 +99,7 @@ func TestGetServerUseCase_ValidateStatus(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 
 			svr := serverfactory.Build(
 				serverfactory.WithAddress("1.1.1.1", 10480),

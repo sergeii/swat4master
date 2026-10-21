@@ -29,7 +29,7 @@ func (m *MockInstanceRepository) Clear(ctx context.Context, fs filterset.Instanc
 }
 
 func TestInstanceCleaner_Clean_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 
 	manager := cleanup.NewManager()
 	collector := metrics.New()
@@ -70,7 +70,7 @@ func TestInstanceCleaner_Clean_OK(t *testing.T) {
 }
 
 func TestInstanceCleaner_Clean_RepoError(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 
 	manager := cleanup.NewManager()
 	collector := metrics.New()

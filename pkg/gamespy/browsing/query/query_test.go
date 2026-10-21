@@ -51,10 +51,10 @@ func TestQuery_Parse_Error(t *testing.T) {
 		"and ",
 		" and",
 		" and ",
-		"and and",  //nolint:dupword
-		" and and", //nolint:dupword
-		"and and ",
-		" and and ",
+		"and and",   //nolint:dupword
+		" and and",  //nolint:dupword
+		"and and ",  //nolint:dupword
+		" and and ", //nolint:dupword
 		"  and  ",
 		"numplayers=0  and ",
 	}

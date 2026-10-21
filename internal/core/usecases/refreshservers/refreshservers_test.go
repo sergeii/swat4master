@@ -43,7 +43,7 @@ func (m *MockProbeRepository) AddBetween(ctx context.Context, prb probe.Probe, c
 }
 
 func TestRefreshServersUseCase_Success(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	logger := zerolog.Nop()
 	collector := metrics.New()
 
@@ -102,7 +102,7 @@ func TestRefreshServersUseCase_Success(t *testing.T) {
 }
 
 func TestRefreshServersUseCase_FilterError(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	logger := zerolog.Nop()
 	collector := metrics.New()
 
@@ -134,7 +134,7 @@ func TestRefreshServersUseCase_FilterError(t *testing.T) {
 }
 
 func TestRefreshServersUseCase_AddProbeError(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	logger := zerolog.Nop()
 	collector := metrics.New()
 

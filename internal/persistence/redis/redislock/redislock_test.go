@@ -18,7 +18,7 @@ import (
 )
 
 func TestRedisLockManager_Guard_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	rdb := testredis.MakeClient(t)
 	logger := zerolog.Nop()
 
@@ -42,7 +42,7 @@ func TestRedisLockManager_Guard_OK(t *testing.T) {
 }
 
 func TestRedisLockManager_Guard_ConcurrentAccessGuarded(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	rdb := testredis.MakeClient(t)
 	logger := zerolog.Nop()
 
@@ -87,7 +87,7 @@ func TestRedisLockManager_Guard_ConcurrentAccessGuarded(t *testing.T) {
 }
 
 func TestRedisLockManager_Guard_NoConflictOnIndependentAccess(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	rdb := testredis.MakeClient(t)
 	logger := zerolog.Nop()
 
@@ -130,7 +130,7 @@ func TestRedisLockManager_Guard_NoConflictOnIndependentAccess(t *testing.T) {
 }
 
 func TestRedisLockManager_Guard_LockNotObtained(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	rdb := testredis.MakeClient(t)
 	logger := zerolog.Nop()
 
@@ -174,7 +174,7 @@ func TestRedisLockManager_Guard_LockNotObtained(t *testing.T) {
 }
 
 func TestRedisLockManager_Guard_LockOwnershipLost(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	logger := zerolog.Nop()
 	mr := miniredis.RunT(t)
 	rdb := testredis.MakeClientFromMini(t, mr)
@@ -205,7 +205,7 @@ func TestRedisLockManager_Guard_LockOwnershipLost(t *testing.T) {
 }
 
 func TestRedisLockManager_Guard_LockOwnershipLostAndReclaimed(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	logger := zerolog.Nop()
 	mr := miniredis.RunT(t)
 
@@ -263,4 +263,23 @@ func TestRedisLockManager_Guard_LockOwnershipLostAndReclaimed(t *testing.T) {
 	// And the lock is released
 	err = rdb.Get(ctx, "lock:foo").Err()
 	require.ErrorIs(t, err, redis.Nil)
+}
+
+func TestRedisLockManager_Guard_ExpiresAfterCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	mr := miniredis.RunT(t)
+	rdb := testredis.MakeClientFromMini(t, mr)
+	logger := zerolog.Nop()
+	m := redislock.NewManager(rdb, &logger)
+
+	err := m.Guard(ctx, "lock:cancelled", time.Second, func(_ *redis.Tx) error {
+		cancel()
+		return ctx.Err()
+	})
+	require.ErrorIs(t, err, context.Canceled)
+	require.True(t, mr.Exists("lock:cancelled"))
+
+	mr.FastForward(time.Second)
+	require.ErrorIs(t, rdb.Get(t.Context(), "lock:cancelled").Err(), redis.Nil)
 }

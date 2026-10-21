@@ -38,7 +38,7 @@ func TestObserver_Run(t *testing.T) {
 		fx.Invoke(func(_ *observer.Component, _ *metrics.Collector) {}),
 		fx.Populate(&collector, &serverRepo),
 	)
-	app.Start(context.TODO()) //nolint: errcheck
+	app.Start(t.Context()) //nolint: errcheck
 	defer func() {
 		app.Stop(context.TODO()) //nolint: errcheck
 	}()

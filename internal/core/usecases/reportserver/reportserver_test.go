@@ -79,7 +79,7 @@ func (m *MockProbeRepository) Add(ctx context.Context, prb probe.Probe) error {
 }
 
 func TestReportServerUseCase_ReportNewServer(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	logger := zerolog.Nop()
 	clock := clockwork.NewFakeClock()
 	validate := validation.MustNew()
@@ -198,7 +198,7 @@ func TestReportServerUseCase_ReportExistingServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			logger := zerolog.Nop()
 			validate := validation.MustNew()
 			clock := clockwork.NewFakeClock()
@@ -338,7 +338,7 @@ func TestReportServerUseCase_InvalidFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			logger := zerolog.Nop()
 			validate := validation.MustNew()
 			clock := clockwork.NewFakeClock()

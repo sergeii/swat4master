@@ -52,7 +52,7 @@ func (m *MockInstanceRepository) Get(ctx context.Context, instanceID instance.Id
 }
 
 func TestRenewServerUseCase_Success(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	svr := serverfactory.BuildRandom()
@@ -82,7 +82,7 @@ func TestRenewServerUseCase_Success(t *testing.T) {
 }
 
 func TestRenewServerUseCase_InstanceNotFound(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	svr := serverfactory.BuildRandom()
@@ -105,7 +105,7 @@ func TestRenewServerUseCase_InstanceNotFound(t *testing.T) {
 }
 
 func TestRenewServerUseCase_ServerNotFound(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	svr := serverfactory.BuildRandom()
@@ -128,7 +128,7 @@ func TestRenewServerUseCase_ServerNotFound(t *testing.T) {
 }
 
 func TestRenewServerUseCase_InstanceAddressMismatch(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	svr := serverfactory.BuildRandom()
