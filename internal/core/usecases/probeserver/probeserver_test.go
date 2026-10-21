@@ -92,7 +92,7 @@ func (p *MockProber) HandleFailure(svr server.Server) server.Server {
 }
 
 func TestProbeServerUseCase_Success(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	logger := zerolog.Nop()
 	collector := metrics.New()
@@ -148,7 +148,7 @@ func TestProbeServerUseCase_RetryOnFailure(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			clock := clockwork.NewFakeClock()
 			logger := zerolog.Nop()
 			collector := metrics.New()
@@ -205,7 +205,7 @@ func TestProbeServerUseCase_RetryOnFailure(t *testing.T) {
 }
 
 func TestProbeServerUseCase_FailOnOutOfRetries(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 	logger := zerolog.Nop()
 	collector := metrics.New()

@@ -23,7 +23,7 @@ func TestQuery_QueryIDIsNotZeroBased(t *testing.T) {
 	server, cancel := gs1.PrepareGS1Server(responses)
 	defer cancel()
 
-	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
+	resp, err := gs1.Query(t.Context(), server.LocalAddrPort(), time.Millisecond*10)
 	require.NoError(t, err)
 
 	assert.Equal(t, "10480", resp.Fields["hostport"])
@@ -45,7 +45,7 @@ func TestQuery_VanillaServerQueryResponse(t *testing.T) {
 	server, cancel := gs1.PrepareGS1Server(responses)
 	defer cancel()
 
-	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
+	resp, err := gs1.Query(t.Context(), server.LocalAddrPort(), time.Millisecond*10)
 	require.NoError(t, err)
 
 	assert.Equal(t, "[C=FFFF00]WWW.HOUSEOFPAiN.TK (Antics)", resp.Fields["hostname"])
@@ -87,7 +87,7 @@ func TestQuery_AdminModFragmentedResponse(t *testing.T) {
 	server, cancel := gs1.PrepareGS1Server(responses)
 	defer cancel()
 
-	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
+	resp, err := gs1.Query(t.Context(), server.LocalAddrPort(), time.Millisecond*10)
 	require.NoError(t, err)
 
 	assert.Equal(t,
@@ -138,7 +138,7 @@ func TestQuery_AdminModFragmentedAndSplitResponse(t *testing.T) {
 	server, cancel := gs1.PrepareGS1Server(responses)
 	defer cancel()
 
-	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
+	resp, err := gs1.Query(t.Context(), server.LocalAddrPort(), time.Millisecond*10)
 	require.NoError(t, err)
 
 	assert.Equal(t, "{FAB} Clan Server", resp.Fields["hostname"])
@@ -169,7 +169,7 @@ func TestQuery_ExtendedAdminModUnfragmentedResponse(t *testing.T) {
 	server, cancel := gs1.PrepareGS1Server(responses)
 	defer cancel()
 
-	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
+	resp, err := gs1.Query(t.Context(), server.LocalAddrPort(), time.Millisecond*10)
 	require.NoError(t, err)
 
 	assert.Equal(t,
@@ -224,7 +224,7 @@ func TestQuery_ExtendedAdminModFragmentedResponse(t *testing.T) {
 	server, cancel := gs1.PrepareGS1Server(responses)
 	defer cancel()
 
-	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
+	resp, err := gs1.Query(t.Context(), server.LocalAddrPort(), time.Millisecond*10)
 	require.NoError(t, err)
 
 	assert.Equal(t,
@@ -269,7 +269,7 @@ func TestQuery_GS1ModUnfragmentedResponse(t *testing.T) {
 	server, cancel := gs1.PrepareGS1Server(responses)
 	defer cancel()
 
-	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
+	resp, err := gs1.Query(t.Context(), server.LocalAddrPort(), time.Millisecond*10)
 	require.NoError(t, err)
 
 	assert.Equal(t, "-==MYT World Svr==-", resp.Fields["hostname"])
@@ -315,7 +315,7 @@ func TestQuery_GS1ModFragmentedResponse(t *testing.T) {
 	server, cancel := gs1.PrepareGS1Server(responses)
 	defer cancel()
 
-	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
+	resp, err := gs1.Query(t.Context(), server.LocalAddrPort(), time.Millisecond*10)
 	require.NoError(t, err)
 
 	assert.Equal(t, "-==MYT Team Svr==-", resp.Fields["hostname"])
@@ -411,7 +411,7 @@ func TestQuery_GS1ModObjectivesAreSupported(t *testing.T) {
 			}()
 			server, cancel := gs1.PrepareGS1Server(responses)
 			defer cancel()
-			resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
+			resp, err := gs1.Query(t.Context(), server.LocalAddrPort(), time.Millisecond*10)
 			require.NoError(t, err)
 			objectives := make([]string, 0, len(resp.Objectives))
 			for _, obj := range resp.Objectives {
@@ -453,7 +453,7 @@ func TestQuery_GS1ModObjectivesAreSupported(t *testing.T) {
 	server, cancel := gs1.PrepareGS1Server(responses)
 	defer cancel()
 
-	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
+	resp, err := gs1.Query(t.Context(), server.LocalAddrPort(), time.Millisecond*10)
 	require.NoError(t, err)
 
 	assert.Equal(t, "-==MYT Team Svr==-", resp.Fields["hostname"])
@@ -498,7 +498,7 @@ func TestQuery_QueryIDMayBeNotInteger(t *testing.T) {
 			}()
 			server, cancel := gs1.PrepareGS1Server(responses)
 			defer cancel()
-			resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
+			resp, err := gs1.Query(t.Context(), server.LocalAddrPort(), time.Millisecond*10)
 			require.NoError(t, err)
 			assert.Equal(t, "10480", resp.Fields["hostport"])
 			assert.Equal(t, "test", resp.Fields["hostname"])
@@ -515,7 +515,7 @@ func TestQuery_StatusResponseIsZeroBased(t *testing.T) {
 	}()
 	server, cancel := gs1.PrepareGS1Server(responses)
 	defer cancel()
-	resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
+	resp, err := gs1.Query(t.Context(), server.LocalAddrPort(), time.Millisecond*10)
 	require.NoError(t, err)
 	assert.Equal(t, "10480", resp.Fields["hostport"])
 	assert.Equal(t, "test", resp.Fields["hostname"])
@@ -552,7 +552,7 @@ func TestQuery_VariableFragmentOrder(t *testing.T) {
 			}()
 			server, cancel := gs1.PrepareGS1Server(responses)
 			defer cancel()
-			resp, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*10)
+			resp, err := gs1.Query(t.Context(), server.LocalAddrPort(), time.Millisecond*10)
 			require.NoError(t, err)
 			assert.Equal(t, "10480", resp.Fields["hostport"])
 			assert.Equal(t, "test", resp.Fields["hostname"])
@@ -722,7 +722,7 @@ func TestQuery_NoProperResponse(t *testing.T) {
 			}(tt.fragments)
 			server, cancel := gs1.PrepareGS1Server(responses)
 			defer cancel()
-			_, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*50)
+			_, err := gs1.Query(t.Context(), server.LocalAddrPort(), time.Millisecond*50)
 			assert.ErrorIs(t, err, tt.wantErr)
 		})
 	}
@@ -757,7 +757,7 @@ func TestQuery_ReadTimeout(t *testing.T) {
 			server, cancel := gs1.PrepareGS1Server(responses)
 			defer cancel()
 
-			_, err := gs1.Query(context.TODO(), server.LocalAddrPort(), time.Millisecond*50)
+			_, err := gs1.Query(t.Context(), server.LocalAddrPort(), time.Millisecond*50)
 			if tt.wantErr != nil {
 				assert.ErrorIs(t, err, tt.wantErr)
 			} else {
@@ -777,7 +777,7 @@ func TestQuery_ParentContextIsCancelled(t *testing.T) {
 	server, cancel := gs1.PrepareGS1Server(responses)
 	defer cancel()
 
-	ctx, cancelCtx := context.WithCancel(context.Background())
+	ctx, cancelCtx := context.WithCancel(t.Context())
 	go func() {
 		<-time.After(time.Millisecond * 25)
 		cancelCtx()

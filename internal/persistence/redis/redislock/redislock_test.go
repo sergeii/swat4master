@@ -18,7 +18,7 @@ import (
 )
 
 func TestRedisLockManager_Guard_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	rdb := testredis.MakeClient(t)
 	logger := zerolog.Nop()
 
@@ -42,7 +42,7 @@ func TestRedisLockManager_Guard_OK(t *testing.T) {
 }
 
 func TestRedisLockManager_Guard_ConcurrentAccessGuarded(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	rdb := testredis.MakeClient(t)
 	logger := zerolog.Nop()
 
@@ -87,7 +87,7 @@ func TestRedisLockManager_Guard_ConcurrentAccessGuarded(t *testing.T) {
 }
 
 func TestRedisLockManager_Guard_NoConflictOnIndependentAccess(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	rdb := testredis.MakeClient(t)
 	logger := zerolog.Nop()
 
@@ -130,7 +130,7 @@ func TestRedisLockManager_Guard_NoConflictOnIndependentAccess(t *testing.T) {
 }
 
 func TestRedisLockManager_Guard_LockNotObtained(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	rdb := testredis.MakeClient(t)
 	logger := zerolog.Nop()
 
@@ -174,7 +174,7 @@ func TestRedisLockManager_Guard_LockNotObtained(t *testing.T) {
 }
 
 func TestRedisLockManager_Guard_LockOwnershipLost(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	logger := zerolog.Nop()
 	mr := miniredis.RunT(t)
 	rdb := testredis.MakeClientFromMini(t, mr)
@@ -205,7 +205,7 @@ func TestRedisLockManager_Guard_LockOwnershipLost(t *testing.T) {
 }
 
 func TestRedisLockManager_Guard_LockOwnershipLostAndReclaimed(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	logger := zerolog.Nop()
 	mr := miniredis.RunT(t)
 

@@ -26,7 +26,7 @@ func (m *MockInstanceRepository) Count(ctx context.Context) (int, error) {
 }
 
 func TestInstanceObserver_Observe_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	logger := zerolog.Nop()
 
 	collector := metrics.New()
@@ -44,7 +44,7 @@ func TestInstanceObserver_Observe_OK(t *testing.T) {
 }
 
 func TestInstanceObserver_Observe_RepoFailure(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	logger := zerolog.Nop()
 
 	collector := metrics.New()

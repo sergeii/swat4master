@@ -45,7 +45,7 @@ func (m *MockServerRepository) Filter(ctx context.Context, fs filterset.ServerFi
 }
 
 func TestServerObserver_Observe_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	logger := zerolog.Nop()
 	clock := clockwork.NewFakeClock()
 
@@ -137,7 +137,7 @@ func TestServerObserver_Observe_OK(t *testing.T) {
 }
 
 func TestServerObserver_Observe_RepoFailure(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	logger := zerolog.Nop()
 	clock := clockwork.NewFakeClock()
 

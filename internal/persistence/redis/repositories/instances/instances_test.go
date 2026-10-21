@@ -73,7 +73,7 @@ func collectStorageState(ctx context.Context, rdb *redis.Client) storageState {
 }
 
 func TestInstancesRedisRepo_Add_New(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 
@@ -136,7 +136,7 @@ func TestInstancesRedisRepo_Add_New(t *testing.T) {
 }
 
 func TestInstancesRedisRepo_Add_Existing(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	rdb := testredis.MakeClient(t)
 	c := clockwork.NewFakeClock()
 	then := c.Now()
@@ -178,7 +178,7 @@ func TestInstancesRedisRepo_Add_Existing(t *testing.T) {
 }
 
 func TestInstancesRedisRepo_Get_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 
@@ -251,7 +251,7 @@ func TestInstancesRedisRepo_Remove_OK(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			c := clockwork.NewFakeClock()
 			rdb := testredis.MakeClient(t)
 
@@ -355,7 +355,7 @@ func TestInstancesRedisRepo_Clear_OK(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			c := clockwork.NewFakeClock()
 			rdb := testredis.MakeClient(t)
 
@@ -429,7 +429,7 @@ func TestInstancesRedisRepo_Clear_Empty(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			c := clockwork.NewFakeClock()
 			rdb := testredis.MakeClient(t)
 
@@ -448,7 +448,7 @@ func TestInstancesRedisRepo_Clear_Empty(t *testing.T) {
 }
 
 func TestInstancesRedisRepo_Count_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 
@@ -482,7 +482,7 @@ func TestInstancesRedisRepo_Count_OK(t *testing.T) {
 }
 
 func TestInstancesRedisRepo_Count_Empty(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	c := clockwork.NewFakeClock()
 	rdb := testredis.MakeClient(t)
 

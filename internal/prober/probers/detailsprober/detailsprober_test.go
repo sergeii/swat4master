@@ -26,7 +26,7 @@ import (
 type ResponseFunc func(context.Context, *net.UDPConn, *net.UDPAddr, []byte)
 
 func TestDetailsProber_Probe_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	logger := zerolog.Nop()
 	clock := clockwork.NewFakeClock()
 	validate := validation.MustNew()
@@ -124,7 +124,7 @@ func TestDetailsProber_Probe_Fail(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			logger := zerolog.Nop()
 			clock := clockwork.NewFakeClock()
 			validate := validation.MustNew()

@@ -148,7 +148,7 @@ func TestProber_Run(t *testing.T) {
 	svr4.UpdateInfo(info)
 	svr4.UpdateDiscoveryStatus(ds.Master)
 
-	app.Start(context.TODO()) //nolint: errcheck
+	app.Start(t.Context()) //nolint: errcheck
 	defer func() {
 		app.Stop(context.TODO()) //nolint: errcheck
 	}()

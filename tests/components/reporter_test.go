@@ -55,7 +55,7 @@ func makeAppWithReporter(extra ...fx.Option) (*fx.App, func()) {
 func TestReporter_Available_OK(t *testing.T) {
 	var collector *metrics.Collector
 
-	ctx := context.TODO()
+	ctx := t.Context()
 	app, cancel := makeAppWithReporter(fx.Populate(&collector))
 	defer cancel()
 	app.Start(ctx) //nolint: errcheck
@@ -70,7 +70,7 @@ func TestReporter_Available_OK(t *testing.T) {
 func TestReporter_Challenge_OK(t *testing.T) {
 	var collector *metrics.Collector
 
-	ctx := context.TODO()
+	ctx := t.Context()
 	app, cancel := makeAppWithReporter(fx.Populate(&collector))
 	defer cancel()
 	app.Start(ctx) //nolint: errcheck
@@ -112,7 +112,7 @@ func TestReporter_Challenge_InvalidInstanceID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			app, cancel := makeAppWithReporter()
 			defer cancel()
 			app.Start(ctx) //nolint: errcheck
@@ -137,7 +137,7 @@ func TestReporter_Heartbeat_OK(t *testing.T) {
 	var probeRepo repositories.ProbeRepository
 	var collector *metrics.Collector
 
-	ctx := context.TODO()
+	ctx := t.Context()
 	app, cancel := makeAppWithReporter(
 		fx.Populate(&serverRepo, &instanceRepo, &probeRepo, &collector),
 	)
@@ -173,7 +173,7 @@ func TestReporter_Heartbeat_ServerIsAddedAndThenUpdated(t *testing.T) {
 	var instanceRepo repositories.InstanceRepository
 	var probeRepo repositories.ProbeRepository
 
-	ctx := context.TODO()
+	ctx := t.Context()
 	app, cancel := makeAppWithReporter(
 		fx.Populate(&serverRepo, &instanceRepo, &probeRepo),
 	)
@@ -236,7 +236,7 @@ func TestReporter_Heartbeat_ServerIsUpdatedWithNewInstanceID(t *testing.T) {
 	var instanceRepo repositories.InstanceRepository
 	var probeRepo repositories.ProbeRepository
 
-	ctx := context.TODO()
+	ctx := t.Context()
 	app, cancel := makeAppWithReporter(
 		fx.Populate(&serverRepo, &instanceRepo, &probeRepo),
 	)
@@ -339,7 +339,7 @@ func TestReporter_Heartbeat_ServerPortIsDiscovered(t *testing.T) {
 			var instanceRepo repositories.InstanceRepository
 			var probeRepo repositories.ProbeRepository
 
-			ctx := context.TODO()
+			ctx := t.Context()
 			app, cancel := makeAppWithReporter(
 				fx.Populate(&serverRepo, &instanceRepo, &probeRepo),
 			)
@@ -391,7 +391,7 @@ func TestReporter_Heartbeat_ServerPortIsDiscovered(t *testing.T) {
 func TestReporter_Heartbeat_ServerIsRefreshed(t *testing.T) {
 	var serverRepo repositories.ServerRepository
 
-	ctx := context.TODO()
+	ctx := t.Context()
 	app, cancel := makeAppWithReporter(
 		fx.Populate(&serverRepo),
 	)
@@ -425,7 +425,7 @@ func TestReporter_Heartbeat_ServerIsRemoved(t *testing.T) {
 	var serverRepo repositories.ServerRepository
 	var collector *metrics.Collector
 
-	ctx := context.TODO()
+	ctx := t.Context()
 	app, cancel := makeAppWithReporter(
 		fx.Populate(&serverRepo, &collector),
 	)
@@ -518,7 +518,7 @@ func TestReporter_Heartbeat_ServerRemovalIsValidated(t *testing.T) {
 			var instanceRepo repositories.InstanceRepository
 			var collector *metrics.Collector
 
-			ctx := context.TODO()
+			ctx := t.Context()
 			app, cancel := makeAppWithReporter(
 				fx.Populate(&serverRepo, &instanceRepo, &collector),
 			)
@@ -614,7 +614,7 @@ func TestReporter_Heartbeat_InvalidPayload(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			app, cancel := makeAppWithReporter()
 			defer cancel()
 			app.Start(ctx) //nolint: errcheck
@@ -637,7 +637,7 @@ func TestReporter_Keepalive_ServerIsRefreshed(t *testing.T) {
 	var serverRepo repositories.ServerRepository
 	var collector *metrics.Collector
 
-	ctx := context.TODO()
+	ctx := t.Context()
 	app, cancel := makeAppWithReporter(
 		fx.Populate(&serverRepo, &collector),
 	)
@@ -733,7 +733,7 @@ func TestReporter_Keepalive_Errors(t *testing.T) {
 			var serverRepo repositories.ServerRepository
 			var instanceRepo repositories.InstanceRepository
 
-			ctx := context.TODO()
+			ctx := t.Context()
 			app, cancel := makeAppWithReporter(
 				fx.Populate(&serverRepo, &instanceRepo),
 			)

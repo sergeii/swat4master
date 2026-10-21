@@ -86,7 +86,7 @@ func TestExporter_MasterMetrics(t *testing.T) {
 		fx.NopLogger,
 		fx.Invoke(func(*exporter.Component, *browser.Component, *reporter.Component) {}),
 	)
-	tu.MustNoErr(app.Start(context.TODO()))
+	tu.MustNoErr(app.Start(t.Context()))
 	defer func() {
 		tu.Ignore(app.Stop(context.TODO()))
 	}()
@@ -172,7 +172,7 @@ func TestExporter_ServerMetrics(t *testing.T) {
 		fx.Invoke(func(*exporter.Component, *observer.Component) {}),
 		fx.Populate(&repo),
 	)
-	tu.MustNoErr(app.Start(context.TODO()))
+	tu.MustNoErr(app.Start(t.Context()))
 	defer func() {
 		tu.Ignore(app.Stop(context.TODO()))
 	}()
@@ -336,7 +336,7 @@ func TestExporter_ReposMetrics(t *testing.T) {
 	)
 	tu.MustNoErr(probesRepo.Add(ctx, probe2))
 
-	tu.MustNoErr(app.Start(context.TODO()))
+	tu.MustNoErr(app.Start(t.Context()))
 	defer func() {
 		tu.Ignore(app.Stop(context.TODO()))
 	}()
@@ -393,7 +393,7 @@ func TestExporter_CleanerMetrics(t *testing.T) {
 		serverfactory.WithQueryPort(10481),
 	)
 
-	tu.MustNoErr(app.Start(context.TODO()))
+	tu.MustNoErr(app.Start(t.Context()))
 	defer func() {
 		tu.Ignore(app.Stop(context.TODO()))
 	}()
@@ -443,7 +443,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 		fx.Invoke(func(*exporter.Component, *observer.Component, *prober.Component) {}),
 		fx.Populate(&serverRepo, &probeRepo),
 	)
-	tu.MustNoErr(app.Start(context.TODO()))
+	tu.MustNoErr(app.Start(t.Context()))
 	defer func() {
 		tu.Ignore(app.Stop(context.TODO()))
 	}()

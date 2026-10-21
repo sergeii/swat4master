@@ -56,7 +56,7 @@ func (m *MockInstanceRepository) Remove(ctx context.Context, instanceID instance
 }
 
 func TestRemoveServerUseCase_Success(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	logger := zerolog.Nop()
 
 	svr := serverfactory.BuildRandom()
@@ -80,7 +80,7 @@ func TestRemoveServerUseCase_Success(t *testing.T) {
 }
 
 func TestRemoveServerUseCase_ServerAlreadyDeleted(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	logger := zerolog.Nop()
 
 	svr := serverfactory.BuildRandom()
@@ -103,7 +103,7 @@ func TestRemoveServerUseCase_ServerAlreadyDeleted(t *testing.T) {
 }
 
 func TestRemoveServerUseCase_InstanceAlreadyDeleted(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	logger := zerolog.Nop()
 
 	svr := serverfactory.BuildRandom()
@@ -127,7 +127,7 @@ func TestRemoveServerUseCase_InstanceAlreadyDeleted(t *testing.T) {
 }
 
 func TestRemoveServerUseCase_InstanceAddrDoesNotMatch(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	logger := zerolog.Nop()
 
 	svr := serverfactory.BuildRandom()

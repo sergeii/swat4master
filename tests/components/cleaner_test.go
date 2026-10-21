@@ -56,7 +56,7 @@ func TestCleaner_OK(t *testing.T) {
 	var instanceRepo repositories.InstanceRepository
 	var collector *metrics.Collector
 
-	ctx := context.TODO()
+	ctx := t.Context()
 	app, cancel := makeAppWithCleaner(
 		fx.Populate(&serverRepo, &instanceRepo, &collector),
 	)
@@ -162,7 +162,7 @@ func TestCleaner_OK(t *testing.T) {
 func TestCleaner_NoErrorWhenNothingToClean(t *testing.T) {
 	var collector *metrics.Collector
 
-	ctx := context.TODO()
+	ctx := t.Context()
 	app, cancel := makeAppWithCleaner(
 		fx.Populate(&collector),
 	)

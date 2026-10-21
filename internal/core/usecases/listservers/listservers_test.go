@@ -81,7 +81,7 @@ func TestListServersUseCase_FilterParams(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			clock := clockwork.NewFakeClock()
 
 			repoServers := []server.Server{
@@ -461,7 +461,7 @@ func TestListServersUseCase_FilterByQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			clock := clockwork.NewFakeClock()
 
 			mockRepo := new(MockServerRepository)
@@ -500,7 +500,7 @@ func TestListServersUseCase_Errors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			clock := clockwork.NewFakeClock()
 
 			mockRepo := new(MockServerRepository)

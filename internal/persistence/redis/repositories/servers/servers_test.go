@@ -104,7 +104,7 @@ func micro(t time.Time) time.Time {
 }
 
 func TestServersRedisRepo_Get_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 	then := ts.Clock.Now().UTC()
 
@@ -159,7 +159,7 @@ func TestServersRedisRepo_Get_OK(t *testing.T) {
 }
 
 func TestServersRedisRepo_Add_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 	then := ts.Clock.Now()
 
@@ -225,7 +225,7 @@ func TestServersRedisRepo_Add_OK(t *testing.T) {
 }
 
 func TestServersRedisRepo_Add_OnConflictIgnore(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 	then := ts.Clock.Now()
 
@@ -278,7 +278,7 @@ func TestServersRedisRepo_Add_OnConflictIgnore(t *testing.T) {
 }
 
 func TestServersRedisRepo_Add_OnConflictUpdate(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 	then := ts.Clock.Now()
 
@@ -328,7 +328,7 @@ func TestServersRedisRepo_Add_OnConflictUpdate(t *testing.T) {
 }
 
 func TestServersRedisRepo_Add_OnConflictUpdateConcurrently(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 
 	// Given an empty repository and a server to be added
@@ -367,7 +367,7 @@ func TestServersRedisRepo_Add_OnConflictUpdateConcurrently(t *testing.T) {
 }
 
 func TestServersRedisRepo_Update_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 	then := ts.Clock.Now()
 
@@ -474,7 +474,7 @@ func TestServersRedisRepo_Update_OK(t *testing.T) {
 }
 
 func TestServersRedisRepo_Update_OnConflictIgnore(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 	then := ts.Clock.Now().UTC()
 
@@ -529,7 +529,7 @@ func TestServersRedisRepo_Update_OnConflictIgnore(t *testing.T) {
 }
 
 func TestServersRedisRepo_Update_OnConflictUpdate(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 	then := ts.Clock.Now().UTC()
 
@@ -586,7 +586,7 @@ func TestServersRedisRepo_Update_OnConflictUpdate(t *testing.T) {
 }
 
 func TestServersRedisRepo_Update_OnConflictUpdateConcurrently(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 	then := ts.Clock.Now().UTC()
 
@@ -636,7 +636,7 @@ func TestServersRedisRepo_Update_OnConflictUpdateConcurrently(t *testing.T) {
 }
 
 func TestServersRedisRepo_Update_DoesNotExist(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 
 	// Given a repository with no servers in it
@@ -662,7 +662,7 @@ func TestServersRedisRepo_Update_DoesNotExist(t *testing.T) {
 }
 
 func TestServersRedisRepo_Remove_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 
 	// Given a repository with multiple servers in it
@@ -712,7 +712,7 @@ func TestServersRedisRepo_Remove_OK(t *testing.T) {
 }
 
 func TestServersRedisRepo_Remove_OnConflictResolve(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 
 	// Given a repository with multiple servers in it
@@ -779,7 +779,7 @@ func TestServersRedisRepo_Remove_OnConflictResolve(t *testing.T) {
 }
 
 func TestServersRedisRepo_Remove_OnConflictIgnore(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 
 	// Given a repository with multiple servers in it
@@ -838,7 +838,7 @@ func TestServersRedisRepo_Remove_OnConflictIgnore(t *testing.T) {
 }
 
 func TestServersRedisRepo_Remove_OnNonExistentNoError(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 
 	// Given a repository with multiple servers in it
@@ -867,7 +867,7 @@ func TestServersRedisRepo_Remove_OnNonExistentNoError(t *testing.T) {
 }
 
 func TestServersRedisRepo_Remove_OnEmptyStorageNoError(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 
 	// Given an empty repository
@@ -1107,7 +1107,7 @@ func TestServersRedisRepo_Filter_OK(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			ts := setup(t)
 
 			before := ts.Clock.Now()
@@ -1223,7 +1223,7 @@ func TestServersRedisRepo_Filter_NoRefreshedServers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.TODO()
+			ctx := t.Context()
 			ts := setup(t)
 
 			before := ts.Clock.Now()
@@ -1265,7 +1265,7 @@ func TestServersRedisRepo_Filter_NoRefreshedServers(t *testing.T) {
 }
 
 func TestServersRedisRepo_Filter_OnEmptyNoError(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 
 	// Given an empty repository
 	ts := setup(t)
@@ -1280,7 +1280,7 @@ func TestServersRedisRepo_Filter_OnEmptyNoError(t *testing.T) {
 }
 
 func TestServersRedisRepo_Count_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 
 	// Given a repository with multiple servers in it
@@ -1318,7 +1318,7 @@ func TestServersRedisRepo_Count_OK(t *testing.T) {
 }
 
 func TestServersRedisRepo_Count_OnEmptyStorageZero(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 
 	// Given a repository with empty underlying storage
@@ -1332,7 +1332,7 @@ func TestServersRedisRepo_Count_OnEmptyStorageZero(t *testing.T) {
 }
 
 func TestServersRedisRepo_CountByStatus_OK(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 
 	// Given a repository with multiple servers in it
@@ -1447,7 +1447,7 @@ func TestServersRedisRepo_CountByStatus_OK(t *testing.T) {
 }
 
 func TestServersRedisRepo_CountByStatus_OnEmptyStorageEmptyCounts(t *testing.T) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	ts := setup(t)
 
 	// Given a repository with empty underlying storage
