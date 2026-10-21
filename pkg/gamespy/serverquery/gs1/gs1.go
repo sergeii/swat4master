@@ -80,19 +80,11 @@ func Query(ctx context.Context, addr netip.AddrPort, timeout time.Duration) (Res
 		return Blank, err
 	}
 
-	closing := make(chan struct{})
-	defer func() {
-		close(closing)
-		conn.Close()
-	}()
-
-	go func() {
-		select {
-		case <-ctx.Done():
-			conn.SetReadDeadline(time.Now()) //nolint: errcheck
-		case <-closing:
-		}
-	}()
+	defer conn.Close()
+	stop := context.AfterFunc(ctx, func() {
+		conn.SetReadDeadline(time.Now()) //nolint: errcheck
+	})
+	defer stop()
 
 	_, err = conn.Write([]byte("\\status\\"))
 	if err != nil {
