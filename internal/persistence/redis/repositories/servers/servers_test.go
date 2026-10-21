@@ -339,7 +339,6 @@ func TestServersRedisRepo_Add_OnConflictUpdateConcurrently(t *testing.T) {
 	// When adding the server concurrently
 	wg := &sync.WaitGroup{}
 	add := func(svr server.Server, status ds.DiscoveryStatus) {
-		defer wg.Done()
 		svr.UpdateDiscoveryStatus(status)
 		tu.Must(
 			ts.Repo.Add(ctx, svr, func(s *server.Server) bool {
@@ -349,11 +348,10 @@ func TestServersRedisRepo_Add_OnConflictUpdateConcurrently(t *testing.T) {
 		)
 	}
 
-	wg.Add(4)
-	go add(svr, ds.Master)
-	go add(svr, ds.Info)
-	go add(svr, ds.Details)
-	go add(svr, ds.Port)
+	wg.Go(func() { add(svr, ds.Master) })
+	wg.Go(func() { add(svr, ds.Info) })
+	wg.Go(func() { add(svr, ds.Details) })
+	wg.Go(func() { add(svr, ds.Port) })
 	wg.Wait()
 
 	// Then the repository is expected to contain the server with the merged statuses
@@ -603,7 +601,6 @@ func TestServersRedisRepo_Update_OnConflictUpdateConcurrently(t *testing.T) {
 	// When updating the server concurrently in multiple goroutines
 	wg := &sync.WaitGroup{}
 	update := func(svr server.Server, status ds.DiscoveryStatus, refreshedAt time.Time) {
-		defer wg.Done()
 		svr.UpdateDiscoveryStatus(status)
 		svr.Refresh(refreshedAt)
 		tu.Must(
@@ -617,11 +614,10 @@ func TestServersRedisRepo_Update_OnConflictUpdateConcurrently(t *testing.T) {
 		)
 	}
 
-	wg.Add(4)
-	go update(svr, ds.Master, then.Add(3*time.Second))
-	go update(svr, ds.Info, then.Add(time.Second))
-	go update(svr, ds.Details, then.Add(2*time.Second))
-	go update(svr, ds.Port, then.Add(2*time.Second))
+	wg.Go(func() { update(svr, ds.Master, then.Add(3*time.Second)) })
+	wg.Go(func() { update(svr, ds.Info, then.Add(time.Second)) })
+	wg.Go(func() { update(svr, ds.Details, then.Add(2*time.Second)) })
+	wg.Go(func() { update(svr, ds.Port, then.Add(2*time.Second)) })
 	wg.Wait()
 
 	// Then the repository is expected to contain the server in a state with successfully resolved conflicts
