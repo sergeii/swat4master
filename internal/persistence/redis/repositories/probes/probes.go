@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/redis/go-redis/v9"
 
@@ -61,7 +61,7 @@ func (r *Repository) enqueue(ctx context.Context, prb probe.Probe, after time.Ti
 		return fmt.Errorf("failed to marshal probe: %w", err)
 	}
 
-	itemID := uuid.NewString()
+	itemID := uuid.NewV4().String()
 	// unless specified, the probe is ready to be processed immediately
 	itemReadyAt := after
 	if itemReadyAt.IsZero() {

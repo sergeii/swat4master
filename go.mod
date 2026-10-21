@@ -7,7 +7,6 @@ require (
 	github.com/alicebob/miniredis/v2 v2.40.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-playground/validator/v10 v10.30.5
-	github.com/google/uuid v1.6.0
 	github.com/gosimple/slug v1.15.0
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/prometheus/client_golang v1.25.0
