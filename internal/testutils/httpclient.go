@@ -60,7 +60,7 @@ func DoTestRequest(
 			return http.ErrUseLastResponse
 		},
 	}
-	resp, err := client.Do(req) //nolint: gosec
+	resp, err := client.Do(req)
 	if err != nil {
 		panic(err)
 	}
