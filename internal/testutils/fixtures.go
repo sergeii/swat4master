@@ -3,7 +3,7 @@ package testutils
 import (
 	"encoding/binary"
 	"log"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 )
 

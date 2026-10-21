@@ -2,11 +2,11 @@ package random
 
 import (
 	crand "crypto/rand"
-	mrand "math/rand"
+	mrand "math/rand/v2"
 )
 
 func RandInt(minVal, maxVal int) int {
-	return mrand.Intn(maxVal-minVal) + minVal //nolint: gosec // no need for crypto/rand here
+	return mrand.IntN(maxVal-minVal) + minVal //nolint: gosec // no need for crypto/rand here
 }
 
 func RandBytes(sz int) []byte {
