@@ -5,12 +5,7 @@ import (
 )
 
 func TruncateSafe[T any](s []T, n int) []T {
-	switch {
-	case len(s) > n:
-		return s[:n]
-	default:
-		return s
-	}
+	return s[:min(len(s), n)]
 }
 
 func RandomChoice[T any](s []T) T {

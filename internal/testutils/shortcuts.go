@@ -1,9 +1,10 @@
 package testutils
 
+import (
+	"maps"
+	"slices"
+)
+
 func MapKeys[K comparable, V any](m map[K]V) []K {
-	keys := make([]K, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
+	return slices.AppendSeq(make([]K, 0, len(m)), maps.Keys(m))
 }
