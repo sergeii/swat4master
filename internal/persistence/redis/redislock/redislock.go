@@ -38,6 +38,7 @@ func (m *Manager) Guard(ctx context.Context, key string, ttl time.Duration, op f
 		return fmt.Errorf("guard: take lock ownership: %w", err)
 	}
 	defer func() {
+		// in case cancellation prevents release, the lock expires after its remaining TTL
 		if err := m.release(ctx, key, token); err != nil {
 			// The lock ownership has been lost while trying to release it
 			// Because that's what we wanted in the first place, this is absolutely acceptable
