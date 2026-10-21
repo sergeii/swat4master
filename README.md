@@ -4,7 +4,6 @@
 [![GitHub go.mod Go version of a Go module][go-version-img]][go-version]
 [![ci][ci-img]][ci]
 [![codecov][codecov-img]][codecov]
-[![Go Report Card][go-report-img]][go-report]
 [![Codacy Badge][codacy-img]][codacy]
 [![Uptime][uptime-img]][uptime]
 
@@ -63,16 +62,13 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 [mit]: https://opensource.org/licenses/MIT
 
 [go-version-img]: https://img.shields.io/github/go-mod/go-version/sergeii/swat4master.svg
-[go-version]: https://tip.golang.org/doc/go1.25
+[go-version]: https://tip.golang.org/doc/go1.27
 
 [ci-img]: https://github.com/sergeii/swat4master/actions/workflows/ci.yml/badge.svg?branch=main
 [ci]: https://github.com/sergeii/swat4master/actions/workflows/ci.yml
 
 [codecov-img]: https://codecov.io/gh/sergeii/swat4master/branch/main/graph/badge.svg?token=ZYQ1x62kR3
 [codecov]: https://codecov.io/gh/sergeii/swat4master
-
-[go-report-img]: https://goreportcard.com/badge/github.com/sergeii/swat4master
-[go-report]: https://goreportcard.com/report/github.com/sergeii/swat4master
 
 [codacy-img]: https://app.codacy.com/project/badge/Grade/007d7e28f8ba4f63a56dc1bd095bb2b2
 [codacy]: https://www.codacy.com/gh/sergeii/swat4master/dashboard

@@ -7,11 +7,11 @@ repos:
       - id: trailing-whitespace
 
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.10.1
+    rev: v2.15.0
     hooks:
       - id: golangci-lint
 
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.13.8
+    rev: v4.19.2
     hooks:
       - id: commitizen
