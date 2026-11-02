@@ -44,6 +44,9 @@ func run(
 	runner.Start(ctx)
 
 	<-stop
+	// stop scheduling new probes and wait for the scheduled ones to finish
+	cancel()
+	runner.Wait()
 	close(stopped)
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -33,6 +34,7 @@ type Runner struct {
 	logger    *zerolog.Logger
 	queue     chan probe.Probe
 	busy      atomic.Int64
+	workers   sync.WaitGroup
 }
 
 func New(
@@ -55,23 +57,31 @@ func New(
 }
 
 func (r *Runner) Start(ctx context.Context) {
+	// let probes run to completion after ctx is canceled, so their results aren't lost on shutdown
+	probeCtx := context.WithoutCancel(ctx)
 	for range r.opts.Concurrency {
-		go r.worker(ctx)
+		r.workers.Go(func() {
+			r.worker(probeCtx)
+		})
 	}
 	r.metrics.DiscoveryWorkersAvailable.Add(float64(r.opts.Concurrency))
-	go r.scheduler(ctx)
+	go func() {
+		r.scheduler(ctx)
+		// no more probes will be scheduled, let the workers drain the queue and exit
+		close(r.queue)
+	}()
+}
+
+// Wait blocks until the workers have finished all scheduled probes.
+func (r *Runner) Wait() {
+	r.workers.Wait()
 }
 
 func (r *Runner) worker(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			r.logger.Debug().Msg("Stopping worker")
-			return
-		case prb := <-r.queue:
-			r.probe(ctx, prb)
-		}
+	for prb := range r.queue {
+		r.probe(ctx, prb)
 	}
+	r.logger.Debug().Msg("Stopping worker")
 }
 
 func (r *Runner) scheduler(ctx context.Context) {

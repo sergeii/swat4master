@@ -96,7 +96,7 @@ func (p PortProber) Probe(
 		close(done)
 	}()
 
-	best, ok := p.collectResponses(results, done, timeout)
+	best, ok := p.collectResponses(results, done)
 	if !ok {
 		return NoResult, ErrPortDiscoveryFailed
 	}
@@ -176,13 +176,8 @@ func (p PortProber) probePort(
 func (p PortProber) collectResponses(
 	ch chan response,
 	done chan struct{},
-	timeout time.Duration,
 ) (response, bool) {
 	var best response
-	// this timeout should never trigger
-	// because we expect query goroutines to stop within configured probe timeout
-	// but in case of unexpected goroutine hangup, add this emergency timeout
-	exitTimeout := time.After(timeout * 2)
 	ok := false
 	for {
 		select {
@@ -191,8 +186,6 @@ func (p PortProber) collectResponses(
 		case result := <-ch:
 			best = p.compareResponses(best, result)
 			ok = true
-		case <-exitTimeout:
-			return response{}, false
 		}
 	}
 }

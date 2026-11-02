@@ -82,7 +82,7 @@ func Query(ctx context.Context, addr netip.AddrPort, timeout time.Duration) (Res
 
 	defer conn.Close()
 	stop := context.AfterFunc(ctx, func() {
-		conn.SetReadDeadline(time.Now()) //nolint: errcheck
+		conn.SetDeadline(time.Now()) //nolint: errcheck
 	})
 	defer stop()
 
