@@ -223,6 +223,10 @@ func (r *Repository) Filter(ctx context.Context, fs filterset.ServerFilterSet) (
 
 	servers := make([]server.Server, 0, len(items))
 	for _, item := range items {
+		// By the time we obtained the items, some of the servers might have been removed
+		if item == nil {
+			continue
+		}
 		svr, err := decodeServer(item)
 		if err != nil {
 			return nil, fmt.Errorf("filter: decode server: %w", err)

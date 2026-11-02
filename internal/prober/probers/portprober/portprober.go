@@ -77,7 +77,9 @@ func (p PortProber) Probe(
 	_ int,
 	timeout time.Duration,
 ) (any, error) {
-	results := make(chan response)
+	// each port goroutine sends at most one response,
+	// so it never blocks even if the collector has already returned
+	results := make(chan response, len(p.opts.Offsets))
 	done := make(chan struct{})
 	wg := &sync.WaitGroup{}
 

@@ -141,7 +141,7 @@ func (uc UseCase) retry(
 	svr = prober.HandleRetry(svr)
 
 	if _, updateErr := uc.serverRepo.Update(ctx, svr, func(s *server.Server) bool {
-		*s = prober.HandleFailure(*s)
+		*s = prober.HandleRetry(*s)
 		return true
 	}); updateErr != nil {
 		uc.logger.Error().
