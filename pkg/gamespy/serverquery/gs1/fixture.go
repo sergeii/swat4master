@@ -11,18 +11,16 @@ import (
 func ServerFactory(
 	handler func(ctx context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte),
 ) (*udpserver.Server, func()) {
-	ready := make(chan struct{})
 	server, _ := udpserver.New(
 		"localhost:0", // 0 - listen an any available port
 		udpserver.HandleFunc(handler),
-		udpserver.WithReadySignal(func() {
-			ready <- struct{}{}
-		}),
 	)
+	if err := server.Listen(); err != nil {
+		panic(err)
+	}
 	go func() {
-		server.Listen() //nolint: errcheck
+		server.Serve() //nolint: errcheck
 	}()
-	<-ready
 	return server, func() {
 		server.Stop() //nolint: errcheck
 	}
