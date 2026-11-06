@@ -7,8 +7,9 @@ import (
 	"log"
 	"net"
 	"runtime/debug"
-	"sync"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -23,13 +24,23 @@ type Server struct {
 	handler     Handler
 	closer      chan struct{}  // closed by Stop to stop accepting and cancel the handlers
 	done        chan struct{}  // closed once Serve has returned
-	handlers    sync.WaitGroup // tracks the running handlers
+	handlers    errgroup.Group // runs the handlers, at most the configured limit at once
 	connTimeout time.Duration
 }
 
 func WithTimeout(timeout time.Duration) Option {
 	return func(s *Server) {
 		s.connTimeout = timeout
+	}
+}
+
+// WithMaxHandlers limits the number of handlers running at once, 0 means no limit.
+// While all handlers are busy, new connections wait to be handled.
+func WithMaxHandlers(n int) Option {
+	return func(s *Server) {
+		if n > 0 {
+			s.handlers.SetLimit(n)
+		}
 	}
 }
 
@@ -79,18 +90,21 @@ func (s *Server) Serve() error {
 			}
 			return err
 		}
-		if err := conn.SetDeadline(time.Now().Add(s.connTimeout)); err != nil {
-			conn.Close()
-			continue
-		}
 		s.dispatch(ctx, conn)
 	}
 }
 
+// dispatch waits while all handlers are busy.
 func (s *Server) dispatch(ctx context.Context, conn *net.TCPConn) {
-	s.handlers.Go(func() {
+	s.handlers.Go(func() error {
 		defer recoverHandler()
+		// the timeout starts once the connection is handled, not while it waits for a handler
+		if err := conn.SetDeadline(time.Now().Add(s.connTimeout)); err != nil {
+			conn.Close()
+			return nil
+		}
 		s.handler.Handle(ctx, conn)
+		return nil
 	})
 }
 
@@ -124,7 +138,7 @@ func (s *Server) Stop() error {
 	closeErr := s.listener.Close()
 	// no more handlers can be started once Serve has returned
 	<-s.done
-	s.handlers.Wait()
+	s.handlers.Wait() //nolint: errcheck // handlers never return errors
 	if closeErr != nil {
 		return fmt.Errorf("tcp server: close listener %s: %w", s.addr, closeErr)
 	}

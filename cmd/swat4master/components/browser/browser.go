@@ -17,6 +17,7 @@ import (
 type Config struct {
 	ListenAddr    string
 	ClientTimeout time.Duration
+	MaxHandlers   int
 }
 
 type Component struct{}
@@ -32,6 +33,7 @@ func New(
 		cfg.ListenAddr,
 		handler,
 		tcpserver.WithTimeout(cfg.ClientTimeout),
+		tcpserver.WithMaxHandlers(cfg.MaxHandlers),
 	)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to set up browser server")
@@ -71,7 +73,8 @@ func New(
 
 type command struct {
 	BrowserListenAddr    string        `default:":28910" help:"Sets the listen address for the browser TCP server"`
-	BrowserClientTimeout time.Duration `default:"1s"     help:"Sets the maximum duration before an accepted connection times out"` //nolint:lll
+	BrowserClientTimeout time.Duration `default:"1s"     help:"Sets the maximum duration before an accepted connection times out"`                             //nolint:lll
+	BrowserMaxHandlers   int           `default:"100"    help:"Sets the maximum number of connections handled at once; extra connections wait to be accepted"` //nolint:lll
 }
 
 func (c *command) Run(_ *commander.Globals, builder *application.Builder) error {
@@ -80,6 +83,7 @@ func (c *command) Run(_ *commander.Globals, builder *application.Builder) error 
 			fx.Supply(Config{
 				ListenAddr:    c.BrowserListenAddr,
 				ClientTimeout: c.BrowserClientTimeout,
+				MaxHandlers:   c.BrowserMaxHandlers,
 			}),
 			Module,
 			fx.Invoke(func(_ *Component) {}),

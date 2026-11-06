@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -178,6 +179,56 @@ func TestServerRecoversFromHandlerPanic(t *testing.T) {
 	n, err := conn.Read(buf)
 	require.NoError(t, err)
 	assert.Equal(t, "hello", string(buf[:n]))
+}
+
+func TestServerQueuesConnectionsOverHandlerLimit(t *testing.T) {
+	started := make(chan struct{}, 10)
+	unblock := make(chan struct{})
+	release := sync.OnceFunc(func() {
+		close(unblock)
+	})
+
+	server, err := tcpserver.New(
+		"localhost:0", // 0 - listen an any available port
+		tcpserver.HandleFunc(func(_ context.Context, conn *net.TCPConn) {
+			defer conn.Close()
+			started <- struct{}{}
+			<-unblock
+		}),
+		tcpserver.WithMaxHandlers(1),
+	)
+	require.NoError(t, err)
+	require.NoError(t, server.Listen())
+	go func() {
+		server.Serve() //nolint: errcheck
+	}()
+	defer server.Stop() //nolint: errcheck
+	// unblock the handlers before stopping, even if the test fails early
+	defer release()
+
+	// the first connection takes the only handler slot
+	first, err := net.Dial("tcp", server.LocalAddr().String())
+	require.NoError(t, err)
+	defer first.Close()
+	<-started
+
+	// the second one connects, but waits to be accepted while the slot is busy
+	second, err := net.Dial("tcp", server.LocalAddr().String())
+	require.NoError(t, err)
+	defer second.Close()
+	select {
+	case <-started:
+		require.Fail(t, "expected the connection to wait for a free slot")
+	case <-time.After(time.Millisecond * 100):
+	}
+
+	// it is handled once the first handler returns
+	release()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		require.Fail(t, "expected the connection to be handled once the slot is free")
+	}
 }
 
 func TestNewPanicsOnNilHandler(t *testing.T) {

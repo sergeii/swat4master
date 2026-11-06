@@ -8,6 +8,7 @@ import (
 
 	"github.com/sergeii/swat4master/cmd/swat4master/application"
 	"github.com/sergeii/swat4master/cmd/swat4master/commander"
+	"github.com/sergeii/swat4master/internal/metrics"
 	"github.com/sergeii/swat4master/internal/reporter"
 	"github.com/sergeii/swat4master/internal/reporter/handlers/available"
 	"github.com/sergeii/swat4master/internal/reporter/handlers/challenge"
@@ -17,8 +18,9 @@ import (
 )
 
 type Config struct {
-	ListenAddr string
-	BufferSize int
+	ListenAddr  string
+	BufferSize  int
+	MaxHandlers int
 }
 
 type Component struct{}
@@ -27,6 +29,7 @@ func New(
 	lc fx.Lifecycle,
 	shutdowner fx.Shutdowner,
 	dispatcher *reporter.Dispatcher,
+	collector *metrics.Collector,
 	cfg Config,
 	logger *zerolog.Logger,
 ) (*Component, error) {
@@ -34,6 +37,10 @@ func New(
 		cfg.ListenAddr,
 		dispatcher,
 		udpserver.WithBufferSize(cfg.BufferSize),
+		udpserver.WithMaxHandlers(cfg.MaxHandlers),
+		udpserver.WithDropCallback(func() {
+			collector.ReporterDropped.Inc()
+		}),
 	)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to set up reporter server")
@@ -71,16 +78,18 @@ func New(
 }
 
 type command struct {
-	ReporterListenAddr string `default:":27900" help:"Sets the listen address for the reporter UDP server"`
-	ReporterBufferSize int    `default:"2048"   help:"Sets the UDP buffer size for incoming packets"`
+	ReporterListenAddr  string `default:":27900" help:"Sets the listen address for the reporter UDP server"`
+	ReporterBufferSize  int    `default:"2048"   help:"Sets the UDP buffer size for incoming packets"`
+	ReporterMaxHandlers int    `default:"100"    help:"Sets the maximum number of requests handled at once; extra requests are dropped"` //nolint:lll
 }
 
 func (c *command) Run(_ *commander.Globals, builder *application.Builder) error {
 	app := builder.
 		Add(
 			fx.Supply(Config{
-				ListenAddr: c.ReporterListenAddr,
-				BufferSize: c.ReporterBufferSize,
+				ListenAddr:  c.ReporterListenAddr,
+				BufferSize:  c.ReporterBufferSize,
+				MaxHandlers: c.ReporterMaxHandlers,
 			}),
 			Module,
 			fx.Invoke(func(_ *Component) {}),

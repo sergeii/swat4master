@@ -9,7 +9,8 @@ import (
 	"net"
 	"net/netip"
 	"runtime/debug"
-	"sync"
+
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -25,12 +26,29 @@ type Server struct {
 	handler    Handler
 	closer     chan struct{}  // closed by Stop to stop reading and cancel the handlers
 	done       chan struct{}  // closed once Serve has returned
-	handlers   sync.WaitGroup // tracks the running handlers
+	handlers   errgroup.Group // runs the handlers, at most the configured limit at once
+	onDrop     func()
 }
 
 func WithBufferSize(sz int) Option {
 	return func(s *Server) {
 		s.bufferSize = sz
+	}
+}
+
+// WithMaxHandlers limits the number of handlers running at once, 0 means no limit.
+// Datagrams that arrive while all handlers are busy are dropped.
+func WithMaxHandlers(n int) Option {
+	return func(s *Server) {
+		if n > 0 {
+			s.handlers.SetLimit(n)
+		}
+	}
+}
+
+func WithDropCallback(callback func()) Option {
+	return func(s *Server) {
+		s.onDrop = callback
 	}
 }
 
@@ -49,6 +67,7 @@ func New(addr string, handler Handler, opts ...Option) (*Server, error) {
 		done:    make(chan struct{}),
 		// set defaults
 		bufferSize: defaultBufferSize,
+		onDrop:     func() {},
 	}
 	for _, opt := range opts {
 		opt(server)
@@ -91,10 +110,14 @@ func (s *Server) dispatch(ctx context.Context, raddr *net.UDPAddr, data []byte) 
 		return
 	}
 	payload := bytes.Clone(data)
-	s.handlers.Go(func() {
+	started := s.handlers.TryGo(func() error {
 		defer recoverHandler()
 		s.handler.Handle(ctx, s.conn, raddr, payload)
+		return nil
 	})
+	if !started {
+		s.onDrop()
+	}
 }
 
 // stopContext returns a context that is canceled once Stop is called.
@@ -135,7 +158,7 @@ func (s *Server) Stop() error {
 	closeErr := s.conn.Close()
 	// no more handlers can be started once Serve has returned
 	<-s.done
-	s.handlers.Wait()
+	s.handlers.Wait() //nolint: errcheck // handlers never return errors
 	if closeErr != nil {
 		return fmt.Errorf("udp server: close connection %s: %w", s.addr, closeErr)
 	}

@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -129,6 +130,67 @@ func TestServerRecoversFromHandlerPanic(t *testing.T) {
 	n, err := conn.Read(buf)
 	require.NoError(t, err)
 	assert.Equal(t, "hello", string(buf[:n]))
+}
+
+func TestServerDropsDatagramsOverHandlerLimit(t *testing.T) {
+	var calls atomic.Int32
+	started := make(chan struct{}, 10)
+	unblock := make(chan struct{})
+	release := sync.OnceFunc(func() {
+		close(unblock)
+	})
+	dropped := make(chan struct{}, 10)
+
+	server, err := udpserver.New(
+		"localhost:0", // 0 - listen an any available port
+		udpserver.HandleFunc(func(context.Context, *net.UDPConn, *net.UDPAddr, []byte) {
+			calls.Add(1)
+			started <- struct{}{}
+			<-unblock
+		}),
+		udpserver.WithMaxHandlers(1),
+		udpserver.WithDropCallback(func() {
+			dropped <- struct{}{}
+		}),
+	)
+	require.NoError(t, err)
+	require.NoError(t, server.Listen())
+	go func() {
+		server.Serve() //nolint: errcheck
+	}()
+	defer server.Stop() //nolint: errcheck
+	// unblock the handlers before stopping, even if the test fails early
+	defer release()
+
+	conn, err := net.Dial("udp", server.LocalAddr().String())
+	require.NoError(t, err)
+
+	// the first datagram takes the only handler slot
+	conn.Write([]byte("first")) //nolint: errcheck
+	<-started
+
+	// the second one is dropped while the slot is busy
+	conn.Write([]byte("second")) //nolint: errcheck
+	select {
+	case <-dropped:
+	case <-time.After(time.Second):
+		require.Fail(t, "expected the datagram to be dropped")
+	}
+	assert.Equal(t, int32(1), calls.Load())
+
+	// the slot is freed once the handler returns, which happens shortly after it's unblocked
+	release()
+	deadline := time.After(time.Second)
+	for {
+		conn.Write([]byte("third")) //nolint: errcheck
+		select {
+		case <-started:
+			return
+		case <-time.After(time.Millisecond * 10):
+		case <-deadline:
+			require.Fail(t, "expected the datagram to be handled once the slot is free")
+		}
+	}
 }
 
 func TestNewPanicsOnNilHandler(t *testing.T) {
