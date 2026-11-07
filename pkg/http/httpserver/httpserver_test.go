@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"slices"
 	"strings"
@@ -17,7 +16,6 @@ import (
 )
 
 func TestHTTPServerListenAndServe(t *testing.T) {
-	ready := make(chan struct{})
 	svr, err := httpserver.New(
 		"localhost:0", // 0 - listen an any available port
 		httpserver.WithHandler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -27,18 +25,14 @@ func TestHTTPServerListenAndServe(t *testing.T) {
 			slices.Reverse(resp)
 			rw.Write(resp) //nolint:errcheck
 		})),
-		httpserver.WithReadySignal(func(net.Addr) {
-			close(ready)
-		}),
 	)
 	defer svr.Stop(context.TODO()) //nolint: errcheck
 	require.NoError(t, err)
 
+	require.NoError(t, svr.Listen())
 	go func() {
-		svr.ListenAndServe() //nolint: errcheck
+		svr.Serve() //nolint: errcheck
 	}()
-	// wait for the server to start
-	<-ready
 
 	svrAddr := fmt.Sprintf("http://%s", svr.ListenAddr())
 	resp, err := http.Post(svrAddr, "application/octet-stream", strings.NewReader("Hello World!")) //nolint: gosec

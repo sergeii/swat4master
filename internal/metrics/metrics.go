@@ -16,6 +16,7 @@ type Collector struct {
 
 	ReporterRequests  *prometheus.CounterVec
 	ReporterErrors    *prometheus.CounterVec
+	ReporterDropped   prometheus.Counter
 	ReporterReceived  prometheus.Counter
 	ReporterSent      prometheus.Counter
 	ReporterRemovals  prometheus.Counter
@@ -69,6 +70,10 @@ func New() *Collector {
 			Name: "reporter_errors_total",
 			Help: "The total number of failed reporting requests that",
 		}, []string{"type"}),
+		ReporterDropped: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+			Name: "reporter_dropped_requests_total",
+			Help: "The total number of reporting requests dropped because all handlers were busy",
+		}),
 		ReporterReceived: promauto.With(registry).NewCounter(prometheus.CounterOpts{
 			Name: "reporter_received_bytes_total",
 			Help: "The total amount of bytes received by reporter",

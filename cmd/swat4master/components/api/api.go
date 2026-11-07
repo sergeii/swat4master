@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"net"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -33,18 +32,12 @@ func New(
 	cfg Config,
 	logger *zerolog.Logger,
 ) (*Component, error) {
-	ready := make(chan struct{})
-
 	svr, err := httpserver.New(
 		cfg.HTTPListenAddr,
 		httpserver.WithShutdownTimeout(cfg.HTTPShutdownTimeout),
 		httpserver.WithReadTimeout(cfg.HTTPReadTimeout),
 		httpserver.WithWriteTimeout(cfg.HTTPWriteTimeout),
 		httpserver.WithHandler(router),
-		httpserver.WithReadySignal(func(addr net.Addr) {
-			logger.Info().Stringer("addr", addr).Msg("API server is ready to accept connections")
-			close(ready)
-		}),
 	)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to set up API server")
@@ -53,15 +46,19 @@ func New(
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
+			if err := svr.Listen(); err != nil {
+				logger.Error().Err(err).Msg("Failed to start API server")
+				return err
+			}
+			logger.Info().Stringer("addr", svr.ListenAddr()).Msg("API server is ready to accept connections")
 			go func() {
-				if serveErr := svr.ListenAndServe(); serveErr != nil {
+				if serveErr := svr.Serve(); serveErr != nil {
 					logger.Warn().Err(serveErr).Msg("API server exited prematurely")
 					if shutErr := shutdowner.Shutdown(); shutErr != nil {
 						logger.Error().Err(shutErr).Msg("Failed to handle premature API server shutdown")
 					}
 				}
 			}()
-			<-ready
 			return nil
 		},
 		OnStop: func(stopCtx context.Context) error {

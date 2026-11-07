@@ -23,48 +23,35 @@ type serverConfig struct {
 }
 
 type HTTPServer struct {
-	addr          *net.TCPAddr
-	listener      *net.TCPListener
-	server        *http.Server
-	cfg           *serverConfig
-	closer        chan struct{}
-	readyCallback func(net.Addr)
+	addr     *net.TCPAddr
+	listener *net.TCPListener
+	server   *http.Server
+	cfg      *serverConfig
 }
 
-type Option func(*HTTPServer) error
+type Option func(*HTTPServer)
 
 func WithShutdownTimeout(timeout time.Duration) Option {
-	return func(c *HTTPServer) error {
+	return func(c *HTTPServer) {
 		c.cfg.shutdownTimeout = timeout
-		return nil
 	}
 }
 
 func WithReadTimeout(timeout time.Duration) Option {
-	return func(c *HTTPServer) error {
+	return func(c *HTTPServer) {
 		c.cfg.readTimeout = timeout
-		return nil
 	}
 }
 
 func WithWriteTimeout(timeout time.Duration) Option {
-	return func(c *HTTPServer) error {
+	return func(c *HTTPServer) {
 		c.cfg.writeTimeout = timeout
-		return nil
 	}
 }
 
 func WithHandler(handler http.Handler) Option {
-	return func(c *HTTPServer) error {
+	return func(c *HTTPServer) {
 		c.cfg.handler = handler
-		return nil
-	}
-}
-
-func WithReadySignal(cb func(net.Addr)) Option {
-	return func(s *HTTPServer) error {
-		s.readyCallback = cb
-		return nil
 	}
 }
 
@@ -84,12 +71,9 @@ func New(addr string, opts ...Option) (*HTTPServer, error) {
 		addr:   tcpAddr,
 		cfg:    cfg,
 		server: svr,
-		closer: make(chan struct{}),
 	}
 	for _, opt := range opts {
-		if optErr := opt(server); optErr != nil {
-			return nil, optErr
-		}
+		opt(server)
 	}
 	svr.WriteTimeout = cfg.writeTimeout
 	svr.ReadTimeout = cfg.readTimeout
@@ -98,36 +82,21 @@ func New(addr string, opts ...Option) (*HTTPServer, error) {
 	return server, nil
 }
 
-func (s *HTTPServer) ListenAndServe() error {
-	fatal := make(chan error, 1)
-
+func (s *HTTPServer) Listen() error {
 	listener, err := net.ListenTCP("tcp", s.addr)
 	if err != nil {
 		return err
 	}
 	s.listener = listener
-	defer listener.Close()
+	return nil
+}
 
-	// signal to any possible watchers that we are ready to listen
-	if s.readyCallback != nil {
-		s.readyCallback(s.listener.Addr())
-	}
-
-	go func() {
-		if err := s.server.Serve(s.listener); err != nil {
-			fatal <- err
-		}
-	}()
-
-	select {
-	case err := <-fatal:
-		if errors.Is(err, http.ErrServerClosed) {
-			return nil
-		}
+// Serve serves HTTP requests until Stop is called and then returns nil, or until serving fails.
+func (s *HTTPServer) Serve() error {
+	if err := s.server.Serve(s.listener); !errors.Is(err, http.ErrServerClosed) {
 		return err
-	case <-s.closer:
-		return nil
 	}
+	return nil
 }
 
 func (s *HTTPServer) ListenAddr() net.Addr {
@@ -135,7 +104,6 @@ func (s *HTTPServer) ListenAddr() net.Addr {
 }
 
 func (s *HTTPServer) Stop(ctx context.Context) error {
-	close(s.closer)
 	stopCtx, cancel := context.WithTimeout(ctx, s.cfg.shutdownTimeout)
 	defer cancel()
 	if err := s.server.Shutdown(stopCtx); err != nil {

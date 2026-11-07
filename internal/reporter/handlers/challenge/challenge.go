@@ -2,7 +2,7 @@ package challenge
 
 import (
 	"context"
-	"net"
+	"net/netip"
 
 	"github.com/sergeii/swat4master/internal/core/entities/master"
 	"github.com/sergeii/swat4master/internal/reporter"
@@ -18,7 +18,7 @@ func New(d *reporter.Dispatcher) (Handler, error) {
 	return handler, nil
 }
 
-func (h Handler) Handle(_ context.Context, _ *net.UDPAddr, payload []byte) ([]byte, error) {
+func (h Handler) Handle(_ context.Context, _ netip.AddrPort, payload []byte) ([]byte, error) {
 	instanceID, _, err := reporter.ParseInstanceID(payload)
 	if err != nil {
 		return nil, err

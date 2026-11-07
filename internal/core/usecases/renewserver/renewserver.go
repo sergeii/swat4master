@@ -3,7 +3,7 @@ package renewserver
 import (
 	"context"
 	"errors"
-	"net"
+	"net/netip"
 
 	"github.com/jonboulle/clockwork"
 
@@ -34,10 +34,10 @@ func New(
 
 type Request struct {
 	instanceID []byte
-	ipAddr     net.IP
+	ipAddr     netip.Addr
 }
 
-func NewRequest(instanceID []byte, ipAddr net.IP) Request {
+func NewRequest(instanceID []byte, ipAddr netip.Addr) Request {
 	return Request{
 		instanceID: instanceID,
 		ipAddr:     ipAddr,
@@ -55,7 +55,7 @@ func (uc UseCase) Execute(ctx context.Context, req Request) error {
 	}
 
 	// the addressed must match, otherwise it could be a spoofing attempt
-	if !inst.Addr.GetIP().Equal(req.ipAddr.To4()) {
+	if netip.AddrFrom4(inst.Addr.IP) != req.ipAddr {
 		return ErrUnknownInstanceID
 	}
 

@@ -2,7 +2,6 @@ package browser
 
 import (
 	"context"
-	"net"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -18,6 +17,7 @@ import (
 type Config struct {
 	ListenAddr    string
 	ClientTimeout time.Duration
+	MaxHandlers   int
 }
 
 type Component struct{}
@@ -29,16 +29,11 @@ func New(
 	cfg Config,
 	logger *zerolog.Logger,
 ) (*Component, error) {
-	ready := make(chan struct{})
-
 	svr, err := tcpserver.New(
 		cfg.ListenAddr,
 		handler,
 		tcpserver.WithTimeout(cfg.ClientTimeout),
-		tcpserver.WithReadySignal(func(addr net.Addr) {
-			logger.Info().Stringer("addr", addr).Msg("Browser server is ready to accept connections")
-			close(ready)
-		}),
+		tcpserver.WithMaxHandlers(cfg.MaxHandlers),
 	)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to set up browser server")
@@ -47,16 +42,20 @@ func New(
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
+			logger.Info().Str("addr", cfg.ListenAddr).Msg("Starting browser server")
+			if err := svr.Listen(); err != nil {
+				logger.Error().Err(err).Msg("Failed to start browser server")
+				return err
+			}
+			logger.Info().Stringer("addr", svr.LocalAddr()).Msg("Browser server is ready to accept connections")
 			go func() { //nolint: contextcheck
-				logger.Info().Str("addr", cfg.ListenAddr).Msg("Starting browser server")
-				if serveErr := svr.Listen(); serveErr != nil {
+				if serveErr := svr.Serve(); serveErr != nil {
 					logger.Warn().Err(serveErr).Msg("Browser server exited prematurely")
 					if shutErr := shutdowner.Shutdown(); shutErr != nil {
 						logger.Error().Err(shutErr).Msg("Failed to handle premature shutdown")
 					}
 				}
 			}()
-			<-ready
 			return nil
 		},
 		OnStop: func(context.Context) error {
@@ -74,7 +73,8 @@ func New(
 
 type command struct {
 	BrowserListenAddr    string        `default:":28910" help:"Sets the listen address for the browser TCP server"`
-	BrowserClientTimeout time.Duration `default:"1s"     help:"Sets the maximum duration before an accepted connection times out"` //nolint:lll
+	BrowserClientTimeout time.Duration `default:"1s"     help:"Sets the maximum duration before an accepted connection times out"`                             //nolint:lll
+	BrowserMaxHandlers   int           `default:"100"    help:"Sets the maximum number of connections handled at once; extra connections wait to be accepted"` //nolint:lll
 }
 
 func (c *command) Run(_ *commander.Globals, builder *application.Builder) error {
@@ -83,6 +83,7 @@ func (c *command) Run(_ *commander.Globals, builder *application.Builder) error 
 			fx.Supply(Config{
 				ListenAddr:    c.BrowserListenAddr,
 				ClientTimeout: c.BrowserClientTimeout,
+				MaxHandlers:   c.BrowserMaxHandlers,
 			}),
 			Module,
 			fx.Invoke(func(_ *Component) {}),
