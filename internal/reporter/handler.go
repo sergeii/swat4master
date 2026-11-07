@@ -2,9 +2,9 @@ package reporter
 
 import (
 	"context"
-	"net"
+	"net/netip"
 )
 
 type Handler interface {
-	Handle(ctx context.Context, connAddr *net.UDPAddr, payload []byte) ([]byte, error)
+	Handle(ctx context.Context, connAddr netip.AddrPort, payload []byte) ([]byte, error)
 }

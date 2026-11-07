@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net"
+	"net/netip"
 	"strconv"
 
 	"github.com/sergeii/swat4master/internal/core/entities/addr"
@@ -45,7 +45,7 @@ func New(
 
 func (h Handler) Handle(
 	ctx context.Context,
-	connAddr *net.UDPAddr,
+	connAddr netip.AddrPort,
 	payload []byte,
 ) ([]byte, error) {
 	instanceID, rest, err := reporter.ParseInstanceID(payload)
@@ -74,7 +74,7 @@ func (h Handler) Handle(
 
 func (h Handler) reportServer(
 	ctx context.Context,
-	connAddr *net.UDPAddr,
+	connAddr netip.AddrPort,
 	svrAddr addr.Addr,
 	queryPort int,
 	instanceID []byte,
@@ -88,9 +88,9 @@ func (h Handler) reportServer(
 	// prepare the packed client address to be used in the response
 	clientAddr := make([]byte, 7)
 	// the first byte is supposed to be null byte, so leave it zero value
-	copy(clientAddr[1:5], connAddr.IP.To4())
+	copy(clientAddr[1:5], svrAddr.IP[:])
 	// the next two bytes are the port, big-endian
-	binary.BigEndian.PutUint16(clientAddr[5:7], uint16(connAddr.Port)) //nolint:gosec
+	binary.BigEndian.PutUint16(clientAddr[5:7], connAddr.Port())
 	// the last 28th byte remains zero, because the response payload is supposed to be null-terminated
 	resp := make([]byte, 28)
 	copy(resp[:3], []byte{0xfe, 0xfd, 0x01})   // initial bytes, 3 of them
@@ -142,7 +142,7 @@ func parseHeartbeatParams(payload []byte) (map[string]string, error) {
 }
 
 func parseAddrFromHeartbeatParams(
-	connAddr *net.UDPAddr,
+	connAddr netip.AddrPort,
 	fields map[string]string,
 ) (addr.Addr, int, error) {
 	gamePort, ok1 := parseNumericField(fields, "hostport")
@@ -150,7 +150,7 @@ func parseAddrFromHeartbeatParams(
 	if !ok1 || !ok2 {
 		return addr.Blank, -1, errors.New("missing hostport or localport field")
 	}
-	svrAddr, err := addr.New(connAddr.IP, gamePort)
+	svrAddr, err := addr.NewFromNetip(connAddr.Addr(), gamePort)
 	if err != nil {
 		return addr.Blank, -1, err
 	}

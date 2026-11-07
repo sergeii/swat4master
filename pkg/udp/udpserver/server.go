@@ -93,18 +93,20 @@ func (s *Server) Serve() error {
 
 	buffer := make([]byte, s.bufferSize)
 	for {
-		n, raddr, err := s.conn.ReadFromUDP(buffer)
+		n, raddr, err := s.conn.ReadFromUDPAddrPort(buffer)
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
 				return nil // closed by Stop
 			}
 			return err
 		}
+		// on a dual-stack socket, IPv4 clients arrive as IPv4-mapped IPv6 addresses
+		raddr = netip.AddrPortFrom(raddr.Addr().Unmap(), raddr.Port())
 		s.dispatch(ctx, raddr, buffer[:n])
 	}
 }
 
-func (s *Server) dispatch(ctx context.Context, raddr *net.UDPAddr, data []byte) {
+func (s *Server) dispatch(ctx context.Context, raddr netip.AddrPort, data []byte) {
 	// skip empty datagrams, so that handlers can rely on a non-empty payload
 	if len(data) == 0 {
 		return

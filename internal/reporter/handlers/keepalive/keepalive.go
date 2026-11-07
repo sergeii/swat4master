@@ -2,7 +2,7 @@ package keepalive
 
 import (
 	"context"
-	"net"
+	"net/netip"
 
 	"github.com/sergeii/swat4master/internal/core/entities/master"
 	"github.com/sergeii/swat4master/internal/core/usecases/renewserver"
@@ -28,7 +28,7 @@ func New(
 
 func (h Handler) Handle(
 	ctx context.Context,
-	connAddr *net.UDPAddr,
+	connAddr netip.AddrPort,
 	payload []byte,
 ) ([]byte, error) {
 	instanceID, _, err := reporter.ParseInstanceID(payload)
@@ -36,7 +36,7 @@ func (h Handler) Handle(
 		return nil, err
 	}
 
-	ucReq := renewserver.NewRequest(instanceID, connAddr.IP)
+	ucReq := renewserver.NewRequest(instanceID, connAddr.Addr())
 	if err := h.uc.Execute(ctx, ucReq); err != nil {
 		return nil, err
 	}

@@ -2,9 +2,11 @@ package udpserver_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"net"
+	"net/netip"
 	"os"
 	"slices"
 	"sync"
@@ -21,10 +23,10 @@ import (
 func TestServerListen(t *testing.T) {
 	server, err := udpserver.New(
 		"localhost:0", // 0 - listen an any available port
-		udpserver.HandleFunc(func(_ context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {
+		udpserver.HandleFunc(func(_ context.Context, conn *net.UDPConn, addr netip.AddrPort, req []byte) {
 			resp := req
 			slices.Reverse(resp)
-			conn.WriteToUDP(resp, addr) //nolint: errcheck
+			conn.WriteToUDPAddrPort(resp, addr) //nolint: errcheck
 		}),
 	)
 	defer server.Stop() //nolint: errcheck
@@ -51,7 +53,7 @@ func TestServerStopWaitsForHandlers(t *testing.T) {
 
 	server, err := udpserver.New(
 		"localhost:0", // 0 - listen an any available port
-		udpserver.HandleFunc(func(ctx context.Context, _ *net.UDPConn, _ *net.UDPAddr, _ []byte) {
+		udpserver.HandleFunc(func(ctx context.Context, _ *net.UDPConn, _ netip.AddrPort, _ []byte) {
 			close(started)
 			<-ctx.Done()
 			// keep working for a while after being cancelled
@@ -81,7 +83,7 @@ func TestServerServeReturnsNilOnStop(t *testing.T) {
 	for range 100 {
 		server, err := udpserver.New(
 			"localhost:0", // 0 - listen an any available port
-			udpserver.HandleFunc(func(context.Context, *net.UDPConn, *net.UDPAddr, []byte) {}),
+			udpserver.HandleFunc(func(context.Context, *net.UDPConn, netip.AddrPort, []byte) {}),
 		)
 		require.NoError(t, err)
 
@@ -105,11 +107,11 @@ func TestServerRecoversFromHandlerPanic(t *testing.T) {
 
 	server, err := udpserver.New(
 		"localhost:0", // 0 - listen an any available port
-		udpserver.HandleFunc(func(_ context.Context, conn *net.UDPConn, addr *net.UDPAddr, req []byte) {
+		udpserver.HandleFunc(func(_ context.Context, conn *net.UDPConn, addr netip.AddrPort, req []byte) {
 			if string(req) == "panic" {
 				panic("handler panic")
 			}
-			conn.WriteToUDP(req, addr) //nolint: errcheck
+			conn.WriteToUDPAddrPort(req, addr) //nolint: errcheck
 		}),
 	)
 	require.NoError(t, err)
@@ -143,7 +145,7 @@ func TestServerDropsDatagramsOverHandlerLimit(t *testing.T) {
 
 	server, err := udpserver.New(
 		"localhost:0", // 0 - listen an any available port
-		udpserver.HandleFunc(func(context.Context, *net.UDPConn, *net.UDPAddr, []byte) {
+		udpserver.HandleFunc(func(context.Context, *net.UDPConn, netip.AddrPort, []byte) {
 			calls.Add(1)
 			started <- struct{}{}
 			<-unblock
@@ -190,6 +192,35 @@ func TestServerDropsDatagramsOverHandlerLimit(t *testing.T) {
 		case <-deadline:
 			require.Fail(t, "expected the datagram to be handled once the slot is free")
 		}
+	}
+}
+
+func TestServerPassesIPv4ClientAddresses(t *testing.T) {
+	received := make(chan netip.AddrPort, 1)
+
+	server, err := udpserver.New(
+		":0", // all interfaces, which makes the socket dual-stack where supported
+		udpserver.HandleFunc(func(_ context.Context, _ *net.UDPConn, addr netip.AddrPort, _ []byte) {
+			received <- addr
+		}),
+	)
+	require.NoError(t, err)
+	require.NoError(t, server.Listen())
+	go func() {
+		server.Serve() //nolint: errcheck
+	}()
+	defer server.Stop() //nolint: errcheck
+
+	conn, err := net.Dial("udp4", fmt.Sprintf("127.0.0.1:%d", server.LocalAddr().Port))
+	require.NoError(t, err)
+	conn.Write([]byte("hello")) //nolint: errcheck
+
+	select {
+	case addr := <-received:
+		assert.True(t, addr.Addr().Is4(), "expected a plain IPv4 address, got %s", addr)
+		assert.Equal(t, "127.0.0.1", addr.Addr().String())
+	case <-time.After(time.Second):
+		require.Fail(t, "expected the datagram to be handled")
 	}
 }
 

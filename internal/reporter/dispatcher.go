@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"sync"
 	"time"
 
@@ -48,7 +49,7 @@ func (d *Dispatcher) Register(msgType master.Msg, handler Handler) error {
 func (d *Dispatcher) Handle(
 	ctx context.Context,
 	conn *net.UDPConn,
-	addr *net.UDPAddr,
+	addr netip.AddrPort,
 	payload []byte,
 ) {
 	reqStarted := d.clock.Now()
@@ -74,7 +75,7 @@ func (d *Dispatcher) Handle(
 		d.logger.Debug().
 			Stringer("dst", addr).Int("len", len(resp)).
 			Msg("Sending response")
-		if _, err = conn.WriteToUDP(resp, addr); err != nil {
+		if _, err = conn.WriteToUDPAddrPort(resp, addr); err != nil {
 			d.logger.Error().
 				Err(err).Stringer("dst", addr).Int("len", len(resp)).
 				Msg("Failed to send response")
@@ -93,7 +94,7 @@ func (d *Dispatcher) Handle(
 func (d *Dispatcher) dispatch(
 	ctx context.Context,
 	payload []byte,
-	addr *net.UDPAddr,
+	addr netip.AddrPort,
 ) ([]byte, master.Msg, error) {
 	reqType := master.Msg(payload[0])
 	handler, err := d.selectHandler(reqType)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -23,7 +24,7 @@ import (
 	"github.com/sergeii/swat4master/pkg/gamespy/serverquery/gs1"
 )
 
-type ResponseFunc func(context.Context, *net.UDPConn, *net.UDPAddr, []byte)
+type ResponseFunc func(context.Context, *net.UDPConn, netip.AddrPort, []byte)
 
 func TestDetailsProber_Probe_OK(t *testing.T) {
 	ctx := t.Context()
@@ -79,44 +80,44 @@ func TestDetailsProber_Probe_Fail(t *testing.T) {
 	}{
 		{
 			"timeout",
-			func(context.Context, *net.UDPConn, *net.UDPAddr, []byte) {},
+			func(context.Context, *net.UDPConn, netip.AddrPort, []byte) {},
 			detailsprober.ErrQueryTimeout,
 		},
 		{
 			"no valid response - no queryid",
-			func(_ context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, _ []byte) {
+			func(_ context.Context, conn *net.UDPConn, udpAddr netip.AddrPort, _ []byte) {
 				packet := []byte(
 					"\\hostname\\-==MYT Team Svr==-\\numplayers\\0\\maxplayers\\16\\gametype\\VIP Escort" +
 						"\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store\\hostport\\10480" +
 						"\\password\\false\\gamever\\1.1\\round\\4\\numrounds\\5\\timeleft\\1\\timespecial\\0" + //nolint:misspell
 						"\\swatscore\\0\\suspectsscore\\0\\swatwon\\3\\suspectswon\\0\\final\\",
 				)
-				conn.WriteToUDP(packet, udpAddr) //nolint: errcheck
+				conn.WriteToUDPAddrPort(packet, udpAddr) //nolint: errcheck
 			},
 			detailsprober.ErrQueryFailed,
 		},
 		{
 			"no valid response - invalid structure",
-			func(_ context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, _ []byte) {
+			func(_ context.Context, conn *net.UDPConn, udpAddr netip.AddrPort, _ []byte) {
 				packet := []byte(
 					"\\hostname\\-==MYT Team Svr==-\\numplayers\\not-an-integer\\maxplayers\\16\\gametype\\VIP Escort" +
 						"\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store\\hostport\\10480" +
 						"\\password\\false\\gamever\\1.1\\round\\4\\numrounds\\5\\timeleft\\1\\timespecial\\0" + //nolint:misspell
 						"\\swatscore\\0\\suspectsscore\\0\\swatwon\\3\\suspectswon\\0\\final\\\\queryid\\1.1",
 				)
-				conn.WriteToUDP(packet, udpAddr) //nolint: errcheck
+				conn.WriteToUDPAddrPort(packet, udpAddr) //nolint: errcheck
 			},
 			detailsprober.ErrParseFailed,
 		},
 		{
 			"no valid response - validation",
-			func(_ context.Context, conn *net.UDPConn, udpAddr *net.UDPAddr, _ []byte) {
+			func(_ context.Context, conn *net.UDPConn, udpAddr netip.AddrPort, _ []byte) {
 				packet := []byte(
 					"\\hostname\\-==MYT Team Svr==-\\numplayers\\-1\\maxplayers\\16" +
 						"\\gametype\\VIP Escort\\gamevariant\\SWAT 4\\mapname\\Qwik Fuel Convenience Store" +
 						"\\hostport\\10480\\password\\0\\gamever\\1.1\\final\\\\queryid\\1.1",
 				)
-				conn.WriteToUDP(packet, udpAddr) //nolint: errcheck
+				conn.WriteToUDPAddrPort(packet, udpAddr) //nolint: errcheck
 			},
 			detailsprober.ErrValidationFailed,
 		},
