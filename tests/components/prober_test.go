@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -52,9 +53,9 @@ func TestProber_Run(t *testing.T) {
 	var i1 atomic.Int64
 	responses1 := make(chan []byte)
 	udp1, cancel1 := gs1.ServerFactory(
-		func(_ context.Context, conn *net.UDPConn, addr *net.UDPAddr, _ []byte) {
+		func(_ context.Context, conn *net.UDPConn, addr netip.AddrPort, _ []byte) {
 			packet := <-responses1
-			conn.WriteToUDP(packet, addr) //nolint: errcheck
+			conn.WriteToUDPAddrPort(packet, addr) //nolint: errcheck
 			i1.Add(1)
 		},
 	)
@@ -64,9 +65,9 @@ func TestProber_Run(t *testing.T) {
 	responses2 := make(chan []byte)
 	var i2 atomic.Int64
 	udp2, cancel2 := gs1.ServerFactory(
-		func(_ context.Context, conn *net.UDPConn, addr *net.UDPAddr, _ []byte) {
+		func(_ context.Context, conn *net.UDPConn, addr netip.AddrPort, _ []byte) {
 			packet := <-responses2
-			conn.WriteToUDP(packet, addr) //nolint: errcheck
+			conn.WriteToUDPAddrPort(packet, addr) //nolint: errcheck
 			i2.Add(1)
 		},
 	)
@@ -75,7 +76,7 @@ func TestProber_Run(t *testing.T) {
 
 	var i3 atomic.Int64
 	udp3, cancel3 := gs1.ServerFactory(
-		func(_ context.Context, _ *net.UDPConn, _ *net.UDPAddr, _ []byte) {
+		func(_ context.Context, _ *net.UDPConn, _ netip.AddrPort, _ []byte) {
 			i3.Add(1)
 		},
 	)

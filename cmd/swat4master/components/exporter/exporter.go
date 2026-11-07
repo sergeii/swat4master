@@ -2,7 +2,6 @@ package exporter
 
 import (
 	"context"
-	"net"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -29,8 +28,6 @@ func New(
 	logger *zerolog.Logger,
 	collector *metrics.Collector,
 ) (*Component, error) {
-	ready := make(chan struct{})
-
 	registry := collector.GetRegistry()
 	svr, err := httpserver.New(
 		cfg.HTTPListenAddress,
@@ -41,10 +38,6 @@ func New(
 			registry,
 			promhttp.HandlerFor(registry, promhttp.HandlerOpts{}),
 		)),
-		httpserver.WithReadySignal(func(addr net.Addr) {
-			logger.Info().Stringer("addr", addr).Msg("Exporter server is ready to accept connections")
-			close(ready)
-		}),
 	)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to set up exporter server")
@@ -53,15 +46,19 @@ func New(
 
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
+			if err := svr.Listen(); err != nil {
+				logger.Error().Err(err).Msg("Failed to start exporter server")
+				return err
+			}
+			logger.Info().Stringer("addr", svr.ListenAddr()).Msg("Exporter server is ready to accept connections")
 			go func() {
-				if serveErr := svr.ListenAndServe(); serveErr != nil {
+				if serveErr := svr.Serve(); serveErr != nil {
 					logger.Warn().Err(serveErr).Msg("Exporter server exited prematurely")
 					if shutErr := shutdowner.Shutdown(); shutErr != nil {
 						logger.Error().Err(shutErr).Msg("Failed to handle premature exporter server shutdown")
 					}
 				}
 			}()
-			<-ready
 			return nil
 		},
 		OnStop: func(stopCtx context.Context) error {

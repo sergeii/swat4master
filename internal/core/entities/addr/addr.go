@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 )
@@ -21,26 +22,24 @@ var (
 )
 
 func New(ip net.IP, port int) (Addr, error) {
+	// an invalid ip yields the zero netip.Addr, which is rejected as not IPv4
+	nip, _ := netip.AddrFromSlice(ip)
+	return NewFromNetip(nip.Unmap(), port)
+}
+
+func NewFromNetip(ip netip.Addr, port int) (Addr, error) {
 	if port < 1 || port > 65535 {
 		return Blank, ErrInvalidPort
 	}
 
-	if len(ip) == 0 {
-		return Blank, ErrInvalidIP
-	}
-
-	ipv4 := ip.To4()
 	switch {
-	case ipv4 == nil:
+	case !ip.Is4():
 		return Blank, ErrInvalidIP
-	case !ipv4.IsGlobalUnicast() && !ipv4.IsPrivate() && !ipv4.IsLoopback():
+	case !ip.IsGlobalUnicast() && !ip.IsPrivate() && !ip.IsLoopback():
 		return Blank, ErrInvalidIP
 	}
 
-	addr := Addr{Port: port}
-	copy(addr.IP[:], ipv4)
-
-	return addr, nil
+	return Addr{IP: ip.As4(), Port: port}, nil
 }
 
 func NewForTesting(ip net.IP, port int) Addr {

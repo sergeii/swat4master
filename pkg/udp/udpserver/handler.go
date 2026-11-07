@@ -3,23 +3,24 @@ package udpserver
 import (
 	"context"
 	"net"
+	"net/netip"
 )
 
 type Handler interface {
-	Handle(context.Context, *net.UDPConn, *net.UDPAddr, []byte)
+	Handle(context.Context, *net.UDPConn, netip.AddrPort, []byte)
 }
 
-type FuncHandler func(context.Context, *net.UDPConn, *net.UDPAddr, []byte)
+type FuncHandler func(context.Context, *net.UDPConn, netip.AddrPort, []byte)
 
 func (f FuncHandler) Handle(
 	ctx context.Context,
 	conn *net.UDPConn,
-	addr *net.UDPAddr,
+	addr netip.AddrPort,
 	payload []byte,
 ) {
 	f(ctx, conn, addr, payload)
 }
 
-func HandleFunc(f func(context.Context, *net.UDPConn, *net.UDPAddr, []byte)) FuncHandler {
+func HandleFunc(f func(context.Context, *net.UDPConn, netip.AddrPort, []byte)) FuncHandler {
 	return f
 }

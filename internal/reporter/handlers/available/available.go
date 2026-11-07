@@ -2,7 +2,7 @@ package available
 
 import (
 	"context"
-	"net"
+	"net/netip"
 
 	"github.com/sergeii/swat4master/internal/core/entities/master"
 	"github.com/sergeii/swat4master/internal/reporter"
@@ -18,6 +18,6 @@ func New(d *reporter.Dispatcher) (Handler, error) {
 	return handler, nil
 }
 
-func (h Handler) Handle(context.Context, *net.UDPAddr, []byte) ([]byte, error) {
+func (h Handler) Handle(context.Context, netip.AddrPort, []byte) ([]byte, error) {
 	return master.ResponseIsAvailable, nil
 }

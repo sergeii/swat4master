@@ -2,6 +2,7 @@ package renewserver_test
 
 import (
 	"context"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -70,7 +71,7 @@ func TestRenewServerUseCase_Success(t *testing.T) {
 	instanceRepo.On("Get", ctx, inst.ID).Return(inst, nil)
 
 	uc := renewserver.New(instanceRepo, serverRepo, clock)
-	err := uc.Execute(ctx, renewserver.NewRequest(b(DEADBEEF), svr.Addr.GetIP()))
+	err := uc.Execute(ctx, renewserver.NewRequest(b(DEADBEEF), netip.AddrFrom4(svr.Addr.IP)))
 	require.NoError(t, err)
 
 	updatedSvr := svr
@@ -96,7 +97,7 @@ func TestRenewServerUseCase_InstanceNotFound(t *testing.T) {
 	instanceRepo.On("Get", ctx, inst.ID).Return(instance.Blank, repositories.ErrInstanceNotFound)
 
 	uc := renewserver.New(instanceRepo, serverRepo, clock)
-	err := uc.Execute(ctx, renewserver.NewRequest(b(DEADBEEF), svr.Addr.GetIP()))
+	err := uc.Execute(ctx, renewserver.NewRequest(b(DEADBEEF), netip.AddrFrom4(svr.Addr.IP)))
 	require.ErrorIs(t, err, repositories.ErrInstanceNotFound)
 
 	instanceRepo.AssertCalled(t, "Get", ctx, inst.ID)
@@ -119,7 +120,7 @@ func TestRenewServerUseCase_ServerNotFound(t *testing.T) {
 	instanceRepo.On("Get", ctx, inst.ID).Return(inst, nil)
 
 	uc := renewserver.New(instanceRepo, serverRepo, clock)
-	err := uc.Execute(ctx, renewserver.NewRequest(b(DEADBEEF), svr.Addr.GetIP()))
+	err := uc.Execute(ctx, renewserver.NewRequest(b(DEADBEEF), netip.AddrFrom4(svr.Addr.IP)))
 	require.ErrorIs(t, err, repositories.ErrServerNotFound)
 
 	instanceRepo.AssertCalled(t, "Get", ctx, inst.ID)
@@ -142,7 +143,7 @@ func TestRenewServerUseCase_InstanceAddressMismatch(t *testing.T) {
 	instanceRepo.On("Get", ctx, inst.ID).Return(inst, nil)
 
 	uc := renewserver.New(instanceRepo, serverRepo, clock)
-	err := uc.Execute(ctx, renewserver.NewRequest(b(DEADBEEF), svr.Addr.GetIP()))
+	err := uc.Execute(ctx, renewserver.NewRequest(b(DEADBEEF), netip.AddrFrom4(svr.Addr.IP)))
 	require.ErrorIs(t, err, renewserver.ErrUnknownInstanceID)
 
 	instanceRepo.AssertCalled(t, "Get", ctx, inst.ID)

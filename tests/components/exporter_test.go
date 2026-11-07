@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"runtime"
 	"testing"
 	"time"
@@ -450,7 +451,7 @@ func TestExporter_ProberMetrics(t *testing.T) {
 	runtime.Gosched()
 
 	udp1, cancelSvr1 := gs1.ServerFactory(
-		func(_ context.Context, conn *net.UDPConn, addr *net.UDPAddr, _ []byte) {
+		func(_ context.Context, conn *net.UDPConn, addr netip.AddrPort, _ []byte) {
 			udpAddr := conn.LocalAddr().(*net.UDPAddr) //nolint:forcetypeassert
 			packet := []byte(
 				fmt.Sprintf(
@@ -461,14 +462,14 @@ func TestExporter_ProberMetrics(t *testing.T) {
 				),
 			)
 			<-time.After(time.Millisecond * 200)
-			tu.Must(conn.WriteToUDP(packet, addr))
+			tu.Must(conn.WriteToUDPAddrPort(packet, addr))
 		},
 	)
 	addr1 := udp1.LocalAddr()
 	defer cancelSvr1()
 
 	udp2, cancelSvr2 := gs1.ServerFactory(
-		func(_ context.Context, _ *net.UDPConn, _ *net.UDPAddr, _ []byte) {},
+		func(_ context.Context, _ *net.UDPConn, _ netip.AddrPort, _ []byte) {},
 	)
 	addr2 := udp2.LocalAddr()
 	defer cancelSvr2()
