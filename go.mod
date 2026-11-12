@@ -2,6 +2,8 @@ module github.com/sergeii/swat4master
 
 go 1.27.0
 
+toolchain go1.27.3
+
 require (
 	github.com/alecthomas/kong v1.17.0
 	github.com/alicebob/miniredis/v2 v2.40.0
