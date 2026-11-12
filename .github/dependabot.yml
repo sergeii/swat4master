@@ -30,3 +30,16 @@ updates:
       dev-dependencies:
         applies-to: version-updates
         dependency-type: development
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    assignees:
+      - sergeii
+    commit-message:
+      prefix: feat
+    ignore:
+      - dependency-name: golang
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
