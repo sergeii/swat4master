@@ -1,0 +1,52 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "assignees": ["sergeii"],
+  "semanticCommits": "enabled",
+  "postUpdateOptions": ["gomodTidy"],
+  "packageRules": [
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "actions",
+      "schedule": ["* 0-3 1 * *"],
+      "semanticCommitType": "chore"
+    },
+    {
+      "matchManagers": ["gomod"],
+      "schedule": ["* 0-3 * * 1"],
+      "semanticCommitType": "feat",
+      "constraintsFiltering": "strict"
+    },
+    {
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["require"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "dependencies"
+    },
+    {
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["tool", "indirect"],
+      "groupName": "dev-dependencies"
+    },
+    {
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["golang"],
+      "groupName": "go",
+      "separateMinorPatch": true,
+      "schedule": ["* 0-3 * * 1"],
+      "semanticCommitType": "feat"
+    },
+    {
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["toolchain"],
+      "groupName": "go",
+      "separateMinorPatch": true
+    },
+    {
+      "matchDatasources": ["docker", "golang-version"],
+      "matchPackageNames": ["golang", "go"],
+      "matchUpdateTypes": ["major", "minor"],
+      "enabled": false
+    }
+  ]
+}
