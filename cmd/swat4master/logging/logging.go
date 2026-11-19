@@ -33,7 +33,7 @@ type Result struct {
 
 func Provide(cfg Config) (Result, error) {
 	var output io.Writer
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMicro
+	zerolog.TimeFieldFormat = time.RFC3339Nano
 	zerolog.DurationFieldUnit = time.Second
 	zerolog.CallerMarshalFunc = logutils.ShortCallerFormatter
 
@@ -51,15 +51,12 @@ func Provide(cfg Config) (Result, error) {
 	case "stderr":
 		output = zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339, NoColor: true}
 	case "json":
-		output = nil
+		output = os.Stdout
 	default:
 		return Result{}, ErrInvalidLogOutput
 	}
 
-	logger := log.With().Caller().Logger()
-	if output != nil {
-		logger = logger.Output(output)
-	}
+	logger := log.With().Caller().Logger().Output(output)
 
 	result := Result{
 		Logger:   &logger,
